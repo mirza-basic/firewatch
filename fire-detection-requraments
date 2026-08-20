@@ -1,0 +1,42 @@
+
+api_key = "REDACTED-ROTATE-THIS-KEY"
+
+firms_url = "https://firms.modaps.eosdis.nasa.gov"
+area_api = "/api/area/csv/[API_KEY]/"
+data_availability_api = "/api/data_availability/csv/$api_key/ALL"
+date_today = "2021-07-14" #need to get current date in this format
+
+data_availability_url = "$firms_url$data_availability_api"
+
+#The response that we get from data_availability_url
+example_of_data_availability_reponse_in_csv_format = "
+data_id,min_date,max_date
+MODIS_NRT,2023-02-01,2024-02-14
+MODIS_SP,2000-11-01,2023-01-31
+VIIRS_NOAA20_NRT,2019-12-04,2024-02-14
+VIIRS_NOAA21_NRT,2024-01-17,2024-02-14
+VIIRS_SNPP_NRT,2022-09-01,2024-02-14
+VIIRS_SNPP_SP,2012-01-20,2022-08-31
+LANDSAT_NRT,2022-06-20,2024-02-14
+GOES_NRT,2022-08-09,2024-02-14
+BA_MODIS,2000-11-01,2023-05-01
+"
+
+#implement for each to itarate trought all example_of_data_availability_reponse_in_csv_format and set it in areaurl at
+
+areaurl = "$firms_url/$area_api/$example_of_data_availability_reponse_in_csv_format[index]]/18,44.2,18.5,44.6/1/$date_today"
+
+
+#The response from areaurl in csv format
+
+example_of_area_reponse_in_csv_format = "
+latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+44.29952,18.46184,314.1,0.33,0.55,2021-07-14,130,1,VIIRS,n,2.0NRT,290.6,1.3,N
+44.29811,18.46412,332.7,0.48,0.4,2021-07-14,1112,1,VIIRS,n,2.0NRT,301.1,6.2,D
+44.29523,18.45983,303.1,0.4,0.44,2021-07-15,112,1,VIIRS,n,2.0NRT,284.5,0.4,N
+44.29544,18.45793,303,0.4,0.44,2021-07-15,112,1,VIIRS,n,2.0NRT,286.1,1.2,N
+44.29715,18.46709,343.3,0.51,0.49,2021-07-15,1054,1,VIIRS,n,2.0NRT,298.4,12.5,D
+44.3017,18.47435,335.6,0.53,0.67,2021-07-15,1236,1,VIIRS,n,2.0NRT,290.7,8.7,D
+"
+
+i need to create bash script that will get all areas from all areaurl responses and represent it as jsonstring
