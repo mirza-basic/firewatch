@@ -1,0 +1,81 @@
+#!/bin/bash
+# FireWatch Zavidovići - install / control the background menu bar service.
+set -euo pipefail
+
+LABEL="com.firewatch.zavidovici"
+PROJ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLIST_SRC="$PROJ/$LABEL.plist"
+PLIST_DST="$HOME/Library/LaunchAgents/$LABEL.plist"
+SUPPORT="$HOME/Library/Application Support/FireWatch"
+UID_NUM="$(id -u)"
+
+usage() {
+    cat <<USAGE
+FireWatch Zavidovići
+
+  ./firewatch-ctl install     install + start the menu bar app at login
+  ./firewatch-ctl uninstall   stop and remove the login item
+  ./firewatch-ctl start|stop|restart
+  ./firewatch-ctl status      service state and last snapshot
+  ./firewatch-ctl logs        tail the log
+  ./firewatch-ctl poll        run one cycle in the foreground
+  ./firewatch-ctl map         rebuild and open the fire map
+USAGE
+}
+
+case "${1:-}" in
+install)
+    mkdir -p "$HOME/Library/LaunchAgents" "$SUPPORT"
+    # Regenerate so the interpreter path and CA bundle match this machine.
+    python3 - "$PROJ" "$PLIST_SRC" <<'PYGEN'
+import sys, plistlib, shutil, os, certifi
+proj, dst = sys.argv[1], sys.argv[2]
+py = shutil.which("python3") or sys.executable
+home = os.path.expanduser("~")
+plistlib.dump({
+    "Label": "com.firewatch.zavidovici",
+    "ProgramArguments": [py, "-m", "firewatch", "menubar"],
+    "WorkingDirectory": proj,
+    "EnvironmentVariables": {
+        "SSL_CERT_FILE": certifi.where(),
+        "REQUESTS_CA_BUNDLE": certifi.where(),
+        "PYTHONUNBUFFERED": "1",
+    },
+    "RunAtLoad": True,
+    "KeepAlive": {"SuccessfulExit": False},
+    "ThrottleInterval": 30,
+    "StandardOutPath": f"{home}/Library/Application Support/FireWatch/stdout.log",
+    "StandardErrorPath": f"{home}/Library/Application Support/FireWatch/stderr.log",
+    "ProcessType": "Interactive",
+}, open(dst, "wb"))
+print("generated", dst)
+PYGEN
+    cp "$PLIST_SRC" "$PLIST_DST"
+    launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true
+    launchctl bootstrap "gui/$UID_NUM" "$PLIST_DST"
+    launchctl enable "gui/$UID_NUM/$LABEL"
+    echo "installed. Look for the 🌲 / 🔥 icon in the menu bar."
+    echo "If notifications do not appear, allow them for Script Editor in"
+    echo "System Settings > Notifications (or: brew install terminal-notifier)."
+    ;;
+uninstall)
+    launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true
+    rm -f "$PLIST_DST"
+    echo "uninstalled (data kept in $SUPPORT)"
+    ;;
+start)   launchctl bootstrap "gui/$UID_NUM" "$PLIST_DST"; echo started ;;
+stop)    launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true; echo stopped ;;
+restart) launchctl kickstart -k "gui/$UID_NUM/$LABEL"; echo restarted ;;
+status)
+    if launchctl print "gui/$UID_NUM/$LABEL" >/dev/null 2>&1; then
+        launchctl print "gui/$UID_NUM/$LABEL" | grep -E '^\s+(state|pid|last exit)' || true
+    else
+        echo "service not loaded"
+    fi
+    cd "$PROJ" && python3 -m firewatch status
+    ;;
+logs)   tail -n 60 -f "$SUPPORT/firewatch.log" ;;
+poll)   cd "$PROJ" && python3 -m firewatch poll ;;
+map)    cd "$PROJ" && python3 -m firewatch map ;;
+*)      usage; exit 2 ;;
+esac

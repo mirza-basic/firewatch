@@ -1,0 +1,1067 @@
+<title>FireWatch Zavidovići</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* ---- tokens: complete light palette on bare :root ---- */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr); gap:0; max-width:1180px; margin:0 auto}
+
+  /* ---- side nav ---- */
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{
+    display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35;
+  }
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500; min-width:13px}
+
+  /* ---- main ---- */
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{
+    font-family:Archivo,sans-serif; font-size:11px; font-weight:600; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin-bottom:12px;
+  }
+  h1{
+    font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance;
+  }
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0;
+  }
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{
+    font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-3); margin-bottom:3px;
+  }
+  .facts dd{
+    margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em;
+  }
+
+  h2{
+    font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline;
+  }
+  h2 .num{
+    font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px;
+  }
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px;
+    word-break:break-word;
+  }
+  pre{
+    font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.62;
+    background:var(--surface); color:var(--ink); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); border-radius:6px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  }
+  pre code{background:none; padding:0; font-size:inherit}
+
+  /* ---- tables ---- */
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px;
+    font-family:Archivo,sans-serif}
+  caption{
+    text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top;
+  }
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{
+    font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono,.num-col{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; white-space:nowrap}
+  .src-mtg{color:var(--mtg); font-weight:600}
+  .src-firms{color:var(--firms); font-weight:600}
+  .src-s3{color:var(--s3); font-weight:600}
+
+  /* ---- figures ---- */
+  figure{margin:26px 0 30px}
+  figure svg{display:block; width:100%; max-width:100%; height:auto;
+    background:var(--surface); border:1px solid var(--rule); border-radius:8px}
+  .figscroll{overflow-x:auto}
+  figcaption{
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3);
+    margin-top:9px; max-width:72ch; line-height:1.5;
+  }
+  figcaption b{color:var(--ink-2); font-weight:600}
+
+  /* svg theming via classes so var() reliably resolves */
+  .s-box{fill:var(--surface-2); stroke:var(--rule); stroke-width:1}
+  .s-box-hi{fill:var(--accent-soft); stroke:var(--accent); stroke-width:1.4}
+  .s-line{stroke:var(--ink-3); stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:var(--accent); stroke-width:1.8; fill:none}
+  .s-dash{stroke:var(--ink-3); stroke-width:1.2; fill:none; stroke-dasharray:4 3}
+  .s-t{fill:var(--ink); font-family:Archivo,sans-serif; font-size:12.5px}
+  .s-t-b{fill:var(--ink); font-family:Archivo,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:var(--ink-3); font-family:Archivo,sans-serif; font-size:10.5px}
+  .s-t-m{fill:var(--ink-2); font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+  .s-fill-mtg{fill:var(--mtg)} .s-fill-firms{fill:var(--firms)} .s-fill-s3{fill:var(--s3)}
+  .s-str-mtg{stroke:var(--mtg)} .s-arrow{fill:var(--ink-3)}
+  .s-poly{fill:var(--mtg); fill-opacity:.1; stroke:var(--mtg); stroke-width:1.6}
+  .s-buf{fill:none; stroke:var(--accent); stroke-width:1.2; stroke-dasharray:5 4}
+
+  /* ---- callouts ---- */
+  .note{
+    border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px;
+  }
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{
+    display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px;
+  }
+  .note p:last-child{margin-bottom:0}
+
+  .pill{
+    display:inline-block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:4px;
+    background:var(--surface-2); color:var(--ink-2); vertical-align:middle;
+  }
+  .pill.ok{background:var(--ok); color:#fff}
+  .pill.no{background:var(--surface-3); color:var(--ink-2)}
+
+  /* stage list: a real sequence, so it is numbered */
+  ol.stages{list-style:none; counter-reset:st; margin:22px 0 8px; padding:0; max-width:none}
+  ol.stages > li{
+    counter-increment:st; position:relative; padding:0 0 22px 52px; margin:0;
+    border-left:1px solid var(--rule); margin-left:15px;
+  }
+  ol.stages > li:last-child{border-left-color:transparent; padding-bottom:2px}
+  ol.stages > li::before{
+    content:counter(st); position:absolute; left:-15px; top:0;
+    width:30px; height:30px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--rule); color:var(--accent);
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600;
+    display:grid; place-items:center;
+  }
+  ol.stages h3{margin:3px 0 5px}
+  ol.stages p{margin-bottom:9px}
+
+  footer{
+    margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3);
+  }
+  footer p{max-width:74ch; margin-bottom:9px}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 22px}
+    nav ol{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0}
+    nav .brand-sub{margin-bottom:14px}
+    main{padding:28px 22px 70px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch Zavidovići</div>
+  <div class="brand-sub">System documentation</div>
+  <ol>
+    <li><a href="#problem"><span class="n">1</span><span>The timing problem</span></a></li>
+    <li><a href="#services"><span class="n">2</span><span>Services we use</span></a></li>
+    <li><a href="#data"><span class="n">3</span><span>The data itself</span></a></li>
+    <li><a href="#pipeline"><span class="n">4</span><span>Processing pipeline</span></a></li>
+    <li><a href="#change"><span class="n">5</span><span>Change detection</span></a></li>
+    <li><a href="#storage"><span class="n">6</span><span>Storage &amp; ranges</span></a></li>
+    <li><a href="#delivery"><span class="n">7</span><span>Reaching you</span></a></li>
+    <li><a href="#quota"><span class="n">8</span><span>Cost &amp; rate limits</span></a></li>
+    <li><a href="#fieldnotes"><span class="n">9</span><span>Field notes</span></a></li>
+    <li><a href="#ops"><span class="n">10</span><span>Operations</span></a></li>
+    <li><a href="#limits"><span class="n">11</span><span>Limits</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Grad Zavidovići &middot; Bosnia and Herzegovina</div>
+  <h1>How FireWatch sees fire</h1>
+  <p class="standfirst">Three satellite feeds, one municipality boundary, and the
+  processing that turns scattered thermal anomalies into a single tracked fire on
+  your menu bar.</p>
+  <dl class="facts">
+    <div><dt>Satellite feeds</dt><dd>3</dd></div>
+    <div><dt>Fastest cadence</dt><dd>10 min</dd></div>
+    <div><dt>Alert floor</dt><dd>~35 min</dd></div>
+    <div><dt>Boundary points</dt><dd>731</dd></div>
+    <div><dt>Named places</dt><dd>413</dd></div>
+    <div><dt>API keys needed</dt><dd>1</dd></div>
+  </dl>
+</header>
+
+<p class="lede">FireWatch watches for active fires inside the 560 km&sup2; of Grad
+Zavidovići and reports them through a macOS menu bar app, desktop notifications and
+a live map. It replaces a shell script that polled a single NASA feed, and the whole
+reason it exists is timing: knowing a forest is burning eleven hours late is history,
+not warning.</p>
+
+<!-- ==================== 1 ==================== -->
+<h2 id="problem"><span class="num">01</span> The timing problem</h2>
+
+<p>Every satellite that detects fire does it the same way — it measures thermal
+infrared radiation and looks for pixels far hotter than their surroundings. What
+separates the sources is not how they see, but <strong>how often</strong> and
+<strong>how soon you find out</strong>.</p>
+
+<p>Polar-orbiting satellites (VIIRS, MODIS, Sentinel-3) circle pole to pole while the
+Earth turns underneath, so each one passes over Bosnia only a couple of times a day.
+Their imagery is sharp — 375 m pixels for VIIRS — but between passes there is simply
+nobody looking. Geostationary satellites sit fixed above the equator and stare at the
+same hemisphere continuously, trading resolution for relentless repetition.</p>
+
+<p>Here is a real day over Zavidovići — 20 August 2026, when a fire burned in the
+forest 18 km south-east of town. Every mark is an actual observation of that fire
+recorded in the database:</p>
+
+<figure>
+  <div class="figscroll">
+  <svg viewBox="0 0 960 252" role="img" aria-label="Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat MTG recorded sixteen observations between 10:50 and 16:30. The three VIIRS satellites recorded five, MODIS three and Sentinel-3 two, spread thinly across the day with a seven hour twenty minute gap between 00:41 and 08:01.">
+    <defs>
+      <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <!-- lanes -->
+    <text x="92" y="56" class="s-t-b" text-anchor="end">Meteosat MTG</text>
+    <text x="92" y="70" class="s-t-s" text-anchor="end">geostationary</text>
+    <text x="92" y="96" class="s-t-b" text-anchor="end">VIIRS &times;3</text>
+    <text x="92" y="128" class="s-t-b" text-anchor="end">MODIS</text>
+    <text x="92" y="156" class="s-t-b" text-anchor="end">Sentinel-3</text>
+    <line x1="100" y1="34" x2="100" y2="196" class="s-dash"/>
+    <line x1="920" y1="34" x2="920" y2="196" class="s-dash"/>
+    <!-- MTG: 16 observations -->
+    <g class="s-fill-mtg">
+      <circle cx="470" cy="52" r="4"/><circle cx="481" cy="52" r="4"/>
+      <circle cx="487" cy="52" r="4"/><circle cx="498" cy="52" r="4"/>
+      <circle cx="504" cy="52" r="4"/><circle cx="510" cy="52" r="4"/>
+      <circle cx="521" cy="52" r="4"/><circle cx="527" cy="52" r="4"/>
+      <circle cx="533" cy="52" r="4"/><circle cx="538" cy="52" r="4"/>
+      <circle cx="550" cy="52" r="4"/><circle cx="590" cy="52" r="4"/>
+      <circle cx="624" cy="52" r="4"/><circle cx="647" cy="52" r="4"/>
+      <circle cx="652" cy="52" r="4"/><circle cx="664" cy="52" r="4"/>
+    </g>
+    <text x="676" y="56" class="s-t-m">16 looks</text>
+    <!-- VIIRS: 5 -->
+    <g class="s-fill-firms">
+      <circle cx="112" cy="92" r="4"/><circle cx="123" cy="92" r="4"/>
+      <circle cx="483" cy="92" r="4"/><circle cx="504" cy="92" r="4"/>
+      <circle cx="513" cy="92" r="4"/>
+    </g>
+    <text x="527" y="96" class="s-t-m">5</text>
+    <!-- MODIS: 3 -->
+    <g class="s-fill-firms">
+      <circle cx="374" cy="124" r="4"/><circle cx="578" cy="124" r="4"/>
+      <circle cx="754" cy="124" r="4"/>
+    </g>
+    <text x="768" y="128" class="s-t-m">3</text>
+    <!-- S3: 2 -->
+    <g class="s-fill-s3">
+      <circle cx="394" cy="152" r="4"/><circle cx="798" cy="152" r="4"/>
+    </g>
+    <text x="812" y="156" class="s-t-m">2</text>
+    <!-- gap bracket -->
+    <line x1="123" y1="178" x2="374" y2="178" class="s-line-hi"/>
+    <line x1="123" y1="172" x2="123" y2="184" class="s-line-hi"/>
+    <line x1="374" y1="172" x2="374" y2="184" class="s-line-hi"/>
+    <text x="248" y="194" class="s-t-s" text-anchor="middle"
+      style="fill:var(--accent);font-weight:600">7 h 20 m with nobody looking</text>
+    <!-- axis -->
+    <line x1="100" y1="212" x2="920" y2="212" class="s-line" marker-end="url(#a1)"/>
+    <g class="s-t-m" text-anchor="middle">
+      <text x="100" y="232">00</text><text x="203" y="232">03</text>
+      <text x="305" y="232">06</text><text x="408" y="232">09</text>
+      <text x="510" y="232">12</text><text x="613" y="232">15</text>
+      <text x="715" y="232">18</text><text x="818" y="232">21</text>
+      <text x="920" y="232">24</text>
+    </g>
+    <text x="510" y="248" class="s-t-s" text-anchor="middle">hours UTC &middot; 20 August 2026</text>
+  </svg>
+  </div>
+  <figcaption><b>One geostationary feed saw the fire more times in six hours than
+  every polar satellite managed all day.</b> Meteosat produced 16 observations
+  between 10:50 and 16:30; the five polar passes were scattered, and between 00:41
+  and 08:01 no satellite looked at Zavidovići at all. Continuity is the thing the
+  polar feeds cannot provide at this latitude.</figcaption>
+</figure>
+
+<p>Cadence is only half of it. A satellite seeing a fire is not the same as you
+knowing about it — the observation has to be downlinked, processed into a fire
+product and published before anything can poll it. That publishing delay dominates
+the total:</p>
+
+<figure>
+  <div class="figscroll">
+  <svg viewBox="0 0 900 268" role="img" aria-label="Latency budget comparison. The Meteosat path totals about 39 minutes: up to 10 minutes waiting for the next look, 25 minutes provider publishing latency and up to 4 minutes of poll interval. The FIRMS best case totals about 200 minutes and the FIRMS worst case about 680 minutes because the wait for the next overpass can exceed 8 hours.">
+    <defs>
+      <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <!-- legend -->
+    <g>
+      <rect x="170" y="14" width="13" height="13" rx="2" class="s-box"/>
+      <text x="190" y="25" class="s-t-s">wait for next look</text>
+      <rect x="316" y="14" width="13" height="13" rx="2"
+            style="fill:var(--accent);stroke:none"/>
+      <text x="336" y="25" class="s-t-s">provider publishes</text>
+      <rect x="462" y="14" width="13" height="13" rx="2" class="s-fill-mtg" style="stroke:none"/>
+      <text x="482" y="25" class="s-t-s">our poll interval</text>
+    </g>
+    <!-- row 1: MTG -->
+    <text x="160" y="66" class="s-t-b" text-anchor="end">Meteosat MTG</text>
+    <rect x="170" y="52" width="11" height="20" rx="1.5" class="s-box"/>
+    <rect x="181" y="52" width="27" height="20" rx="1.5" style="fill:var(--accent)"/>
+    <rect x="208" y="52" width="4" height="20" rx="1" class="s-fill-mtg"/>
+    <text x="224" y="66" class="s-t-m" style="fill:var(--accent);font-weight:600">≈39 min total</text>
+    <!-- row 2: FIRMS best -->
+    <text x="160" y="118" class="s-t-b" text-anchor="end">FIRMS, best case</text>
+    <text x="160" y="132" class="s-t-s" text-anchor="end">pass just happened</text>
+    <rect x="170" y="104" width="0" height="20" rx="1.5" class="s-box"/>
+    <rect x="170" y="104" width="191" height="20" rx="1.5" style="fill:var(--accent)"/>
+    <rect x="361" y="104" width="21" height="20" rx="1.5" class="s-fill-mtg"/>
+    <text x="394" y="118" class="s-t-m">≈200 min</text>
+    <!-- row 3: FIRMS worst -->
+    <text x="160" y="170" class="s-t-b" text-anchor="end">FIRMS, worst case</text>
+    <text x="160" y="184" class="s-t-s" text-anchor="end">overnight gap</text>
+    <rect x="170" y="156" width="509" height="20" rx="1.5" class="s-box"/>
+    <rect x="679" y="156" width="191" height="20" rx="1.5" style="fill:var(--accent)"/>
+    <text x="424" y="170" class="s-t-s" text-anchor="middle">8 h waiting for the next overpass</text>
+    <text x="700" y="196" class="s-t-m">≈11 h</text>
+    <!-- axis -->
+    <line x1="170" y1="216" x2="880" y2="216" class="s-line" marker-end="url(#a2)"/>
+    <g class="s-t-m" text-anchor="middle">
+      <text x="170" y="236">0</text><text x="276" y="236">100</text>
+      <text x="382" y="236">200</text><text x="488" y="236">300</text>
+      <text x="594" y="236">400</text><text x="700" y="236">500</text>
+      <text x="806" y="236">600</text>
+    </g>
+    <text x="525" y="256" class="s-t-s" text-anchor="middle">minutes from ignition to alert on your screen</text>
+  </svg>
+  </div>
+  <figcaption><b>Where the time actually goes.</b> Our own poll interval is the
+  smallest slice in every case, so polling harder buys almost nothing — the win came
+  from adding a source with a shorter publish delay and no gaps. The
+  <b>~35&ndash;39 minute floor is a hard limit</b> set by EUMETSAT's processing, not
+  by anything in this codebase.</figcaption>
+</figure>
+
+<!-- ==================== 2 ==================== -->
+<h2 id="services"><span class="num">02</span> Services we use</h2>
+
+<p class="lede">Six external services. Only one needs a key, and none costs money.</p>
+
+<div class="tw">
+<table>
+  <caption>Fire detection feeds — the three sources that produce detections</caption>
+  <thead><tr>
+    <th>Feed</th><th>Access</th><th>Cadence</th><th>Latency</th>
+    <th>Pixel</th><th>Archive</th><th>Role</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="src-mtg">Meteosat MTG</span><br><span class="s-t-s">FCI, full disk</span></td>
+      <td class="mono">EUMETView WFS<br>mtg_fd:frp</td>
+      <td class="mono">10 min</td><td class="mono">~25 min</td>
+      <td class="mono">~4 km</td><td class="mono">~4 weeks</td>
+      <td>Continuity and intensity trend</td>
+    </tr>
+    <tr>
+      <td><span class="src-firms">NASA FIRMS</span><br><span class="s-t-s">VIIRS &times;3 + MODIS</span></td>
+      <td class="mono">REST CSV<br>api/area/csv</td>
+      <td class="mono">4&ndash;7 / day</td><td class="mono">~3 h</td>
+      <td class="mono">375 m / 1 km</td><td class="mono">months</td>
+      <td>Sensitivity, small and new fires</td>
+    </tr>
+    <tr>
+      <td><span class="src-s3">Sentinel-3</span><br><span class="s-t-s">SLSTR A + B</span></td>
+      <td class="mono">EUMETView WFS<br>sentinel3a/b_..._frp</td>
+      <td class="mono">~2 / day</td><td class="mono">~1&ndash;3 h</td>
+      <td class="mono">1 km</td><td class="mono">&gt; 1 year</td>
+      <td>Extra passes, corroboration</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tw">
+<table>
+  <caption>Supporting services — context, geometry and presentation</caption>
+  <thead><tr><th>Service</th><th>Used for</th><th>When</th><th>Key</th></tr></thead>
+  <tbody>
+    <tr><td>Open-Meteo</td><td>Temperature, humidity, wind speed and direction at the
+      fire, feeding the spread-risk label</td><td>Per active fire, cached 15 min</td>
+      <td><span class="pill no">none</span></td></tr>
+    <tr><td>OSM Nominatim</td><td>The municipality boundary — relation
+      <code>2528292</code>, <code>admin_level=6</code>, 731 points</td>
+      <td>Once, bundled as GeoJSON</td><td><span class="pill no">none</span></td></tr>
+    <tr><td>OSM Overpass</td><td>413 named settlements used to describe locations in
+      words</td><td>Once, bundled as JSON</td><td><span class="pill no">none</span></td></tr>
+    <tr><td>OSM / Esri / OpenTopoMap</td><td>Map, satellite and terrain base tiles in
+      the map view</td><td>On map open</td><td><span class="pill no">none</span></td></tr>
+    <tr><td>NASA FIRMS map key</td><td>Authenticating the area queries</td>
+      <td>Every FIRMS call</td><td><span class="pill ok">required</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="lbl">Considered and rejected</span>
+  <p><strong>GOES</strong> appears in the FIRMS dataset list and is geostationary, so
+  it looks ideal — but GOES sits at 75&deg;W and 137&deg;W over the Americas.
+  Bosnia at 18&deg;E is not in its field of view; five days of queries returned zero
+  rows. <strong>MSG</strong> (<code>msg_fes:fire</code>, 15 min) does cover Europe and
+  is available as a WMS layer, but WMS returns pictures rather than queryable
+  features, and MTG already supersedes it.</p>
+</div>
+
+<!-- ==================== 3 ==================== -->
+<h2 id="data"><span class="num">03</span> The data itself</h2>
+
+<p>A detection is one satellite pixel flagged as anomalously hot at one moment. The
+three feeds describe it with different fields; the most important shared one is
+<strong>FRP — Fire Radiative Power, in megawatts</strong>, the radiant heat output of
+the fire. FRP is what lets us rank severity and watch a fire strengthen or fade
+rather than just knowing it exists.</p>
+
+<div class="tw">
+<table>
+  <caption>Meteosat MTG FRP — <code>mtg_fd:frp</code>, GeoJSON via WFS</caption>
+  <thead><tr><th>Field</th><th>Type</th><th>Meaning</th><th>We use it</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">Lat, Lon</td><td class="mono">double</td><td>Pixel centre</td><td><span class="pill ok">yes</span></td></tr>
+    <tr><td class="mono">FRP</td><td class="mono">double</td><td>Fire radiative power, MW</td><td><span class="pill ok">yes</span></td></tr>
+    <tr><td class="mono">FRPerr</td><td class="mono">double</td><td>Uncertainty on FRP</td><td>stored</td></tr>
+    <tr><td class="mono">Confidence</td><td class="mono">long</td><td>0&ndash;100 detection confidence</td><td><span class="pill ok">filter &lt; 30</span></td></tr>
+    <tr><td class="mono">BT_mir_k, BT_tir_k</td><td class="mono">double</td><td>Brightness temp, mid- and thermal-IR, kelvin</td><td>stored</td></tr>
+    <tr><td class="mono">SZA, VZA</td><td class="mono">double</td><td>Solar and viewing zenith angle</td><td>stored</td></tr>
+    <tr><td class="mono">time, Datetime</td><td class="mono">dateTime</td><td>Slice time (10-min boundary) and processing stamp</td><td><span class="pill ok">yes</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tw">
+<table>
+  <caption>NASA FIRMS — CSV columns as returned by the area API</caption>
+  <thead><tr><th>Field</th><th>Meaning</th><th>We use it</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">latitude, longitude</td><td>Pixel centre</td><td><span class="pill ok">yes</span></td></tr>
+    <tr><td class="mono">acq_date, acq_time</td><td>Observation date and UTC <code>HHMM</code></td><td><span class="pill ok">yes</span></td></tr>
+    <tr><td class="mono">frp</td><td>Fire radiative power, MW</td><td><span class="pill ok">yes</span></td></tr>
+    <tr><td class="mono">confidence</td><td><code>l</code>/<code>n</code>/<code>h</code> for VIIRS, 0&ndash;100 for MODIS</td><td><span class="pill ok">normalised</span></td></tr>
+    <tr><td class="mono">daynight</td><td><code>D</code> or <code>N</code></td><td><span class="pill ok">yes</span></td></tr>
+    <tr><td class="mono">bright_ti4, bright_ti5</td><td>VIIRS brightness temps (I-4, I-5 bands)</td><td>stored</td></tr>
+    <tr><td class="mono">brightness, bright_t31</td><td>MODIS equivalents</td><td>stored</td></tr>
+    <tr><td class="mono">scan, track</td><td>Pixel footprint size — grows toward swath edge</td><td>stored</td></tr>
+    <tr><td class="mono">satellite, instrument, version</td><td>Provenance</td><td>stored</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tw">
+<table>
+  <caption>Sentinel-3 SLSTR FRP — differs from MTG in three fields</caption>
+  <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">UsedChannel</td><td>Which radiometer channel produced the retrieval</td></tr>
+    <tr><td class="mono">AcrossSize, AlongSize</td><td>Pixel dimensions across and along track</td></tr>
+    <tr><td class="mono">Satellite</td><td>S3A or S3B</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Confidence is not comparable across feeds</h3>
+<p>VIIRS reports confidence as letters, MODIS as a percentage, MTG and Sentinel-3 as
+numbers on their own scales. We normalise the VIIRS letters to
+<code>l&nbsp;=&nbsp;25</code>, <code>n&nbsp;=&nbsp;60</code>,
+<code>h&nbsp;=&nbsp;90</code> purely so one column can hold them all. Only MTG
+confidence is used as a filter (below 30 is dropped), because that is the only feed
+where we have enough volume for noise to matter.</p>
+
+<!-- ==================== 4 ==================== -->
+<h2 id="pipeline"><span class="num">04</span> Processing pipeline</h2>
+
+<p>Each cycle runs the same seven stages. Sources are polled on independent
+schedules, so one slow or failing feed never blocks the others.</p>
+
+<figure>
+  <div class="figscroll">
+  <svg viewBox="0 0 760 668" role="img" aria-label="Vertical pipeline diagram. Three sources - Meteosat MTG polled every 4 minutes, NASA FIRMS every 20 minutes and Sentinel-3 every 20 minutes - feed a spatial clip stage, then a SQLite deduplication store which emits only unseen detections, then clustering into fire events, then enrichment with settlement and weather, then a diff against the previous cycle, which produces notifications, the menu bar state and the fire map.">
+    <defs>
+      <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+              markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <!-- sources -->
+    <rect x="16" y="16" width="232" height="62" rx="6" class="s-box"/>
+    <text x="30" y="38" class="s-t-b" style="fill:var(--mtg)">Meteosat MTG</text>
+    <text x="30" y="55" class="s-t-s">WFS &middot; 10-min slices</text>
+    <text x="30" y="70" class="s-t-m">poll 4 min (2 min if active)</text>
+
+    <rect x="264" y="16" width="232" height="62" rx="6" class="s-box"/>
+    <text x="278" y="38" class="s-t-b" style="fill:var(--firms)">NASA FIRMS</text>
+    <text x="278" y="55" class="s-t-s">CSV &middot; 4 NRT datasets</text>
+    <text x="278" y="70" class="s-t-m">poll 20 min</text>
+
+    <rect x="512" y="16" width="232" height="62" rx="6" class="s-box"/>
+    <text x="526" y="38" class="s-t-b" style="fill:var(--s3)">Sentinel-3 SLSTR</text>
+    <text x="526" y="55" class="s-t-s">WFS &middot; A and B</text>
+    <text x="526" y="70" class="s-t-m">poll 20 min</text>
+
+    <line x1="132" y1="78" x2="132" y2="118" class="s-line" marker-end="url(#a3)"/>
+    <line x1="380" y1="78" x2="380" y2="118" class="s-line" marker-end="url(#a3)"/>
+    <line x1="628" y1="78" x2="628" y2="118" class="s-line" marker-end="url(#a3)"/>
+    <text x="140" y="102" class="s-t-m">FRP points</text>
+    <text x="388" y="102" class="s-t-m">CSV rows</text>
+    <text x="636" y="102" class="s-t-m">FRP points</text>
+
+    <!-- stages -->
+    <rect x="16" y="124" width="728" height="46" rx="6" class="s-box"/>
+    <text x="30" y="145" class="s-t-b">1 &middot; Spatial clip</text>
+    <text x="30" y="161" class="s-t-s">inside the 731-point boundary, or within the 6 km buffer (flagged “nearby”)</text>
+    <line x1="380" y1="170" x2="380" y2="210" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="194" class="s-t-m">detections in scope</text>
+
+    <rect x="16" y="214" width="728" height="46" rx="6" class="s-box"/>
+    <text x="30" y="235" class="s-t-b">2 &middot; Deduplicate into SQLite</text>
+    <text x="30" y="251" class="s-t-s">INSERT OR IGNORE on uid — the database decides what is new, not a payload diff</text>
+    <line x1="380" y1="260" x2="380" y2="300" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="284" class="s-t-m">all detections in the 720 h window</text>
+
+    <rect x="16" y="304" width="728" height="46" rx="6" class="s-box-hi"/>
+    <text x="30" y="325" class="s-t-b">3 &middot; Cluster into fire events</text>
+    <text x="30" y="341" class="s-t-s">single linkage in space and time: 3.5 km, 8 h</text>
+    <line x1="380" y1="350" x2="380" y2="390" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="374" class="s-t-m">events</text>
+
+    <rect x="16" y="394" width="728" height="46" rx="6" class="s-box"/>
+    <text x="30" y="415" class="s-t-b">4 &middot; Enrich</text>
+    <text x="30" y="431" class="s-t-s">nearest settlement + bearing, wind and humidity, spread-risk label</text>
+    <line x1="380" y1="440" x2="380" y2="480" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="464" class="s-t-m">current events</text>
+
+    <rect x="16" y="484" width="728" height="46" rx="6" class="s-box-hi"/>
+    <text x="30" y="505" class="s-t-b">5 &middot; Diff against the previous cycle</text>
+    <text x="30" y="521" class="s-t-s">new · intensified · grew · corroborated · reignited · extinguished</text>
+
+    <!-- fan to outputs -->
+    <polyline points="380,530 380,552 132,552 132,574" class="s-line" marker-end="url(#a3)"/>
+    <polyline points="380,530 380,574" class="s-line" marker-end="url(#a3)"/>
+    <polyline points="380,530 380,552 628,552 628,574" class="s-line" marker-end="url(#a3)"/>
+
+    <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
+    <text x="30" y="602" class="s-t-b">6 &middot; Notify</text>
+    <text x="30" y="618" class="s-t-s">rate-limited per event</text>
+    <text x="30" y="633" class="s-t-m">and kind, 25 min</text>
+
+    <rect x="264" y="580" width="232" height="62" rx="6" class="s-box"/>
+    <text x="278" y="602" class="s-t-b">7 &middot; Publish: menu bar</text>
+    <text x="278" y="618" class="s-t-s">title, list, submenus</text>
+    <text x="278" y="633" class="s-t-m">rebuilt every cycle</text>
+
+    <rect x="512" y="580" width="232" height="62" rx="6" class="s-box"/>
+    <text x="526" y="602" class="s-t-b">7 &middot; Publish: map</text>
+    <text x="526" y="618" class="s-t-s">snapshot.json + HTML</text>
+    <text x="526" y="633" class="s-t-m">self-reloads every 60 s</text>
+  </svg>
+  </div>
+  <figcaption><b>One cycle, end to end.</b> The two highlighted stages are where raw
+  detections stop being a list and become tracked fires: clustering gives a fire a
+  stable identity, and diffing against the previous cycle is what makes an alert
+  mean something changed.</figcaption>
+</figure>
+
+<ol class="stages">
+  <li>
+    <h3>Spatial clip</h3>
+    <p>All three APIs can only be queried by rectangle, so we ask for the
+    municipality's bounding box grown by 6 km, then test every returned point
+    against the real outline with a ray-casting algorithm. A detection inside is
+    <code>inside=1</code>; one outside but within 6 km of the border is kept and
+    flagged <em>nearby</em>, because a fire two kilometres over the line still
+    matters to you; anything further is dropped.</p>
+    <figure>
+      <svg viewBox="0 0 340 262" role="img" aria-label="Diagram of spatial clipping. A dashed rectangle marks the bounding box actually sent to the APIs. Inside it, the real municipality outline is drawn as a polygon, surrounded by a dashed buffer ring. One detection inside the polygon is kept, one in the buffer band is kept and flagged nearby, and one in the corner of the bounding box beyond the buffer is dropped.">
+        <rect x="6" y="6" width="296" height="232" rx="4" class="s-dash"/>
+        <text x="10" y="253" class="s-t-s">dashed box = what we ask the API for</text>
+        <polygon class="s-buf" points="6.7,152.3 18.2,201.1 48.8,199.5 66.4,222.9 118.4,234.0 267.8,170.2 252.0,149.1 221.1,152.1 219.1,134.4 238.7,114.8 173.8,75.0 174.5,45.9 142.2,6.2 120.1,23.3 55.0,31.9 54.9,51.1 32.5,67.8 40.7,113.1"/>
+        <polygon class="s-poly" points="26.0,147.1 34.2,189.0 62.7,185.1 76.3,205.5 119.6,214.0 248.9,163.6 232.5,144.7 202.1,145.8 199.3,131.5 218.7,115.8 159.2,88.6 163.4,62.6 139.2,26.0 121.1,43.3 67.4,47.6 69.1,65.2 49.9,77.7 60.6,114.8"/>
+        <circle cx="144" cy="174" r="4.5" style="fill:var(--accent)"/>
+        <text x="153" y="178" class="s-t-m" style="fill:var(--accent)">kept</text>
+        <circle cx="248" cy="128" r="4.5" style="fill:var(--warn)"/>
+        <text x="257" y="132" class="s-t-m" style="fill:var(--warn)">nearby</text>
+        <circle cx="286" cy="222" r="4.5" style="fill:var(--ink-3)"/>
+        <text x="230" y="243" class="s-t-m">dropped</text>
+      </svg>
+      <figcaption>Real Zavidovići outline, simplified to 19 points for legibility;
+      the buffer band is schematic. The gap between rectangle and polygon is exactly
+      why the clip exists — a query box big enough to contain the municipality also
+      contains chunks of Maglaj, Banovići and Zenica.</figcaption>
+    </figure>
+  </li>
+
+  <li>
+    <h3>Deduplicate into SQLite</h3>
+    <p>Every detection gets a deterministic
+    <code>uid</code> — source, sensor, position to 4&ndash;5 decimals, and timestamp
+    — and is written with <code>INSERT OR IGNORE</code>. Whatever the insert actually
+    added is what is new. This is the answer to "compare with the last response":
+    novelty is a property of the database, not of diffing two API payloads, so a
+    detection re-reported across polls, or seen by two satellites, is only ever new
+    once.</p>
+  </li>
+
+  <li>
+    <h3>Cluster into fire events</h3>
+    <p>Raw detections are a terrible unit for alerting. One fire produces one
+    detection per sensor, per overpass, per hot pixel — the 20 August fire produced
+    45. So detections are grouped by single linkage: two belong to the same fire if
+    they are within <strong>3.5 km</strong> and <strong>8 hours</strong> of each
+    other, transitively. The radius is set by MTG's ~4 km pixels; anything tighter
+    would split one geostationary fire into several.</p>
+    <figure>
+      <svg viewBox="0 0 720 250" role="img" aria-label="Clustering diagram. On the left, fifteen detections in three different source colours are scattered in two groups. A linkage rule of 3.5 kilometres and 8 hours is applied. On the right the left group has become a single event of 45 detections seen by three satellites, and the smaller group a separate event of 3 detections.">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+                  markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+        </defs>
+        <text x="20" y="24" class="s-t-s">raw detections</text>
+        <circle cx="118" cy="108" r="46" class="s-dash"/>
+        <g><circle cx="100" cy="92" r="4" class="s-fill-mtg"/><circle cx="118" cy="86" r="4" class="s-fill-mtg"/>
+           <circle cx="134" cy="98" r="4" class="s-fill-mtg"/><circle cx="106" cy="112" r="4" class="s-fill-firms"/>
+           <circle cx="126" cy="118" r="4" class="s-fill-firms"/><circle cx="142" cy="112" r="4" class="s-fill-mtg"/>
+           <circle cx="96" cy="128" r="4" class="s-fill-s3"/><circle cx="118" cy="134" r="4" class="s-fill-mtg"/>
+           <circle cx="138" cy="128" r="4" class="s-fill-firms"/><circle cx="110" cy="72" r="4" class="s-fill-mtg"/></g>
+        <circle cx="248" cy="188" r="26" class="s-dash"/>
+        <g><circle cx="240" cy="182" r="4" class="s-fill-firms"/><circle cx="256" cy="186" r="4" class="s-fill-firms"/>
+           <circle cx="246" cy="196" r="4" class="s-fill-firms"/></g>
+        <line x1="300" y1="120" x2="376" y2="120" class="s-line-hi" marker-end="url(#a4)"/>
+        <text x="338" y="110" class="s-t-m" text-anchor="middle" style="fill:var(--accent)">3.5 km</text>
+        <text x="338" y="140" class="s-t-m" text-anchor="middle" style="fill:var(--accent)">8 h</text>
+        <text x="400" y="24" class="s-t-s">tracked events</text>
+        <circle cx="480" cy="108" r="30" class="s-box-hi"/>
+        <text x="480" y="113" class="s-t-b" text-anchor="middle">1</text>
+        <text x="524" y="100" class="s-t-b">Event 1</text>
+        <text x="524" y="116" class="s-t-s">45 detections, 3 satellites</text>
+        <text x="524" y="131" class="s-t-m">stable id across cycles</text>
+        <circle cx="480" cy="192" r="18" class="s-box"/>
+        <text x="480" y="197" class="s-t-b" text-anchor="middle">2</text>
+        <text x="524" y="190" class="s-t-b">Event 2</text>
+        <text x="524" y="206" class="s-t-s">3 detections, stays separate</text>
+      </svg>
+      <figcaption>Colour is the reporting satellite. Mixed-source clusters are the
+      normal case and a useful signal in themselves — three independent instruments
+      agreeing on a location is much stronger evidence than ten hits from one.</figcaption>
+    </figure>
+    <p>Each event then gets a stable id derived from its earliest detection, so it
+    keeps the same identity across cycles. Footprint is the diagonal of the detection
+    bounding box, computed in linear rather than quadratic time so a month-long fire
+    with thousands of detections stays cheap.</p>
+  </li>
+
+  <li>
+    <h3>Enrich</h3>
+    <p>Coordinates are useless in a notification. Each active fire is resolved
+    against 413 bundled settlements to produce a phrase like
+    <em>"7.0 km ESE of Kamenica"</em>, plus distance and bearing from Zavidovići town
+    centre. Current weather comes from Open-Meteo and yields a spread-risk label from
+    gust speed and relative humidity — <span class="pill">elevated</span>
+    <span class="pill">high</span> <span class="pill">extreme</span> — because a
+    smouldering 8 MW hotspot in 39% humidity with 32 km/h gusts is a different
+    proposition from the same hotspot in still, damp air.</p>
+  </li>
+
+  <li>
+    <h3>Diff against the previous cycle</h3>
+    <p>The freshly built events are compared with the stored ones to produce alerts.
+    This is covered in <a href="#change">section 5</a>.</p>
+  </li>
+
+  <li>
+    <h3>Notify</h3>
+    <p>Alerts become macOS notifications, suppressed if the same event already
+    notified for the same reason inside 25 minutes.</p>
+  </li>
+
+  <li>
+    <h3>Publish</h3>
+    <p>The cycle writes <code>snapshot.json</code> and regenerates the HTML map, then
+    the menu bar rebuilds from the in-memory snapshot. Every surface reads the same
+    published state, so they can never disagree.</p>
+  </li>
+</ol>
+
+<!-- ==================== 5 ==================== -->
+<h2 id="change"><span class="num">05</span> Change detection</h2>
+
+<p>A fire is not an event that happens once; it starts, grows, gets confirmed by a
+second satellite, dies down, and sometimes comes back. The diff stage models that
+lifecycle so notifications carry information rather than repeating themselves.</p>
+
+<figure>
+  <div class="figscroll">
+  <svg viewBox="0 32 780 214" role="img" aria-label="State machine for a fire event. A first detection while the fire is still burning enters the Active state and raises a new alert; a first detection that is already stale is recorded silently. From Active, no detection for four hours moves to Quiet and raises extinguished. From Quiet, a fresh detection returns to Active and raises reignited. While Active, three self-transitions raise grew, intensified and corroborated alerts.">
+    <defs>
+      <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+              markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <rect x="14" y="118" width="132" height="56" rx="6" class="s-box"/>
+    <text x="80" y="142" class="s-t-b" text-anchor="middle">First detection</text>
+    <text x="80" y="158" class="s-t-s" text-anchor="middle">never seen before</text>
+
+    <rect x="256" y="112" width="152" height="68" rx="8" class="s-box-hi"/>
+    <text x="332" y="141" class="s-t-b" text-anchor="middle">ACTIVE</text>
+    <text x="332" y="159" class="s-t-s" text-anchor="middle">seen within 4 h</text>
+
+    <rect x="574" y="112" width="152" height="68" rx="8" class="s-box"/>
+    <text x="650" y="141" class="s-t-b" text-anchor="middle">QUIET</text>
+    <text x="650" y="159" class="s-t-s" text-anchor="middle">nothing for 4 h+</text>
+
+    <line x1="146" y1="140" x2="248" y2="140" class="s-line-hi" marker-end="url(#a5)"/>
+    <text x="197" y="132" class="s-t-m" text-anchor="middle" style="fill:var(--accent)">new</text>
+
+    <path d="M146,162 Q200,236 566,206" class="s-dash" marker-end="url(#a5)"/>
+    <text x="330" y="232" class="s-t-m" text-anchor="middle">already stale → recorded, no alert</text>
+
+    <line x1="408" y1="134" x2="566" y2="134" class="s-line" marker-end="url(#a5)"/>
+    <text x="487" y="126" class="s-t-m" text-anchor="middle">extinguished</text>
+
+    <path d="M566,166 Q487,196 416,168" class="s-line" marker-end="url(#a5)"/>
+    <text x="491" y="192" class="s-t-m" text-anchor="middle">reignited</text>
+
+    <path d="M300,112 Q332,58 364,112" class="s-line-hi" marker-end="url(#a5)"/>
+    <text x="332" y="46" class="s-t-m" text-anchor="middle" style="fill:var(--accent)">while burning:</text>
+    <text x="440" y="66" class="s-t-s">footprint +0.5 km → <tspan style="font-weight:600">grew</tspan></text>
+    <text x="440" y="82" class="s-t-s">FRP ×1.5 and +3 MW → <tspan style="font-weight:600">intensified</tspan></text>
+    <text x="440" y="98" class="s-t-s">2nd satellite sees it → <tspan style="font-weight:600">corroborated</tspan></text>
+  </svg>
+  </div>
+  <figcaption><b>The dashed path is the one that stops alert spam.</b> A fire
+  discovered in history — backfilling a month, or a first run against a populated
+  database — is recorded without notifying, because <em>new</em> has to mean newly
+  burning, not newly discovered.</figcaption>
+</figure>
+
+<div class="tw">
+<table>
+  <caption>Alert kinds and exact trigger conditions</caption>
+  <thead><tr><th>Alert</th><th>Triggers when</th><th>Sound</th></tr></thead>
+  <tbody>
+    <tr><td><strong>new</strong></td><td>An event id not seen before, <em>and</em> currently active</td><td class="mono">Basso</td></tr>
+    <tr><td><strong>intensified</strong></td><td>Peak FRP up by ≥1.5&times; <em>and</em> ≥3 MW</td><td class="mono">Tink</td></tr>
+    <tr><td><strong>grew</strong></td><td>More detections <em>and</em> footprint wider by ≥0.5 km</td><td class="mono">Tink</td></tr>
+    <tr><td><strong>corroborated</strong></td><td>The source set gains a member — a second satellite family confirms</td><td class="mono">Tink</td></tr>
+    <tr><td><strong>reignited</strong></td><td>A quiet event produces detections again</td><td class="mono">Basso</td></tr>
+    <tr><td><strong>extinguished</strong></td><td>An active event goes 4 h with no detection</td><td class="mono">silent</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Severity is derived from peak FRP alone: <span class="pill">low</span> under
+10 MW, <span class="pill">moderate</span> 10&ndash;50, <span class="pill">high</span>
+50&ndash;200, <span class="pill">severe</span> above 200 MW. For scale, the fire that
+prompted this system peaked at 10.5 MW — a real forest fire, at the bottom of
+<em>moderate</em>.</p>
+
+<div class="note good">
+  <span class="lbl">Observed in production</span>
+  <p>Over one unattended night the system logged exactly the cycle above: 01:53
+  <em>extinguished</em> after 4.8 h quiet, 05:54 four new detections and
+  <em>reignited</em> at 1.0 MW, 06:52 <em>extinguished</em> again. Nobody was
+  watching; the state machine was right.</p>
+</div>
+
+<!-- ==================== 6 ==================== -->
+<h2 id="storage"><span class="num">06</span> Storage &amp; time ranges</h2>
+
+<p>One SQLite database at
+<code>~/Library/Application Support/FireWatch/firewatch.db</code>, four tables.</p>
+
+<div class="tw">
+<table>
+  <caption>Schema</caption>
+  <thead><tr><th>Table</th><th>Holds</th><th>Key</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">detections</td><td>Every detection ever fetched, with source, position, time, FRP, confidence, day/night, inside flag and the raw provider fields as JSON</td><td class="mono">uid</td></tr>
+    <tr><td class="mono">events</td><td>Current clustered fires and their full JSON payload, rewritten each cycle</td><td class="mono">id</td></tr>
+    <tr><td class="mono">notified</td><td>What we have already told you, per event and kind — the rate limiter's memory</td><td class="mono">event_id + kind</td></tr>
+    <tr><td class="mono">meta</td><td>Housekeeping: last cycle, last prune</td><td class="mono">k</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Detections are kept <strong>60 days</strong> and pruned at most once a day. The
+clustering window is <strong>720 hours</strong>. Those two numbers are deliberately
+different: retention must exceed the longest view range, or the oldest data would be
+deleted exactly as it came into view.</p>
+
+<h3>Time ranges</h3>
+<p>Four rolling windows — <strong>Last 24h</strong>, <strong>3 days</strong>,
+<strong>7 days</strong>, <strong>Last month</strong> — offered identically in the map,
+the menu bar and the CLI. All are measured back from now rather than from midnight,
+so a fire never falls out of the shortest range just because the clock ticked over.
+An event belongs to a range if it was <em>last active</em> inside it, and its
+detection series is trimmed to the range so the sparkline and timeline stay honest
+about what you are looking at.</p>
+
+<p>Range filtering costs no API traffic at all: each poll fetches only about 24 hours
+of overlap, and every range is a read over history already on disk. What the longer
+windows buy is pattern — the month view over Zavidovići surfaced repeated ignitions
+near Kamenica on 7, 15 and 17 August that no 3-day view would ever show.</p>
+
+<!-- ==================== 7 ==================== -->
+<h2 id="delivery"><span class="num">07</span> How it reaches you</h2>
+
+<p>One background process owns everything: a <code>launchd</code> login agent runs the
+menu bar app, which runs the poller on a thread. There is no separate daemon to keep
+in sync.</p>
+
+<h3>Menu bar</h3>
+<p>The title encodes state so it reads without clicking — <code>🌲</code> when
+nothing is burning, <code>🔥 2!! · 48MW</code> for two active fires with the worst at
+high severity and 48 MW. Each fire opens a submenu with severity, peak and current
+FRP, detections per satellite, distance and bearing from town, footprint, weather,
+spread risk, and one-click actions: Google Maps, satellite view, copy coordinates,
+show on map.</p>
+
+<h3>Notifications</h3>
+<p>Two delivery paths. <code>osascript</code> always works but macOS attributes the
+notification to <em>Script Editor</em> and a click does nothing. If
+<code>terminal-notifier</code> is installed, FireWatch uses it instead and the
+notification itself becomes a link that opens Google Maps at the fire. The app
+detects which is available at startup and shows it in the menu.</p>
+
+<h3>Fire map</h3>
+<p>A self-contained HTML file, regenerated every cycle and reloading itself every
+60 seconds, so it works as a live wall display. Fire circles are sized by FRP and
+coloured by severity, pulsing while active; individual detections are coloured by
+satellite and fade with age; a time slider with a play button animates the fire's
+progression across the selected range. Snapshot data is embedded directly in the page
+rather than fetched, because a <code>file://</code> page cannot read a sibling JSON
+file under browser CORS rules.</p>
+
+<h3>Command line</h3>
+<pre><code>python3 -m firewatch status 24h|3d|7d|30d   current state for one range
+python3 -m firewatch poll                  one cycle, printed report
+python3 -m firewatch watch                 headless loop, notifications only
+python3 -m firewatch map                   rebuild and open the map
+python3 -m firewatch backfill [days]       deep-fetch history (default 30)
+python3 -m firewatch history [n]           recent detections from the database
+python3 -m firewatch quota                 FIRMS transaction usage</code></pre>
+
+<!-- ==================== 8 ==================== -->
+<h2 id="quota"><span class="num">08</span> Cost &amp; rate limits</h2>
+
+<p>The FIRMS key allows <strong>5000 transactions per rolling 10-minute window</strong>
+— not per day, and there is no documented daily cap. Different endpoints cost
+different amounts, which is not documented anywhere and had to be measured:</p>
+
+<div class="tw">
+<table>
+  <caption>Measured transaction cost per FIRMS endpoint</caption>
+  <thead><tr><th>Request</th><th class="num-col">Cost</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">api/area/csv/…</td><td class="mono">2</td><td>Regardless of how many rows come back</td></tr>
+    <tr><td class="mono">api/data_availability/…/ALL</td><td class="mono">5</td><td>We no longer call this</td></tr>
+    <tr><td class="mono">api/data_availability/…/&lt;one&gt;</td><td class="mono">1</td><td></td></tr>
+    <tr><td class="mono">mapserver/mapkey_status</td><td class="mono">0</td><td>Free — poll it freely</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>A full sweep of the four NRT datasets costs <strong>8</strong>. At a 20-minute
+cadence that is 24 per hour, roughly <strong>0.5%</strong> of budget. The old shell
+script cost 29 per run because it queried every dataset the availability endpoint
+listed, including multi-year archives and burned-area products that cannot produce a
+current alert. The other services are unmetered, though Nominatim and Overpass are
+only called once, at build time, and their results are bundled.</p>
+
+<!-- ==================== 9 ==================== -->
+<h2 id="fieldnotes"><span class="num">09</span> Field notes</h2>
+
+<p class="lede">Behaviour that is not in anyone's documentation, found by measuring.
+This section exists because every one of these cost real debugging time.</p>
+
+<h4>The WFS spatial filter silently returns nothing</h4>
+<p><code>BBOX(geom, …)</code> on the EUMETView FRP layers returns zero features with
+HTTP 200 — no error, just an empty collection, which reads exactly like "no fires".
+Spatial filtering has to be done on the <code>Lat</code> and <code>Lon</code>
+<em>attributes</em> instead. Verifying against Madagascar, where fires were known to
+exist, is what exposed this.</p>
+
+<h4>WFS query cost grows sharply with the time filter</h4>
+<p>About 5 s for 24 h, 21 s for 72 h, and a 30-day query never returns at all. Long
+windows are split into 48-hour chunks and unioned client-side; a failed chunk is
+logged and skipped rather than losing the whole run. This is why backfill exists as a
+separate command rather than just widening the poll.</p>
+
+<h4>FIRMS reports errors with HTTP 200</h4>
+<p>An invalid request returns a bare English sentence and a success status —
+<code>Invalid day range. Expects [1..5].</code> Any parser that trusts the status code
+will read that as an empty result. The day range cap of 5 is also undocumented, which
+is why a month of FIRMS history is stitched from six windows.</p>
+
+<h4>This Python has no CA bundle</h4>
+<p>The python.org framework build ships no <code>cert.pem</code>, so every
+<code>urllib</code> HTTPS call fails with <code>CERTIFICATE_VERIFY_FAILED</code> while
+<code>requests</code> works fine via <code>certifi</code>. The code uses
+<code>requests</code> throughout and the <code>launchd</code> agent pins
+<code>SSL_CERT_FILE</code> so anything else that reaches for the stdlib also works.</p>
+
+<h4>Saving a whole config freezes every default</h4>
+<p>The original <code>save()</code> wrote the fully resolved settings dict, so the
+first time the menu bar persisted a preference it also froze all twenty defaults to
+disk — after which changing a default in code had no effect on an existing install.
+It cost an hour of "why is this value not updating". <code>save()</code> now writes
+only genuine overrides.</p>
+
+<h4>The daemon holds old code</h4>
+<p>The running agent keeps its modules in memory and keeps rewriting
+<code>snapshot.json</code>, so edits appear to do nothing and stale output looks like
+a logic bug. <strong>Always <code>./firewatch-ctl restart</code> after changing
+code.</strong></p>
+
+<!-- ==================== 10 ==================== -->
+<h2 id="ops"><span class="num">10</span> Operations</h2>
+
+<pre><code>./firewatch-ctl install      install + start the login agent
+./firewatch-ctl restart      after ANY code change
+./firewatch-ctl status       service state + current fires
+./firewatch-ctl logs         follow the log
+./firewatch-ctl uninstall    stop and remove (data kept)</code></pre>
+
+<p>The agent uses <code>KeepAlive</code>, verified by <code>kill -9</code>: launchd
+restarts it within seconds. It must live in <code>~/Library/LaunchAgents</code> and
+run in the Aqua session — a menu bar app cannot run as a system daemon.</p>
+
+<div class="tw">
+<table>
+  <caption>Files on disk</caption>
+  <thead><tr><th>Path</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">~/Library/Application Support/FireWatch/</td><td><code>firewatch.db</code>, <code>snapshot.json</code>, <code>fire-map.html</code>, <code>firewatch.log</code></td></tr>
+    <tr><td class="mono">~/.config/firewatch/config.json</td><td>Your overrides only; absent keys fall back to defaults</td></tr>
+    <tr><td class="mono">data/zavidovici.geojson</td><td>Boundary, 731 points, OSM relation 2528292</td></tr>
+    <tr><td class="mono">data/settlements.json</td><td>413 named places for location descriptions</td></tr>
+    <tr><td class="mono">tests_events.py</td><td>22 tests: clustering, alert logic, range membership</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Tuning</h3>
+<p>Edit <code>config.json</code> and restart. The knobs that actually change
+behaviour: <code>interval_mtg</code> and <code>interval_mtg_active</code> for
+cadence; <code>mtg_min_confidence</code> to trade false positives against
+sensitivity; <code>nearby_buffer_km</code> for how far past the border to watch;
+<code>quiet_hours</code> for when a fire counts as out;
+<code>notify_cooldown_min</code> for alert rate limiting.</p>
+
+<!-- ==================== 11 ==================== -->
+<h2 id="limits"><span class="num">11</span> Limits</h2>
+
+<div class="note crit">
+  <span class="lbl">Read this before relying on it</span>
+  <p>These are <strong>satellite thermal anomalies, not confirmed wildfires</strong>.
+  Industrial heat, gas flares and agricultural burning all register. This is a
+  screening and tracking tool — verify before acting on it.</p>
+</div>
+
+<ul>
+  <li><strong>Not real-time.</strong> The floor is ~35 minutes behind the flame
+  front, set by EUMETSAT's publishing latency. Nothing in this code can improve
+  that.</li>
+  <li><strong>Small fires are invisible to the fast feed.</strong> MTG's ~4 km pixels
+  need roughly 5 MW before they register. Sub-pixel and smouldering fires are caught
+  only by the 375 m VIIRS passes, hours later — which is exactly why all three feeds
+  are kept rather than just the fastest.</li>
+  <li><strong>Cloud blocks everything.</strong> Every one of these instruments is
+  optical/thermal. Overcast means no detection from any of them.</li>
+  <li><strong>Month view thins out at the far edge.</strong> The MTG archive holds
+  only about 4 weeks, so the oldest part of "Last month" is covered by VIIRS, MODIS
+  and Sentinel-3 alone — the fires are there, the 10-minute detail is not.</li>
+  <li><strong>Boundary fires may flip.</strong> A detection exactly on the border can
+  fall either side; the 6 km buffer exists so those are flagged rather than
+  lost.</li>
+  <li><strong>Local reporting is still faster.</strong> For a fire near people, a
+  phone call beats every satellite here by hours.</li>
+</ul>
+
+<footer>
+  <p><strong>Data and licences.</strong> Active fire data: NASA FIRMS
+  (LANCE/ESDIS); Meteosat MTG FCI and Sentinel-3 SLSTR fire radiative power via
+  EUMETSAT EUMETView. Boundary and settlements © OpenStreetMap contributors, ODbL 1.0
+  (relation 2528292). Weather: Open-Meteo. Base tiles: OpenStreetMap, Esri World
+  Imagery, OpenTopoMap. Map rendering: Leaflet 1.9.4.</p>
+  <p>FireWatch Zavidovići — 2230 lines of Python across 12 modules, one SQLite
+  database, one HTML map, no build step.</p>
+</footer>
+</main>
+</div>
