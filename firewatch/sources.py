@@ -214,7 +214,10 @@ def fetch_firms(days: int = 1, start_date: str | None = None) -> list[dict]:
             continue
         body = r.text.strip()
         if r.status_code != 200 or not body or "," not in body.split("\n")[0]:
-            # FIRMS reports errors as a bare sentence with HTTP 200.
+            # FIRMS signals errors with HTTP 400 and a bare English sentence
+            # ("Invalid day range. Expects [1..5].") rather than JSON, so the
+            # header-shape check is what distinguishes prose from real CSV.
+            # A valid query with no fires is HTTP 200 with the header only.
             log.warning("firms %s: unexpected response %r", ds, body[:120])
             continue
         for row in csv.DictReader(io.StringIO(body)):

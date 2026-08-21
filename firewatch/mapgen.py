@@ -1,13 +1,21 @@
-"""Render the live fire map as a single self-contained HTML file.
+"""Render the live fire map.
 
-The snapshot data is embedded directly in the page rather than fetched, because a
-file:// page cannot XHR a sibling JSON file under Chrome/Safari CORS rules. The
-poller rewrites this file every cycle and the page reloads itself, which gives a
-live view with no local web server involved.
+Two files are written side by side:
+
+  fire-map.html       the page, with the current snapshot inlined for first paint
+  fire-map-data.js    the same snapshot as `window.__fwData = {...}`
+
+A file:// page cannot XHR a sibling JSON file under Chrome/Safari CORS rules, but it
+*can* pull in a sibling script via a <script src> tag. So instead of reloading, the
+page periodically appends a cache-busted script tag and re-renders from the assigned
+object. That keeps the map view, the selected range, the selected fire and the
+timeline position exactly where the reader left them - a full reload threw all of
+that away every minute. If script injection ever fails, it falls back to reloading.
 """
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from .config import BOUNDARY_GEOJSON, MAP_PATH
@@ -34,7 +42,9 @@ TEMPLATE = r"""<!doctype html>
   header{padding:16px 18px 14px;border-bottom:1px solid var(--line)}
   h1{margin:0;font-size:15px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
   h1 .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
-  .sub{color:var(--dim);font-size:12px;margin-top:5px;font-variant-numeric:tabular-nums}
+  .sub{color:var(--dim);font-size:12px;margin-top:5px;font-variant-numeric:tabular-nums;
+    transition:color .3s}
+  .sub.flash{color:var(--accent)}
   .status{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   .seg{margin-top:12px;display:flex;background:var(--panel2);border:1px solid var(--line);
     border-radius:8px;padding:2px;gap:2px}
@@ -109,7 +119,8 @@ TEMPLATE = r"""<!doctype html>
   <span id="tlabel"></span>
 </div>
 <script>
-const DATA = __DATA__;
+let DATA = __DATA__;
+const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
 const SRC = {mtg:{c:"#4cc9f0",n:"Meteosat MTG (10 min)"},
              firms:{c:"#ffd166",n:"VIIRS/MODIS (NRT)"},
@@ -173,7 +184,9 @@ legend.onAdd = () => {
   const d = L.DomUtil.create("div","legend");
   d.innerHTML = "<b style='color:#e6edf3'>Detections</b><br>" +
     Object.entries(SRC).map(([k,v])=>`<i style="background:${v.c}"></i>${v.n}`).join("<br>") +
-    "<br><b style='color:#e6edf3'>Circle</b> = fire, size &prop; FRP";
+    "<br><b style='color:#e6edf3'>Fire</b><br>" +
+    "<i style='background:#ff6b35'></i>solid dot &mdash; intensity (FRP)<br>" +
+    "<i style='background:none;border:1px dashed #ff6b35'></i>dashed ring &mdash; footprint (to scale)";
   return d;
 };
 legend.addTo(map);
@@ -188,18 +201,56 @@ const fmtLocal = t => new Date(t).toLocaleString("en-GB",
 const ago = m => m<60?`${Math.round(m)} min ago`:(m<1440?`${(m/60).toFixed(1)} h ago`:`${(m/1440).toFixed(1)} d ago`);
 const frpR = f => f==null?7:Math.max(7,Math.min(42,6+Math.sqrt(f)*3.4));
 
+const R_EARTH_M = 6371008.8;
+function haversineM(la1,lo1,la2,lo2){
+  const p1=la1*Math.PI/180, p2=la2*Math.PI/180;
+  const dp=p2-p1, dl=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2*R_EARTH_M*Math.asin(Math.min(1,Math.sqrt(a)));
+}
+// Radius that actually encloses the drawn detections. Deriving it from extent_km/2
+// under-covers, because extent is the bounding-box diagonal while the marker sits
+// at the centroid - the farthest detection can be further than half that diagonal.
+function footprintM(e){
+  let m = 0;
+  (e.series||[]).forEach(s=>{ m = Math.max(m, haversineM(e.lat,e.lon,s.lat,s.lon)); });
+  return Math.max(400, m + 100);          // +100 m so edge dots sit inside the ring
+}
+
+// Markers are rebuilt on every refresh, which closes any open popup. Track them
+// by event id so an open popup can be restored afterwards.
+const markerById = {};
+let popupOpenId = null;
+
 function drawEvents(){
   evLayer.clearLayers();
+  for(const k in markerById) delete markerById[k];
   EVENTS.forEach(e=>{
     const col = SEVC[e.severity]||SEVC.unknown;
     const quiet = e.status!=="active";
+
+    // Footprint: L.circle takes a radius in METRES, so it scales with zoom and
+    // keeps enclosing the detections it summarises. The intensity marker below is
+    // L.circleMarker, whose radius is in screen pixels and deliberately fixed -
+    // mixing the two in one symbol is what made the old marker look broken past
+    // zoom ~11, where geographic spread outgrows any fixed pixel radius.
+    // Floor of 400 m keeps a single-detection event visible at all.
+    L.circle([e.lat,e.lon],{
+      radius:footprintM(e),
+      color:quiet?"#6b7785":col, weight:1, opacity:.55,
+      fillColor:quiet?"#6b7785":col, fillOpacity:.07,
+      dashArray:"4,5", interactive:false}).addTo(evLayer);
+
     const c = L.circleMarker([e.lat,e.lon],{
       radius:frpR(e.max_frp), color:quiet?"#6b7785":col, weight:2.5,
       fillColor:quiet?"#6b7785":col, fillOpacity:quiet?.14:.34,
       dashArray:quiet?"3,3":null});
     c.bindPopup(popupHtml(e),{maxWidth:290});
     c.on("click",()=>select(e.id,false));
+    c.on("popupopen",()=>{popupOpenId = e.id});
+    c.on("popupclose",()=>{ if(popupOpenId===e.id) popupOpenId = null; });
     c.addTo(evLayer);
+    markerById[e.id] = c;
     if(!quiet){
       L.circleMarker([e.lat,e.lon],{radius:e.max_frp?frpR(e.max_frp)+7:13,color:col,
         weight:1,opacity:.45,fill:false,className:"pulse"}).addTo(evLayer);
@@ -342,7 +393,7 @@ function renderHeader(){
   ].join("");
   document.getElementById("foot").innerHTML =
     `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; boundary: OSM rel. 2528292
-     <br>page reloads every 60 s`;
+     <br>data refreshes in place every 60 s &middot; your view is kept`;
 }
 
 const slider = document.getElementById("slider");
@@ -362,9 +413,85 @@ document.getElementById("play").onclick = function(){
 };
 
 recompute(); renderRange(); renderHeader(); drawEvents(); renderList(); drawDets(tMax);
-setTimeout(()=>location.reload(), 60000);
+// ---- live refresh without losing the reader's place ------------------------
+// A file:// page cannot fetch() a sibling JSON file, but it can load one as a
+// script. The poller rewrites fire-map-data.js each cycle; we pull it in with a
+// cache-busted <script> tag and re-render from it. Map centre, zoom, selected
+// range, selected fire and slider position are all left untouched - which is the
+// whole point, since location.reload() discarded every one of them.
+const REFRESH_MS = window.__fwRefreshMs || 60000;
+let refreshFails = 0;
+
+function applyData(d){
+  if(!d || !d.generated_at) return false;
+  if(d.generated_at === DATA.generated_at) return false;   // nothing new
+  const pct = +slider.value;                               // remember scrub position
+  DATA = d;
+  if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
+  const wasOpen = popupOpenId;
+  recompute();
+  renderRange(); renderHeader(); drawEvents(); renderList();
+  slider.value = pct;
+  drawDets(sliderTime());
+  if(wasOpen && markerById[wasOpen]){
+    // openPopup() auto-pans to fit the popup, which would nudge the view the
+    // reader chose. Suppress it for this programmatic restore only - a popup the
+    // reader opens by clicking still pans normally.
+    const mk = markerById[wasOpen], pu = mk.getPopup();
+    const prevAutoPan = pu.options.autoPan;
+    pu.options.autoPan = false;
+    mk.openPopup();
+    pu.options.autoPan = prevAutoPan;
+  }
+  const sub = document.getElementById("hsub");
+  sub.classList.add("flash");
+  setTimeout(()=>sub.classList.remove("flash"), 900);
+  return true;
+}
+
+function refresh(){
+  // Never redraw mid-animation; just try again on the next tick.
+  if(timer){ setTimeout(refresh, 2000); return; }
+  const s = document.createElement("script");
+  s.src = DATA_URL + "?t=" + Date.now();
+  s.onload = () => {
+    refreshFails = 0;
+    try { applyData(window.__fwData); } catch(err) { console.error(err); }
+    s.remove();
+    setTimeout(refresh, REFRESH_MS);
+  };
+  s.onerror = () => {
+    s.remove();
+    // If the sibling script cannot be loaded at all, fall back to the old
+    // behaviour rather than silently going stale.
+    if(++refreshFails >= 3){ location.reload(); return; }
+    setTimeout(refresh, REFRESH_MS);
+  };
+  document.body.appendChild(s);
+}
+setTimeout(refresh, REFRESH_MS);
 </script></body></html>
 """
+
+
+def data_path_for(html_path: Path) -> Path:
+    """Sibling data file for a given page path."""
+    return html_path.with_name(html_path.stem + "-data.js")
+
+
+def write_data(snapshot: dict, html_path: Path | None = None) -> Path:
+    """Write the refreshable data file, atomically.
+
+    os.replace is atomic on the same filesystem, so a page refreshing at the same
+    moment can never read a half-written file.
+    """
+    out = data_path_for(Path(html_path or MAP_PATH))
+    payload = json.dumps(snapshot, ensure_ascii=False)
+    tmp = out.with_suffix(out.suffix + ".tmp")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text(f"window.__fwData = {payload};\n", encoding="utf-8")
+    os.replace(tmp, out)
+    return out
 
 
 def render(snapshot: dict, path: Path | None = None) -> Path:
@@ -372,7 +499,9 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
     boundary = json.loads(BOUNDARY_GEOJSON.read_text())
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(snapshot, ensure_ascii=False))
-            .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":"))))
+            .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":")))
+            .replace("__DATA_JS__", data_path_for(out).name))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
+    write_data(snapshot, out)
     return out

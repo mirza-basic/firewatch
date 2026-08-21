@@ -1,8 +1,12 @@
 # FireWatch Zavidovići
 
-> **Full system documentation with diagrams:** [`docs/firewatch-documentation.html`](docs/firewatch-documentation.html)
-> — data sources, field-level data reference, the processing pipeline, change-detection
-> state machine, rate limits and field notes. Open it in a browser.
+> **Documentation** (open in a browser):
+> - [`docs/firewatch-documentation.html`](docs/firewatch-documentation.html) — how the
+>   system works: data sources, field-level data reference, the processing pipeline,
+>   change-detection state machine, rate limits and field notes.
+> - [`docs/firewatch-api-reference.html`](docs/firewatch-api-reference.html) — how we
+>   call the APIs: every endpoint, exact parameters, real captured request/response
+>   traffic, error modes, chunking and quota costs.
 
 Near-live wildfire monitoring for **Grad (opština) Zavidovići**, as a macOS menu bar
 app with notifications and a live map.
@@ -91,8 +95,9 @@ An event belongs to a range if it was *last active* inside it, so a fire that st
 six days ago but was burning an hour ago still appears under "Last 24h"; its detection
 series is trimmed to the range so the sparkline and timeline stay consistent.
 
-The ranges cost no extra API traffic. The database holds 30 days and each poll only
-fetches ~24 h of overlap, so filtering is a pure read over history already on disk.
+The ranges cost no extra API traffic. The database keeps 60 days (`retention_days`,
+deliberately more than the longest 30-day range) and each poll only fetches ~24 h of
+overlap, so filtering is a pure read over history already on disk.
 
 **A fresh install has no history**, which makes a 7-day filter misleading rather than
 useful. Fix it once with:
@@ -160,8 +165,10 @@ VIIRS/MODIS and Sentinel-3 alone, without the 10-minute geostationary detail.
 - per-fire panel with an FRP sparkline, weather, spread risk and outbound links
 - 🔥 button to zoom straight to what is burning
 
-It reloads itself every 60 s and the poller rewrites it every cycle, so leaving it
-open on a second display gives a live wall view.
+Every 60 s it pulls fresh data in place — the poller rewrites a sibling
+`fire-map-data.js` and the page re-renders from it — so your zoom, pan, selected
+range, timeline position and any open popup are preserved. Leaving it open on a
+second display gives a live wall view that never jumps.
 
 ## Layout
 

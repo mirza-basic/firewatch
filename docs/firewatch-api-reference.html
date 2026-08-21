@@ -1,0 +1,827 @@
+<title>FireWatch API Playbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --code-bg:#f7f9fa; --measure:70ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --code-bg:#121a20;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --code-bg:#121a20;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,serif; font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:238px minmax(0,1fr); max-width:1220px; margin:0 auto}
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 20px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em}
+  nav .brand-sub{color:var(--ink-3); font-size:11px; letter-spacing:.05em;
+    text-transform:uppercase; margin:3px 0 22px}
+  nav .grp{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
+    margin:18px 0 5px}
+  nav ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:block; text-decoration:none; color:var(--ink-2); padding:4px 8px;
+    border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a code{font-size:11px; background:none; padding:0}
+
+  main{padding:38px 44px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:20px; margin-bottom:30px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:11px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(29px,4.2vw,42px);
+    line-height:1.07; letter-spacing:-.026em; margin:0 0 13px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:24px; letter-spacing:-.018em;
+    margin:52px 0 6px; padding-top:24px; border-top:1px solid var(--rule); text-wrap:balance}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.01em;
+    margin:32px 0 7px; display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:13.5px; margin:22px 0 5px;
+    color:var(--ink-2); letter-spacing:.01em}
+  p{margin:0 0 14px; max-width:var(--measure); text-wrap:pretty}
+  .lede{font-size:18px; color:var(--ink-2); max-width:64ch; margin-bottom:18px}
+  ul,ol{margin:0 0 15px; padding-left:21px; max-width:var(--measure)}
+  li{margin-bottom:5px}
+  a{color:var(--accent); text-underline-offset:2px}
+  strong{font-weight:600}
+  em{font-style:italic}
+
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.85em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+
+  /* request/response blocks */
+  .io{border:1px solid var(--rule); border-radius:8px; overflow:hidden; margin:0 0 18px;
+    background:var(--surface)}
+  .io-h{display:flex; align-items:center; gap:9px; padding:7px 12px;
+    background:var(--surface-2); border-bottom:1px solid var(--rule);
+    font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3)}
+  .io-h .verb{font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600;
+    letter-spacing:0; padding:2px 6px; border-radius:3px; text-transform:none;
+    background:var(--ink-3); color:var(--surface)}
+  .io-h .verb.res{background:var(--ok)}
+  .io-h .verb.err{background:var(--crit)}
+  .io pre{margin:0; padding:12px 14px; background:var(--code-bg); overflow-x:auto;
+    font-family:"IBM Plex Mono",monospace; font-size:12.3px; line-height:1.6;
+    color:var(--ink); border:0}
+  pre{font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.62;
+    background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
+    border-radius:6px; padding:13px 15px; overflow-x:auto; margin:0 0 18px}
+  pre code{background:none; padding:0; font-size:inherit}
+  .cmt{color:var(--ink-3)}
+  .k{color:var(--accent)}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 13px 0; caption-side:top}
+  th,td{padding:8px 12px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,.mono{font-family:"IBM Plex Mono",monospace; font-size:12.3px;
+    font-variant-numeric:tabular-nums}
+  .nw{white-space:nowrap}
+
+  .tag{display:inline-block; font-family:Archivo,sans-serif; font-size:10px; font-weight:600;
+    letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:4px;
+    background:var(--surface-2); color:var(--ink-2); vertical-align:middle}
+  .tag.mtg{background:var(--mtg); color:var(--surface)}
+  .tag.firms{background:var(--firms); color:var(--surface)}
+  .tag.s3{background:var(--s3); color:#fff}
+  .tag.nokey{background:var(--ok); color:#fff}
+  .tag.key{background:var(--warn); color:#fff}
+  .tag.build{background:var(--surface-3); color:var(--ink-2)}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:13px 15px; margin:0 0 18px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+
+  figure{margin:24px 0 28px}
+  figure svg{display:block; width:100%; height:auto; background:var(--surface);
+    border:1px solid var(--rule); border-radius:8px}
+  .figscroll{overflow-x:auto}
+  figcaption{font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3);
+    margin-top:9px; max-width:72ch; line-height:1.5}
+  figcaption b{color:var(--ink-2); font-weight:600}
+  .s-box{fill:var(--surface-2); stroke:var(--rule); stroke-width:1}
+  .s-box-hi{fill:var(--accent-soft); stroke:var(--accent); stroke-width:1.4}
+  .s-box-bad{fill:none; stroke:var(--crit); stroke-width:1.4; stroke-dasharray:5 3}
+  .s-line{stroke:var(--ink-3); stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:var(--accent); stroke-width:1.8; fill:none}
+  .s-line-bad{stroke:var(--crit); stroke-width:1.6; fill:none}
+  .s-t{fill:var(--ink); font-family:Archivo,sans-serif; font-size:12.5px}
+  .s-t-b{fill:var(--ink); font-family:Archivo,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:var(--ink-3); font-family:Archivo,sans-serif; font-size:10.5px}
+  .s-t-m{fill:var(--ink-2); font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+  .s-arrow{fill:var(--ink-3)}
+  .s-arrow-bad{fill:var(--crit)}
+
+  footer{margin-top:56px; padding-top:20px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule)}
+    main{padding:26px 20px 70px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch Zavidovići</div>
+  <div class="brand-sub">API playbook</div>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#client">Shared HTTP client</a></li>
+  </ul>
+  <div class="grp">Fire feeds</div>
+  <ul>
+    <li><a href="#firms">NASA FIRMS</a></li>
+    <li><a href="#wfs">EUMETView WFS</a></li>
+    <li><a href="#mtg">— Meteosat MTG</a></li>
+    <li><a href="#s3">— Sentinel-3 SLSTR</a></li>
+  </ul>
+  <div class="grp">Context</div>
+  <ul>
+    <li><a href="#meteo">Open-Meteo</a></li>
+  </ul>
+  <div class="grp">Build-time</div>
+  <ul>
+    <li><a href="#nominatim">Nominatim</a></li>
+    <li><a href="#overpass">Overpass</a></li>
+    <li><a href="#tiles">Map tiles</a></li>
+  </ul>
+  <div class="grp">Cross-cutting</div>
+  <ul>
+    <li><a href="#errors">Error handling</a></li>
+    <li><a href="#chunking">Chunking &amp; retries</a></li>
+    <li><a href="#quota">Quota accounting</a></li>
+    <li><a href="#reproduce">Reproduce by hand</a></li>
+  </ul>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">API integration reference</div>
+  <h1>Every request FireWatch makes</h1>
+  <p class="standfirst">The exact endpoints, parameters, response shapes and failure
+  modes behind the fire data — with real captured traffic, not paraphrase.</p>
+</header>
+
+<!-- ============ overview ============ -->
+<h2 id="overview">Overview</h2>
+
+<p class="lede">Seven external APIs. Three are polled continuously for fire
+detections, one is called per active fire for context, and three run once at build
+time and are then bundled into the repo.</p>
+
+<div class="tw">
+<table>
+  <caption>Every outbound call, and when it happens</caption>
+  <thead><tr>
+    <th>API</th><th>Protocol</th><th>Called</th><th>Auth</th><th>Code</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="tag firms">FIRMS</span> area</td>
+      <td class="mono nw">REST · CSV</td><td class="nw">every 20 min</td>
+      <td><span class="tag key">map key</span></td>
+      <td class="mono">sources.fetch_firms</td>
+    </tr>
+    <tr>
+      <td><span class="tag mtg">MTG</span> FRP</td>
+      <td class="mono nw">OGC WFS · GeoJSON</td><td class="nw">every 4 min<br>(2 min if active)</td>
+      <td><span class="tag nokey">none</span></td>
+      <td class="mono">sources.fetch_mtg</td>
+    </tr>
+    <tr>
+      <td><span class="tag s3">S3</span> SLSTR FRP</td>
+      <td class="mono nw">OGC WFS · GeoJSON</td><td class="nw">every 20 min</td>
+      <td><span class="tag nokey">none</span></td>
+      <td class="mono">sources.fetch_sentinel3</td>
+    </tr>
+    <tr>
+      <td>FIRMS <code>mapkey_status</code></td>
+      <td class="mono nw">REST · JSON</td><td class="nw">on demand</td>
+      <td><span class="tag key">map key</span></td>
+      <td class="mono">sources.firms_quota</td>
+    </tr>
+    <tr>
+      <td>Open-Meteo</td>
+      <td class="mono nw">REST · JSON</td><td class="nw">per active fire<br>cached 15 min</td>
+      <td><span class="tag nokey">none</span></td>
+      <td class="mono">enrich.weather</td>
+    </tr>
+    <tr>
+      <td>OSM Nominatim</td>
+      <td class="mono nw">REST · JSON</td>
+      <td><span class="tag build">build-time</span></td>
+      <td><span class="tag nokey">none</span></td>
+      <td class="mono">data/zavidovici.geojson</td>
+    </tr>
+    <tr>
+      <td>OSM Overpass</td>
+      <td class="mono nw">POST · Overpass QL</td>
+      <td><span class="tag build">build-time</span></td>
+      <td><span class="tag nokey">none</span></td>
+      <td class="mono">data/settlements.json</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<figure>
+  <div class="figscroll">
+  <svg viewBox="0 0 820 268" role="img" aria-label="Diagram of API call paths. A shared requests session with a certifi CA bundle and a user agent header fans out to three polled fire feeds - FIRMS over REST CSV every 20 minutes, Meteosat MTG over WFS GeoJSON every 4 minutes and Sentinel-3 over WFS GeoJSON every 20 minutes - plus Open-Meteo per active fire. Two build-time APIs, Nominatim and Overpass, write bundled files in the repository instead and are never called at runtime.">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+        markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <rect x="14" y="96" width="150" height="72" rx="7" class="s-box-hi"/>
+    <text x="89" y="122" class="s-t-b" text-anchor="middle">requests.Session</text>
+    <text x="89" y="139" class="s-t-s" text-anchor="middle">certifi CA bundle</text>
+    <text x="89" y="154" class="s-t-s" text-anchor="middle">User-Agent header</text>
+
+    <text x="250" y="26" class="s-t-s">polled every cycle</text>
+    <line x1="164" y1="112" x2="242" y2="58" class="s-line" marker-end="url(#ar)"/>
+    <line x1="164" y1="126" x2="242" y2="108" class="s-line" marker-end="url(#ar)"/>
+    <line x1="164" y1="140" x2="242" y2="158" class="s-line" marker-end="url(#ar)"/>
+    <line x1="164" y1="152" x2="242" y2="208" class="s-line" marker-end="url(#ar)"/>
+
+    <rect x="248" y="38" width="228" height="40" rx="6" class="s-box"/>
+    <text x="262" y="56" class="s-t-b" style="fill:var(--mtg)">Meteosat MTG · WFS</text>
+    <text x="262" y="70" class="s-t-m">4 min · GeoJSON</text>
+
+    <rect x="248" y="88" width="228" height="40" rx="6" class="s-box"/>
+    <text x="262" y="106" class="s-t-b" style="fill:var(--firms)">NASA FIRMS · REST</text>
+    <text x="262" y="120" class="s-t-m">20 min · CSV × 4 datasets</text>
+
+    <rect x="248" y="138" width="228" height="40" rx="6" class="s-box"/>
+    <text x="262" y="156" class="s-t-b" style="fill:var(--s3)">Sentinel-3 · WFS</text>
+    <text x="262" y="170" class="s-t-m">20 min · GeoJSON × 2</text>
+
+    <rect x="248" y="188" width="228" height="40" rx="6" class="s-box"/>
+    <text x="262" y="206" class="s-t-b">Open-Meteo · REST</text>
+    <text x="262" y="220" class="s-t-m">per active fire, cached</text>
+
+    <line x1="476" y1="133" x2="556" y2="133" class="s-line" marker-end="url(#ar)"/>
+    <rect x="562" y="106" width="120" height="54" rx="6" class="s-box-hi"/>
+    <text x="622" y="130" class="s-t-b" text-anchor="middle">detections</text>
+    <text x="622" y="147" class="s-t-s" text-anchor="middle">into the pipeline</text>
+
+    <!-- build-time lane -->
+    <rect x="248" y="244" width="434" height="0" rx="0" class="s-box" opacity="0"/>
+    <line x1="89" y1="168" x2="89" y2="234" class="s-line" marker-end="url(#ar)"/>
+    <rect x="14" y="238" width="330" height="24" rx="5" class="s-box"/>
+    <text x="26" y="255" class="s-t-m">build-time: Nominatim + Overpass → data/*.json</text>
+    <text x="356" y="255" class="s-t-s">never called at runtime</text>
+  </svg>
+  </div>
+  <figcaption><b>One session, four runtime endpoints, two build-time ones.</b> The
+  build-time split matters: boundary geometry and settlement names are fetched once
+  and committed, so a poll cycle never depends on Nominatim or Overpass being up, and
+  their rate limits can never affect alerting.</figcaption>
+</figure>
+
+<!-- ============ client ============ -->
+<h2 id="client">Shared HTTP client</h2>
+
+<p>Every call goes through one helper so the CA bundle, User-Agent and timeout are
+identical everywhere.</p>
+
+<pre><code><span class="cmt"># firewatch/sources.py</span>
+def _session() -> requests.Session:
+    s = requests.Session()
+    s.headers.update({"User-Agent": CFG["user_agent"]})
+    return s</code></pre>
+
+<div class="note crit">
+  <span class="lbl">Why requests, not urllib</span>
+  <p>This machine's python.org framework build ships <strong>no CA bundle</strong>.
+  Every <code>urllib</code> HTTPS call fails with
+  <code>CERTIFICATE_VERIFY_FAILED</code>, while <code>requests</code> succeeds because
+  it uses <code>certifi</code>. The whole codebase therefore uses
+  <code>requests</code>, and the <code>launchd</code> agent additionally exports
+  <code>SSL_CERT_FILE</code> and <code>REQUESTS_CA_BUNDLE</code> so anything reaching
+  for the stdlib also works.</p>
+</div>
+
+<p>Timeout is <code>http_timeout</code> (90 s), deliberately generous because the
+EUMETView gateway routinely takes 15&ndash;25 s for a legitimate query.</p>
+
+<!-- ============ FIRMS ============ -->
+<h2 id="firms">NASA FIRMS <span class="tag firms">polled</span></h2>
+
+<p class="lede">Positional REST. Everything is a path segment — there is no query
+string and nothing is optional.</p>
+
+<pre><code>https://firms.modaps.eosdis.nasa.gov/api/area/csv/<span class="k">{MAP_KEY}</span>/<span class="k">{dataset}</span>/<span class="k">{west,south,east,north}</span>/<span class="k">{days}</span>/<span class="k">{start_date}</span></code></pre>
+
+<div class="tw">
+<table>
+  <caption>Path parameters</caption>
+  <thead><tr><th>Segment</th><th>Our value</th><th>Constraints</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">MAP_KEY</td><td class="mono">32-hex key</td>
+      <td>Free registration. Invalid → HTTP 400 <code>Invalid MAP_KEY.</code></td></tr>
+    <tr><td class="mono">dataset</td>
+      <td class="mono">VIIRS_SNPP_NRT<br>VIIRS_NOAA20_NRT<br>VIIRS_NOAA21_NRT<br>MODIS_NRT</td>
+      <td>One request per dataset — there is no multi-dataset form. Invalid →
+        <code>Invalid source.</code></td></tr>
+    <tr><td class="mono">area</td><td class="mono">17.9845,44.2017,<br>18.5684,44.5705</td>
+      <td>Municipality bbox + 6 km. Order is <em>west,south,east,north</em>;
+        reversed → <code>West greater than East.</code></td></tr>
+    <tr><td class="mono">days</td><td class="mono">2</td>
+      <td><strong>1&ndash;5 only</strong>, undocumented. Counts <em>forward</em> from
+        <code>start_date</code></td></tr>
+    <tr><td class="mono">start_date</td><td class="mono">YYYY-MM-DD</td>
+      <td>First day of the window, not the last</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Real exchange</h3>
+
+<div class="io">
+  <div class="io-h"><span class="verb">GET</span> request</div>
+  <pre>https://firms.modaps.eosdis.nasa.gov/api/area/csv/$MAP_KEY
+  /VIIRS_SNPP_NRT/17.9845,44.2017,18.5684,44.5705/1/2026-08-20</pre>
+</div>
+<div class="io">
+  <div class="io-h"><span class="verb res">200</span> text/csv</div>
+  <pre>latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,
+instrument,confidence,version,bright_ti5,frp,daynight
+44.31653,18.29032,300.76,0.48,0.48,2026-08-20,22,N,VIIRS,n,2.0NRT,268.31,2.01,N
+44.3104,18.28488,330.32,0.38,0.36,2026-08-20,1149,N,VIIRS,l,2.0NRT,303.96,2.56,D</pre>
+</div>
+
+<p>Two parsing details that bite. <code>acq_time</code> is an
+<strong>unpadded</strong> UTC <code>HHMM</code> integer — <code>22</code> means
+00:22, not 22:00 — so it must be zero-filled to four digits before parsing:</p>
+
+<pre><code>hhmm = (time_s or "0").strip().zfill(4)
+datetime.strptime(f"{date_s} {hhmm}", "%Y-%m-%d %H%M").replace(tzinfo=timezone.utc)</code></pre>
+
+<p>And <code>confidence</code> changes type by sensor: VIIRS reports
+<code>l</code>/<code>n</code>/<code>h</code>, MODIS reports 0&ndash;100. We map the
+letters to <code>25</code>/<code>60</code>/<code>90</code> so one numeric column holds
+both.</p>
+
+<h3>Quota endpoint</h3>
+<div class="io">
+  <div class="io-h"><span class="verb">GET</span> mapkey_status</div>
+  <pre>https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=$MAP_KEY</pre>
+</div>
+<div class="io">
+  <div class="io-h"><span class="verb res">200</span> application/json</div>
+  <pre>{ "transaction_limit" : 5000, "current_transactions": 18,
+  "transaction_interval" : "10 minutes" }</pre>
+</div>
+<p>This call is <strong>free</strong> — it does not itself consume a transaction, so
+it can be polled without cost. See <a href="#quota">quota accounting</a>.</p>
+
+<!-- ============ WFS ============ -->
+<h2 id="wfs">EUMETView WFS <span class="tag mtg">Meteosat</span> <span class="tag s3">Sentinel-3</span></h2>
+
+<p class="lede">Both Meteosat and Sentinel-3 come from one OGC Web Feature Service at
+<code>view.eumetsat.int/geoserver/wfs</code>. No key, no registration, GeoJSON out.</p>
+
+<h3>The request we build</h3>
+<pre><code>GET https://view.eumetsat.int/geoserver/wfs
+  ?service=WFS
+  &amp;version=2.0.0
+  &amp;request=GetFeature
+  &amp;typeNames=<span class="k">mtg_fd:frp</span>
+  &amp;outputFormat=application/json
+  &amp;count=3000
+  &amp;CQL_FILTER=<span class="k">time AFTER 2026-08-20T00:00:00Z
+              AND Lat BETWEEN 44.2017 AND 44.5705
+              AND Lon BETWEEN 17.9845 AND 18.5684</span></code></pre>
+
+<div class="note crit">
+  <span class="lbl">The single most important gotcha</span>
+  <p><code>BBOX(geom, …)</code> — the obvious, spec-correct way to filter spatially —
+  <strong>returns zero features on these layers, with HTTP 200</strong>. No error, no
+  warning, just an empty <code>FeatureCollection</code> that is indistinguishable from
+  "no fires anywhere". Spatial filtering must use the <code>Lat</code> and
+  <code>Lon</code> <em>attributes</em> instead.</p>
+</div>
+
+<p>Captured side by side just now — identical time filter, identical area, only the
+spatial predicate differs:</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb res">works</span> Lat/Lon attribute filter</div>
+  <pre>CQL_FILTER=time AFTER 2026-08-20T00:00:00Z
+           AND Lat BETWEEN 44.2017 AND 44.5705
+           AND Lon BETWEEN 17.9845 AND 18.5684
+
+→ HTTP 200 · 7301 bytes · "numberMatched": 18</pre>
+</div>
+<div class="io">
+  <div class="io-h"><span class="verb err">silent</span> BBOX geometry filter</div>
+  <pre>CQL_FILTER=time AFTER 2026-08-20T00:00:00Z
+           AND BBOX(geom,17.9845,44.2017,18.5684,44.5705)
+
+→ HTTP 200 · {"features":[],"totalFeatures":0,"numberMatched":0}</pre>
+</div>
+
+<figure>
+  <div class="figscroll">
+  <svg viewBox="0 0 760 196" role="img" aria-label="Comparison of two WFS spatial filters. The same time filter and area sent with a Lat and Lon attribute predicate returns 18 features with HTTP 200. Sent with a BBOX geometry predicate it returns zero features, also with HTTP 200, which is indistinguishable from there being no fires.">
+    <defs>
+      <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+        markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+      <marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+        markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow-bad"/></marker>
+    </defs>
+    <rect x="14" y="70" width="176" height="56" rx="7" class="s-box"/>
+    <text x="102" y="94" class="s-t-b" text-anchor="middle">same time filter</text>
+    <text x="102" y="111" class="s-t-s" text-anchor="middle">same area, same layer</text>
+
+    <line x1="190" y1="86" x2="286" y2="52" class="s-line" marker-end="url(#ar2)"/>
+    <line x1="190" y1="110" x2="286" y2="146" class="s-line-bad" marker-end="url(#ar3)"/>
+
+    <rect x="292" y="24" width="234" height="52" rx="6" class="s-box"/>
+    <text x="306" y="45" class="s-t-m">Lat BETWEEN … AND Lon BETWEEN …</text>
+    <text x="306" y="64" class="s-t-s">attribute predicate</text>
+
+    <rect x="292" y="120" width="234" height="52" rx="6" class="s-box-bad"/>
+    <text x="306" y="141" class="s-t-m">BBOX(geom, …)</text>
+    <text x="306" y="160" class="s-t-s">geometry predicate</text>
+
+    <line x1="526" y1="50" x2="606" y2="50" class="s-line" marker-end="url(#ar2)"/>
+    <line x1="526" y1="146" x2="606" y2="146" class="s-line-bad" marker-end="url(#ar3)"/>
+
+    <rect x="612" y="24" width="134" height="52" rx="6" class="s-box-hi"/>
+    <text x="679" y="45" class="s-t-b" text-anchor="middle">200 · 18 features</text>
+    <text x="679" y="63" class="s-t-s" text-anchor="middle">correct</text>
+
+    <rect x="612" y="120" width="134" height="52" rx="6" class="s-box"/>
+    <text x="679" y="141" class="s-t-b" text-anchor="middle" style="fill:var(--crit)">200 · 0 features</text>
+    <text x="679" y="159" class="s-t-s" text-anchor="middle">looks like “no fires”</text>
+  </svg>
+  </div>
+  <figcaption><b>Both responses are HTTP 200.</b> That is what makes this dangerous
+  rather than merely annoying — a monitoring system built on the geometry predicate
+  reports "all clear" forever and never logs a single error. It was caught only by
+  querying Madagascar, where fires were known to be burning.</figcaption>
+</figure>
+
+<h3 id="mtg">Layer: <code>mtg_fd:frp</code> <span class="tag mtg">Meteosat MTG</span></h3>
+<p>Full-disk Fire Radiative Power from the MTG FCI instrument. Time dimension
+<code>PT10M</code> — a new slice every 10 minutes — with an archive of roughly four
+weeks.</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb res">200</span> one feature, verbatim</div>
+  <pre>{"type": "Feature",
+ "id": "MTG_FD_L2P_FRP_2608201050_lod0.8172",
+ "geometry": {"type": "Point", "coordinates": [18.2826, 44.3069]},
+ "geometry_name": "geom",
+ "properties": {"Lat": 44.3069, "Lon": 18.2826,
+                "FRP": 8.12, "FRPerr": 3.57, "Confidence": 68,
+                "BT_mir_k": 311.2, "BT_tir_k": 301.62,
+                "SZA": 31.86, "VZA": 54.24,
+                "Datetime": "2026-08-20 10:58:37",
+                "time": "2026-08-20T10:50:00Z"}}</pre>
+</div>
+
+<p>Note the two timestamps and what they mean for latency measurement.
+<code>time</code> is the 10-minute slice boundary — when the instrument looked.
+<code>Datetime</code> is when the product was processed. In this feature the gap is
+<strong>8 minutes 37 seconds</strong>; the remaining delay before it becomes
+queryable is distribution, which is what puts real end-to-end latency near 25
+minutes. The <code>id</code> encodes the slice as <code>DDMMYY</code> +
+<code>HHMM</code>.</p>
+
+<h3 id="s3">Layers: <code>copernicus:sentinel3a_slstr_level2_frp</code> and <code>…3b…</code> <span class="tag s3">Sentinel-3</span></h3>
+<p>Same service, same query shape, queried as two separate layers and unioned. The
+schema differs from MTG in three fields — <code>UsedChannel</code>,
+<code>AcrossSize</code>/<code>AlongSize</code>, and <code>Satellite</code> — and the
+archive goes back over a year, which is what keeps the far edge of the 30-day view
+populated once MTG's four weeks run out.</p>
+
+<h3>Discovering the schema yourself</h3>
+<p>Two metadata calls answer "what fields exist" and "what time range is available"
+without guessing:</p>
+<pre><code><span class="cmt"># field names and types</span>
+?service=WFS&amp;version=2.0.0&amp;request=DescribeFeatureType&amp;typeNames=mtg_fd:frp
+
+<span class="cmt"># time dimension + extent (WMS capabilities carries it, WFS does not)</span>
+?service=WMS&amp;version=1.3.0&amp;request=GetCapabilities
+<span class="cmt">→ &lt;Dimension name="time"&gt;2026-07-23T00:00:00Z/2026-08-21T06:10:00Z/PT10M</span></code></pre>
+
+<!-- ============ Open-Meteo ============ -->
+<h2 id="meteo">Open-Meteo <span class="tag nokey">no key</span></h2>
+
+<p>Called once per <em>active</em> fire, memoised for 15 minutes on coordinates
+rounded to 2 decimals so several detections in one area share a lookup.</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb">GET</span> request</div>
+  <pre>https://api.open-meteo.com/v1/forecast
+  ?latitude=44.3110&amp;longitude=18.2895
+  &amp;current=temperature_2m,relative_humidity_2m,
+           wind_speed_10m,wind_direction_10m,wind_gusts_10m
+  &amp;timezone=Europe/Sarajevo</pre>
+</div>
+<div class="io">
+  <div class="io-h"><span class="verb res">200</span> application/json (trimmed)</div>
+  <pre>{"latitude": 44.305595, "longitude": 18.282852,
+ "elevation": 934.0, "timezone": "Europe/Sarajevo",
+ "current_units": {"wind_speed_10m": "km/h", "wind_direction_10m": "°"},
+ "current": {"time": "2026-08-21T15:30", "interval": 900,
+             "temperature_2m": …, "relative_humidity_2m": …,
+             "wind_speed_10m": …, "wind_direction_10m": …,
+             "wind_gusts_10m": …}}</pre>
+</div>
+
+<div class="note warn">
+  <span class="lbl">Meteorological convention</span>
+  <p><code>wind_direction_10m</code> is the direction the wind blows <em>from</em>.
+  A fire spreads the opposite way, so the UI shows both:
+  <code>from = compass(deg)</code> and
+  <code>towards = compass((deg + 180) % 360)</code>. Getting this backwards would
+  point responders at the wrong side of the fire.</p>
+</div>
+
+<p>Note also that the response echoes <em>snapped</em> coordinates — we asked for
+44.3110, 18.2895 and got back 44.3056, 18.2829, the nearest grid cell, plus its
+elevation (934 m). Worth knowing when a value looks slightly off for the exact
+point.</p>
+
+<!-- ============ build-time ============ -->
+<h2 id="nominatim">Nominatim <span class="tag build">build-time</span></h2>
+
+<p>Used once to resolve the municipality and pull its polygon. The result is committed
+as <code>data/zavidovici.geojson</code>, so this is never called at runtime.</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb">GET</span> find the relation</div>
+  <pre>https://nominatim.openstreetmap.org/search?q=Grad+Zavidovi%C4%87i&amp;format=json&amp;limit=1
+  → {"osm_type": "relation", "osm_id": 2528292,
+     "class": "boundary", "type": "administrative", …}</pre>
+</div>
+<div class="io">
+  <div class="io-h"><span class="verb">GET</span> pull the geometry</div>
+  <pre>https://nominatim.openstreetmap.org/details
+  ?osmtype=R&amp;osmid=2528292&amp;format=json&amp;polygon_geojson=1
+  → admin_level 6 · Polygon · 731 points · single ring, no holes</pre>
+</div>
+
+<p>Nominatim's usage policy requires a genuine identifying
+<code>User-Agent</code> and at most 1 request/second. We satisfy both trivially by
+calling it twice, ever.</p>
+
+<h2 id="overpass">Overpass <span class="tag build">build-time</span></h2>
+
+<p>Fetches the settlement names used to turn coordinates into
+<em>"7.0 km ESE of Kamenica"</em>. Committed as
+<code>data/settlements.json</code> (413 places).</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb">POST</span> Overpass QL body</div>
+  <pre>[out:json][timeout:60];
+(
+  node["place"~"^(city|town|village|hamlet|suburb|isolated_dwelling|locality)$"]
+      (44.18,17.95,44.60,18.60);
+);
+out body;</pre>
+</div>
+
+<div class="note warn">
+  <span class="lbl">Overpass failure modes</span>
+  <p>Bounding box order is <strong>(south, west, north, east)</strong> — the opposite
+  convention from FIRMS. Overload returns <strong>HTTP 200 with an HTML error
+  page</strong> (<code>Dispatcher_Client::request_read_and_idx::timeout</code>), so a
+  JSON parse failure is the real signal. Mirrors are not equivalent either:
+  <code>overpass.osm.ch</code> serves Switzerland only and answered this query with
+  zero elements rather than an error. The fetch loop retries across
+  <code>overpass-api.de</code>, <code>kumi.systems</code> and
+  <code>private.coffee</code> with backoff, and treats an empty result as a
+  failure worth retrying.</p>
+</div>
+
+<h2 id="tiles">Map tiles <span class="tag build">browser only</span></h2>
+<p>The generated map loads Leaflet 1.9.4 from unpkg and raster tiles from
+OpenStreetMap, Esri World Imagery and OpenTopoMap. These are requested by
+<em>your browser</em> when you open the map, never by the poller.</p>
+
+<!-- ============ errors ============ -->
+<h2 id="errors">Error handling</h2>
+
+<p class="lede">Three providers, three completely different ways of saying "no".</p>
+
+<div class="tw">
+<table>
+  <caption>Measured failure behaviour per API</caption>
+  <thead><tr><th>API</th><th>On error</th><th>On success-but-empty</th><th>How we detect trouble</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="tag firms">FIRMS</span></td>
+      <td class="mono">400 + English prose<br><span class="s-t-s">not JSON</span></td>
+      <td class="mono">200 + CSV header only</td>
+      <td>Status code, plus "does line 1 look like a header"</td>
+    </tr>
+    <tr>
+      <td><span class="tag mtg">WFS</span></td>
+      <td class="mono">XML ows:ExceptionReport<br>or 502/503</td>
+      <td class="mono">200 + empty features[]</td>
+      <td><code>r.json()</code> raising <code>ValueError</code>, and status</td>
+    </tr>
+    <tr>
+      <td>Overpass</td>
+      <td class="mono">200 + HTML page</td>
+      <td class="mono">200 + empty elements[]</td>
+      <td>JSON parse failure; empty is also treated as failure</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>FIRMS errors observed directly, all with HTTP 400:</p>
+<pre><code>days=7          → Invalid day range. Expects [1..5].
+bad dataset     → Invalid source.
+bad key         → Invalid MAP_KEY.
+3-value bbox    → Invalid area. Expects: [west,south,east,north].
+reversed bbox   → Invalid area coordinate. West greater than East.
+bad date        → Invalid year value. Expects [2000 .. 2026].</code></pre>
+
+<p>The guard that covers all of it, deliberately checking both the status and the
+<em>shape</em> of the body, because prose and CSV both arrive as
+<code>text/plain</code>:</p>
+<pre><code>body = r.text.strip()
+if r.status_code != 200 or not body or "," not in body.split("\n")[0]:
+    log.warning("firms %s: unexpected response %r", ds, body[:120])
+    continue</code></pre>
+
+<div class="note good">
+  <span class="lbl">Isolation guarantee</span>
+  <p>Each source is fetched inside its own <code>try</code>, and a failure records
+  <code>{"ok": false, "detail": …}</code> in the snapshot rather than aborting the
+  cycle. A real Sentinel-3 <code>HTTP 503</code> during development proved it: the
+  other two feeds completed, the map showed <code>s3 fail</code>, and the previously
+  stored S3 detections still contributed to the fire because history lives in
+  SQLite rather than in the response.</p>
+</div>
+
+<!-- ============ chunking ============ -->
+<h2 id="chunking">Chunking &amp; retries</h2>
+
+<p>WFS query cost grows sharply — and non-linearly — with the length of the time
+filter. Measured against <code>mtg_fd:frp</code>:</p>
+
+<div class="tw">
+<table>
+  <caption>Measured WFS response time by time-filter width</caption>
+  <thead><tr><th class="mono">since_hours</th><th>Detections</th><th>Wall time</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">4</td><td class="mono">0</td><td class="mono">0.5 s</td><td>fine</td></tr>
+    <tr><td class="mono">8</td><td class="mono">5</td><td class="mono">2.3 s</td><td>fine</td></tr>
+    <tr><td class="mono">24</td><td class="mono">18</td><td class="mono">4.6 s</td><td>poll window</td></tr>
+    <tr><td class="mono">72</td><td class="mono">18</td><td class="mono">21.5 s</td><td>slow, no extra data</td></tr>
+    <tr><td class="mono">720</td><td class="mono">—</td><td class="mono">&gt; 120 s</td><td>never returns</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>So two rules fall out. <strong>Poll windows stay at 24 h</strong> — history is in
+SQLite, each cycle only needs enough overlap to catch late-published slices. And
+<strong>backfill is chunked</strong> into 48-hour slices bounded on both ends, which
+is measurably faster than one wide query and cannot time out:</p>
+
+<pre><code>WFS_CHUNK_HOURS = 48.0
+
+cql = f"time AFTER {iso(start)} AND Lat BETWEEN … AND Lon BETWEEN …"
+if until is not None:
+    cql += f" AND time BEFORE {iso(until)}"   <span class="cmt"># bound the far end too</span></code></pre>
+
+<p>A failed chunk is logged and skipped, so one bad window costs a slice of history
+rather than the whole 30-day backfill. FIRMS gets the same treatment for a different
+reason — the hard 5-day cap — by stitching six consecutive windows:</p>
+
+<pre><code>remaining = days_back
+start = utcnow() - timedelta(days=remaining - 1)
+while remaining &gt; 0:
+    chunk = min(5, remaining)
+    out.extend(fetch_firms(days=chunk, start_date=start.strftime("%Y-%m-%d")))
+    start += timedelta(days=chunk); remaining -= chunk</code></pre>
+
+<p>Transient gateway failures on the WFS get three attempts with escalating backoff
+(2 s, then 5 s), which turns the routine 502/503 into a small delay rather than a
+lost cycle.</p>
+
+<!-- ============ quota ============ -->
+<h2 id="quota">Quota accounting</h2>
+
+<p>Only FIRMS is metered: <strong>5000 transactions per rolling 10-minute
+window</strong>, with no documented daily cap. The per-endpoint cost is documented
+nowhere and had to be measured by reading <code>current_transactions</code> before and
+after each call.</p>
+
+<div class="tw">
+<table>
+  <caption>Measured transaction cost</caption>
+  <thead><tr><th>Endpoint</th><th class="mono">Cost</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">api/area/csv/…</td><td class="mono">2</td>
+      <td>Flat — independent of how many rows return, or whether zero do</td></tr>
+    <tr><td class="mono">api/data_availability/…/ALL</td><td class="mono">5</td>
+      <td>The old shell script called this every run; we no longer do</td></tr>
+    <tr><td class="mono">api/data_availability/…/&lt;one&gt;</td><td class="mono">1</td><td></td></tr>
+    <tr><td class="mono">mapserver/mapkey_status</td><td class="mono">0</td>
+      <td>Free — safe to poll</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Our steady state: 4 datasets &times; 2 = <strong>8 transactions</strong> per FIRMS
+sweep, once per 20 minutes, so <strong>24/hour</strong> — about
+<strong>0.5%</strong> of the window. A full 30-day backfill costs 48. The other six
+APIs are unmetered, and the two build-time ones are already bundled.</p>
+
+<!-- ============ reproduce ============ -->
+<h2 id="reproduce">Reproduce any of this by hand</h2>
+
+<p>Every call above is a plain HTTP GET you can paste into a terminal. Useful when a
+feed looks wrong and you want to see raw provider output rather than our parse of it.</p>
+
+<pre><code><span class="cmt"># 1. is the key healthy, and how much budget is left? (free)</span>
+curl -s "https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=$KEY"
+
+<span class="cmt"># 2. raw FIRMS rows for the Zavidovići box, today</span>
+curl -s "https://firms.modaps.eosdis.nasa.gov/api/area/csv/$KEY/VIIRS_SNPP_NRT\
+/17.9845,44.2017,18.5684,44.5705/1/$(date -u +%F)"
+
+<span class="cmt"># 3. raw Meteosat FRP points for the last 24 h</span>
+curl -s -G "https://view.eumetsat.int/geoserver/wfs" \
+  --data-urlencode "service=WFS" --data-urlencode "version=2.0.0" \
+  --data-urlencode "request=GetFeature" --data-urlencode "typeNames=mtg_fd:frp" \
+  --data-urlencode "outputFormat=application/json" \
+  --data-urlencode "CQL_FILTER=time AFTER $(date -u -v-1d +%FT%TZ) \
+AND Lat BETWEEN 44.2017 AND 44.5705 AND Lon BETWEEN 17.9845 AND 18.5684" | jq '.numberMatched'
+
+<span class="cmt"># 4. what fields does a layer have?</span>
+curl -s "https://view.eumetsat.int/geoserver/wfs?service=WFS&version=2.0.0\
+&request=DescribeFeatureType&typeNames=mtg_fd:frp"</code></pre>
+
+<p>Or go through the code, which prints the same data already parsed and clipped:</p>
+<pre><code>python3 -m firewatch poll        <span class="cmt"># one cycle, all sources, with per-source timing</span>
+python3 -m firewatch quota       <span class="cmt"># transaction usage</span>
+python3 -m firewatch history 40  <span class="cmt"># what actually landed in the database</span></code></pre>
+
+<footer>
+  <p><strong>Endpoints referenced.</strong>
+  <code>firms.modaps.eosdis.nasa.gov</code> (NASA FIRMS, LANCE/ESDIS) ·
+  <code>view.eumetsat.int/geoserver</code> (EUMETSAT EUMETView — Meteosat MTG FCI and
+  Copernicus Sentinel-3 SLSTR) ·
+  <code>api.open-meteo.com</code> ·
+  <code>nominatim.openstreetmap.org</code> ·
+  <code>overpass-api.de</code> · OpenStreetMap, Esri and OpenTopoMap tile servers.
+  All request/response samples on this page were captured live from these endpoints,
+  trimmed only for length.</p>
+</footer>
+</main>
+</div>

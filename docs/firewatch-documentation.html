@@ -630,7 +630,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <rect x="512" y="580" width="232" height="62" rx="6" class="s-box"/>
     <text x="526" y="602" class="s-t-b">7 &middot; Publish: map</text>
     <text x="526" y="618" class="s-t-s">snapshot.json + HTML</text>
-    <text x="526" y="633" class="s-t-m">self-reloads every 60 s</text>
+    <text x="526" y="633" class="s-t-m">refreshes in place, 60 s</text>
   </svg>
   </div>
   <figcaption><b>One cycle, end to end.</b> The two highlighted stages are where raw
@@ -900,13 +900,16 @@ notification itself becomes a link that opens Google Maps at the fire. The app
 detects which is available at startup and shows it in the menu.</p>
 
 <h3>Fire map</h3>
-<p>A self-contained HTML file, regenerated every cycle and reloading itself every
-60 seconds, so it works as a live wall display. Fire circles are sized by FRP and
+<p>A self-contained HTML file, regenerated every cycle. Every 60 seconds the page
+pulls fresh data in place rather than reloading — the poller writes a sibling
+<code>fire-map-data.js</code> and the page injects it as a cache-busted script,
+because a <code>file://</code> page cannot fetch a sibling JSON file but can load one
+as a script. Zoom, pan, selected range, timeline position and any open popup all
+survive the update, so it works as a live wall display that never jumps. Fire circles are sized by FRP and
 coloured by severity, pulsing while active; individual detections are coloured by
 satellite and fade with age; a time slider with a play button animates the fire's
-progression across the selected range. Snapshot data is embedded directly in the page
-rather than fetched, because a <code>file://</code> page cannot read a sibling JSON
-file under browser CORS rules.</p>
+progression across the selected range. The initial snapshot is still inlined for first
+paint, so the page renders correctly even if the data file is missing.</p>
 
 <h3>Command line</h3>
 <pre><code>python3 -m firewatch status 24h|3d|7d|30d   current state for one range
@@ -963,11 +966,15 @@ windows are split into 48-hour chunks and unioned client-side; a failed chunk is
 logged and skipped rather than losing the whole run. This is why backfill exists as a
 separate command rather than just widening the poll.</p>
 
-<h4>FIRMS reports errors with HTTP 200</h4>
-<p>An invalid request returns a bare English sentence and a success status —
-<code>Invalid day range. Expects [1..5].</code> Any parser that trusts the status code
-will read that as an empty result. The day range cap of 5 is also undocumented, which
-is why a month of FIRMS history is stitched from six windows.</p>
+<h4>FIRMS reports errors as prose, not JSON</h4>
+<p>An invalid request returns <strong>HTTP 400</strong> with a bare English sentence
+in the body — <code>Invalid day range. Expects [1..5].</code>,
+<code>Invalid MAP_KEY.</code>, <code>Invalid area coordinate. West greater than
+East.</code> — so anything expecting a structured error has to fall back to reading
+the prose. The confusable case is the other direction: a <em>valid</em> query with no
+fires is HTTP 200 carrying only the CSV header, so success-with-nothing and
+success-with-data differ by one line. The day range cap of 5 is undocumented, which is
+why a month of FIRMS history is stitched from six windows.</p>
 
 <h4>This Python has no CA bundle</h4>
 <p>The python.org framework build ships no <code>cert.pem</code>, so every
