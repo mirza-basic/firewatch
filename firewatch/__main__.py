@@ -9,8 +9,16 @@
   [range] is 24h | 3d | 7d | 30d  (default: 3d, or default_range from config)
     python3 -m firewatch map         rebuild and open the fire map
     python3 -m firewatch quota       FIRMS transaction usage
+    python3 -m firewatch expose      publish the map via ngrok, print the URL
+    python3 -m firewatch unexpose    stop publishing (other tunnels untouched)
+    python3 -m firewatch expose-status
     python3 -m firewatch history [n] recent detections from the database
-    python3 -m firewatch test-notify send a test notification
+    python3 -m firewatch test-notify
+    python3 -m firewatch sms-status    SMS backend + settings
+    python3 -m firewatch test-sms      send a sample alert SMS
+    python3 -m firewatch set-sms-key   store the httpSMS API key
+    python3 -m firewatch sms-add <number>     add an SMS recipient
+    python3 -m firewatch sms-remove <number>  remove one send a test notification
 """
 from __future__ import annotations
 
@@ -21,6 +29,8 @@ import webbrowser
 from pathlib import Path
 
 from . import events as ev_mod
+from . import expose as expose_mod
+from . import sms as sms_mod
 from . import mapgen, notify, poller, sources, store
 from .config import CFG, MAP_PATH, SNAPSHOT_PATH
 
@@ -122,6 +132,48 @@ def cmd_map() -> int:
     return 0
 
 
+def cmd_expose() -> int:
+    try:
+        t = expose_mod.expose()
+    except expose_mod.ExposeError as exc:
+        print(f"\n  could not publish: {exc}\n")
+        return 1
+    url = t.get("public_url", "?")
+    print(f"\n  Fire map published at\n    {url}\n")
+    if t.get("_reused"):
+        print("  (tunnel already existed — reused it)")
+    if t.get("_started_agent"):
+        print("  (started a new ngrok agent, since none was running)")
+    elif t.get("_siblings"):
+        print(f"  (joined the running agent alongside {t['_siblings']} existing tunnel(s))")
+    print(f"  serving: {expose_mod.PUBLIC_DIR}")
+    print("  the poller keeps this directory in sync every cycle")
+    print("\n  free-tier URLs are random and change when the agent restarts.")
+    print("  stop with: python3 -m firewatch unexpose\n")
+    return 0
+
+
+def cmd_unexpose() -> int:
+    removed = expose_mod.unexpose()
+    print("  tunnel removed" if removed else "  no firewatch tunnel was running")
+    return 0
+
+
+def cmd_expose_status() -> int:
+    st = expose_mod.status()
+    print(f"\n  ngrok binary : {st['ngrok'] or 'not found'}")
+    print(f"  agent running: {st['agent_up']}")
+    print(f"  public dir   : {st['public_dir']}")
+    print(f"  staged files : {', '.join(st['staged']) or '(none — not exposed)'}")
+    print(f"  fire map URL : {st['firewatch_tunnel'] or '(not published)'}")
+    if st["all_tunnels"]:
+        print("  all tunnels on this agent:")
+        for t in st["all_tunnels"]:
+            print(f"    {t['name']}: {t['url']} -> {t['addr']}")
+    print()
+    return 0
+
+
 def cmd_quota() -> int:
     q = sources.firms_quota()
     if not q:
@@ -158,6 +210,102 @@ def cmd_test_notify() -> int:
     return 0 if ok else 1
 
 
+def cmd_sms_status() -> int:
+    from .config import CFG
+    ok, why = sms_mod.ready()
+    print(f"\n  usable       : {ok}  ({why})")
+    print(f"  enabled      : {CFG['sms_enabled']}")
+    print(f"  from         : {CFG['sms_from'] or '(unset)'}")
+    rec = sms_mod.recipients()
+    print(f"  to           : {', '.join(rec) if rec else '(none)'}  [{len(rec)}]")
+    print(f"  api key      : {'found' if sms_mod.api_key() else 'not found'}")
+    print(f"  alert kinds  : {', '.join(CFG['sms_kinds'])}")
+    print(f"  max chars    : {CFG['sms_max_chars']}")
+    print(f"  map url      : {sms_mod.map_url() or '(map not published)'}\n")
+    return 0
+
+
+def cmd_set_sms_key() -> int:
+    """Store the httpSMS API key in the macOS Keychain.
+
+    Prompted rather than passed on the command line so it never lands in shell
+    history or a process listing.
+    """
+    import getpass
+    import shutil
+    import subprocess
+    if not shutil.which("security"):
+        print("  macOS `security` tool not found")
+        return 1
+    key = getpass.getpass("  httpSMS API key (not echoed): ").strip()
+    if not key:
+        print("  nothing entered")
+        return 1
+    r = subprocess.run(["security", "add-generic-password", "-U",
+                        "-a", "firewatch", "-s", sms_mod.KEYCHAIN_SERVICE,
+                        "-w", key], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  keychain write failed: {r.stderr.strip()[:200]}")
+        return 1
+    ok, why = sms_mod.ready()
+    print(f"  stored. usable now: {ok} ({why})")
+    return 0
+
+
+def _save_recipients(nums: list[str]) -> None:
+    from .config import CFG
+    CFG["sms_to"] = nums
+    CFG.save()
+
+
+def cmd_sms_add(number: str | None) -> int:
+    if not number or not number.startswith("+"):
+        print("  give a number in E.164 form, e.g. sms-add +38761234567")
+        return 1
+    rec = sms_mod.recipients()
+    if number in rec:
+        print(f"  {number} is already a recipient")
+        return 0
+    rec.append(number)
+    _save_recipients(rec)
+    print(f"  added. recipients now: {', '.join(rec)}")
+    print("  run ./firewatch-ctl restart to apply to the running service")
+    return 0
+
+
+def cmd_sms_remove(number: str | None) -> int:
+    rec = sms_mod.recipients()
+    if not number or number not in rec:
+        print(f"  not a recipient. current: {', '.join(rec) or '(none)'}")
+        return 1
+    rec.remove(number)
+    _save_recipients(rec)
+    print(f"  removed. recipients now: {', '.join(rec) or '(none)'}")
+    print("  run ./firewatch-ctl restart to apply to the running service")
+    return 0
+
+
+def cmd_test_sms() -> int:
+    poller.setup_logging()
+    evs = poller.load_snapshot().get("events") or []
+    if not evs:
+        print("  no events in the snapshot to build a sample from")
+        return 1
+    alert = {"kind": "new", "event": evs[0], "detail": "sample from test-sms"}
+    text = sms_mod.alert_text(alert)
+    ok, why = sms_mod.ready()
+    print(f"\n  usable: {ok} ({why})")
+    print(f"  {len(text)} chars, {sms_mod.segments(text)} segment(s)")
+    print("  ---- message ----")
+    print("\n".join("  | " + l for l in text.splitlines()))
+    if not ok:
+        print("\n  not sent\n")
+        return 1
+    sent = sms_mod.send(text)
+    print(f"\n  delivered: {sent}\n")
+    return 0 if sent else 1
+
+
 def main(argv: list[str]) -> int:
     cmd = (argv[0] if argv else "menubar").lower()
     if cmd in ("menubar", "app", "ui"):
@@ -174,10 +322,26 @@ def main(argv: list[str]) -> int:
         return cmd_map()
     if cmd == "backfill":
         return cmd_backfill(int(argv[1]) if len(argv) > 1 else 30)
+    if cmd == "expose":
+        return cmd_expose()
+    if cmd == "unexpose":
+        return cmd_unexpose()
+    if cmd in ("expose-status", "exposestatus"):
+        return cmd_expose_status()
     if cmd == "quota":
         return cmd_quota()
     if cmd == "history":
         return cmd_history(int(argv[1]) if len(argv) > 1 else 40)
+    if cmd in ("sms-status", "smsstatus"):
+        return cmd_sms_status()
+    if cmd in ("test-sms", "testsms"):
+        return cmd_test_sms()
+    if cmd in ("sms-add", "smsadd"):
+        return cmd_sms_add(argv[1] if len(argv) > 1 else None)
+    if cmd in ("sms-remove", "smsremove"):
+        return cmd_sms_remove(argv[1] if len(argv) > 1 else None)
+    if cmd in ("set-sms-key", "setsmskey"):
+        return cmd_set_sms_key()
     if cmd in ("test-notify", "testnotify"):
         return cmd_test_notify()
     print(__doc__)

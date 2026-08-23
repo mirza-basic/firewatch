@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import timedelta
 
-from . import enrich, events, mapgen, notify, sources, store
+from . import enrich, events, mapgen, notify, sms, sources, store
 from .config import CFG, LOG_PATH, SNAPSHOT_PATH, ensure_dirs
 from .store import iso, utcnow
 
@@ -141,11 +141,21 @@ class Poller:
                 ev_id, kind = a["event"]["id"], a["kind"]
                 if store.was_notified(con, ev_id, kind, CFG["notify_cooldown_min"]):
                     continue
-                if notify.notify_alert(a):
+                notified = notify.notify_alert(a)
+                # SMS is a separate channel and must go out even if the desktop
+                # notification failed - the Mac may be asleep or locked with
+                # nobody looking at it. Hence OR, not a gate.
+                try:
+                    texted = sms.send_alert(a)
+                except Exception:
+                    log.exception("sms alert failed")
+                    texted = False
+                if notified or texted:
                     store.mark_notified(con, ev_id, kind)
                     sent.append(a)
-                    log.info("notified %s: %s (%s)", kind,
-                             a["event"]["place"], a.get("detail", ""))
+                    log.info("alerted %s: %s (%s) [notify=%s sms=%s]", kind,
+                             a["event"]["place"], a.get("detail", ""),
+                             notified, texted)
 
             snap = {
                 "generated_at": iso(utcnow()),

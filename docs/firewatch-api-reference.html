@@ -186,6 +186,10 @@
   <ul>
     <li><a href="#meteo">Open-Meteo</a></li>
   </ul>
+  <div class="grp">Outbound</div>
+  <ul>
+    <li><a href="#httpsms">httpSMS</a></li>
+  </ul>
   <div class="grp">Build-time</div>
   <ul>
     <li><a href="#nominatim">Nominatim</a></li>
@@ -212,9 +216,9 @@
 <!-- ============ overview ============ -->
 <h2 id="overview">Overview</h2>
 
-<p class="lede">Seven external APIs. Three are polled continuously for fire
-detections, one is called per active fire for context, and three run once at build
-time and are then bundled into the repo.</p>
+<p class="lede">Eight external APIs. Three are polled continuously for fire
+detections, one is called per active fire for context, one goes out only when an
+alert fires, and three run once at build time and are then bundled into the repo.</p>
 
 <div class="tw">
 <table>
@@ -267,6 +271,12 @@ time and are then bundled into the repo.</p>
       <td><span class="tag nokey">none</span></td>
       <td class="mono">data/settlements.json</td>
     </tr>
+    <tr>
+      <td>httpSMS</td>
+      <td class="mono nw">REST · JSON</td><td class="nw">per alert</td>
+      <td><span class="tag key">api key</span></td>
+      <td class="mono">sms.send_alert</td>
+    </tr>
   </tbody>
 </table>
 </div>
@@ -315,10 +325,11 @@ time and are then bundled into the repo.</p>
     <line x1="89" y1="168" x2="89" y2="234" class="s-line" marker-end="url(#ar)"/>
     <rect x="14" y="238" width="330" height="24" rx="5" class="s-box"/>
     <text x="26" y="255" class="s-t-m">build-time: Nominatim + Overpass → data/*.json</text>
+    <text x="356" y="232" class="s-t-m">outbound: httpSMS, on alert only</text>
     <text x="356" y="255" class="s-t-s">never called at runtime</text>
   </svg>
   </div>
-  <figcaption><b>One session, four runtime endpoints, two build-time ones.</b> The
+  <figcaption><b>One session, five runtime endpoints, two build-time ones.</b> The
   build-time split matters: boundary geometry and settlement names are fetched once
   and committed, so a poll cycle never depends on Nominatim or Overpass being up, and
   their rate limits can never affect alerting.</figcaption>
@@ -593,6 +604,59 @@ elevation (934 m). Worth knowing when a value looks slightly off for the exact
 point.</p>
 
 <!-- ============ build-time ============ -->
+<h2 id="httpsms">httpSMS <span class="tag key">api key</span></h2>
+
+<p class="lede">The only API FireWatch <em>pushes</em> to. Everything else here is a
+read; this one sends an SMS through an Android phone acting as the gateway.</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb">POST</span> one recipient</div>
+  <pre>https://api.httpsms.com/v1/messages/send
+x-api-key: &lt;key&gt;
+{"from": "+387…", "to": "+387…", "content": "…"}</pre>
+</div>
+<div class="io">
+  <div class="io-h"><span class="verb">POST</span> two or more recipients</div>
+  <pre>https://api.httpsms.com/v1/messages/bulk-send
+{"from": "+387…", "to": ["+387…", "+387…"], "content": "…"}
+
+&rarr; 200 {"data":[{… "status":"pending"}], "message":…, "status":…}</pre>
+</div>
+
+<p>The endpoint is picked by recipient count, so a fan-out to several phones is one
+call rather than one per number. Numbers must be E.164 and are validated first.</p>
+
+<div class="note warn">
+  <span class="lbl">Message length is a real constraint</span>
+  <p>A GSM-7 SMS segment is 160 characters, but <strong>one non-GSM character
+  switches the whole message to UCS-2 at 70 characters</strong>. Bosnian diacritics
+  do exactly that, so alert text is transliterated &mdash; <code>Zavidovici</code>,
+  not <code>Zavidovi&#263;i</code>. Measured on the same string: 2 segments with
+  diacritics, 1 without. A real alert is ~136 characters &mdash; one segment, map
+  link included.</p>
+</div>
+
+<div class="note crit">
+  <span class="lbl">Diagnosing &ldquo;200 OK but no SMS arrived&rdquo;</span>
+  <p>A 200 means httpSMS <em>accepted</em> the message, not that it was sent &mdash;
+  the phone still has to collect it. A message stuck at
+  <code>status: scheduled</code> means the Android app is not picking work up.
+  Heartbeat freshness is the fastest check:</p>
+  <pre>GET /v1/heartbeats?owner=+387…&amp;limit=1      # older than a few min = app offline
+GET /v1/messages?owner=+387…&amp;contact=+387…   # per-recipient status + attempts</pre>
+  <p>Seen in practice: rotating the API key on the website <em>without</em> updating
+  it in the Android app silently stopped delivery. Heartbeats went stale and
+  messages piled up at <code>scheduled</code> with no error anywhere. Healthy
+  behaviour is <code>scheduled &rarr; delivered</code> within seconds.</p>
+</div>
+
+<p>Throughput is limited by the phone rather than the API:
+<code>messages_per_minute</code> defaults to 10 (max 29) and <em>each recipient</em>
+costs one. Messages expire after <code>message_expiration_seconds</code> (600) with
+<code>max_send_attempts</code> (2) tries, so a long outage loses them instead of
+queueing indefinitely. The key comes from <code>HTTPSMS_API_KEY</code> or the macOS
+Keychain, never <code>config.json</code>.</p>
+
 <h2 id="nominatim">Nominatim <span class="tag build">build-time</span></h2>
 
 <p>Used once to resolve the municipality and pull its polygon. The result is committed
@@ -652,7 +716,7 @@ OpenStreetMap, Esri World Imagery and OpenTopoMap. These are requested by
 <!-- ============ errors ============ -->
 <h2 id="errors">Error handling</h2>
 
-<p class="lede">Three providers, three completely different ways of saying "no".</p>
+<p class="lede">Four providers, four completely different ways of saying "no".</p>
 
 <div class="tw">
 <table>
@@ -676,6 +740,12 @@ OpenStreetMap, Esri World Imagery and OpenTopoMap. These are requested by
       <td class="mono">200 + HTML page</td>
       <td class="mono">200 + empty elements[]</td>
       <td>JSON parse failure; empty is also treated as failure</td>
+    </tr>
+    <tr>
+      <td>httpSMS</td>
+      <td class="mono">4xx + JSON</td>
+      <td class="mono">200 = <em>accepted</em>,<br>not yet sent</td>
+      <td>Message stays <code>scheduled</code>; check heartbeat freshness</td>
     </tr>
   </tbody>
 </table>
@@ -818,6 +888,7 @@ python3 -m firewatch history 40  <span class="cmt"># what actually landed in the
   <code>view.eumetsat.int/geoserver</code> (EUMETSAT EUMETView — Meteosat MTG FCI and
   Copernicus Sentinel-3 SLSTR) ·
   <code>api.open-meteo.com</code> ·
+  <code>api.httpsms.com</code> (SMS gateway) ·
   <code>nominatim.openstreetmap.org</code> ·
   <code>overpass-api.de</code> · OpenStreetMap, Esri and OpenTopoMap tile servers.
   All request/response samples on this page were captured live from these endpoints,

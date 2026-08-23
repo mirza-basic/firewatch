@@ -20,6 +20,13 @@ FireWatch Zavidovići
   ./firewatch-ctl logs        tail the log
   ./firewatch-ctl poll        run one cycle in the foreground
   ./firewatch-ctl map         rebuild and open the fire map
+  ./firewatch-ctl expose      publish the map through ngrok, print the URL
+  ./firewatch-ctl unexpose    stop publishing
+  ./firewatch-ctl exposed     show publish status and all ngrok tunnels
+  ./firewatch-ctl sms         SMS backend + settings
+  ./firewatch-ctl test-sms    send a sample alert SMS
+  ./firewatch-ctl set-sms-key store the httpSMS API key
+  ./firewatch-ctl sms-add <number> | sms-remove <number>
 USAGE
 }
 
@@ -77,5 +84,13 @@ status)
 logs)   tail -n 60 -f "$SUPPORT/firewatch.log" ;;
 poll)   cd "$PROJ" && python3 -m firewatch poll ;;
 map)    cd "$PROJ" && python3 -m firewatch map ;;
+expose)   cd "$PROJ" && python3 -m firewatch expose ;;
+unexpose) cd "$PROJ" && python3 -m firewatch unexpose ;;
+exposed)  cd "$PROJ" && python3 -m firewatch expose-status ;;
+sms)         cd "$PROJ" && python3 -m firewatch sms-status ;;
+test-sms)    cd "$PROJ" && python3 -m firewatch test-sms ;;
+set-sms-key) cd "$PROJ" && python3 -m firewatch set-sms-key ;;
+sms-add)     cd "$PROJ" && python3 -m firewatch sms-add "${2:-}" ;;
+sms-remove)  cd "$PROJ" && python3 -m firewatch sms-remove "${2:-}" ;;
 *)      usage; exit 2 ;;
 esac

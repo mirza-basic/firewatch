@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
-from .config import BOUNDARY_GEOJSON, MAP_PATH
+from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR
 
 TEMPLATE = r"""<!doctype html>
 <html lang="en"><head>
@@ -35,7 +36,11 @@ TEMPLATE = r"""<!doctype html>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
     font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
-  #wrap{display:flex;height:100vh;overflow:hidden}
+  /* Three heights on purpose: plain vh for ancient browsers, --appvh (set from
+     window.innerHeight by JS) for Chrome/Safari without dvh, then dvh where it
+     exists. position:relative makes this the anchor for #timebar. */
+  #wrap{display:flex;position:relative;overflow:hidden;
+    height:100vh;height:var(--appvh,100vh);height:100dvh}
   #side{width:370px;flex:0 0 370px;background:var(--panel);border-right:1px solid var(--line);
     display:flex;flex-direction:column}
   #map{flex:1;background:#0b0e12}
@@ -78,17 +83,25 @@ TEMPLATE = r"""<!doctype html>
   footer{padding:10px 14px;border-top:1px solid var(--line);color:var(--dim);font-size:11px}
   .empty{text-align:center;color:var(--dim);padding:40px 20px}
   .empty .big{font-size:34px;margin-bottom:10px}
-  #timebar{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:500;
+  #timebar{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:1050;
     background:rgba(21,26,33,.94);border:1px solid var(--line);border-radius:11px;
     padding:10px 14px;display:flex;align-items:center;gap:11px;width:min(620px,72vw);
     backdrop-filter:blur(9px)}
   #timebar input[type=range]{flex:1;accent-color:var(--accent)}
-  #tlabel{font-size:11.5px;color:var(--dim);min-width:132px;font-variant-numeric:tabular-nums}
+  #tlabel{font-size:11.5px;color:var(--dim);min-width:132px;white-space:nowrap;
+    font-variant-numeric:tabular-nums}
   #play{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
     width:30px;height:26px;cursor:pointer;font-size:12px}
+  #speed{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
+    height:26px;min-width:38px;padding:0 6px;cursor:pointer;font:inherit;font-size:11.5px;
+    font-variant-numeric:tabular-nums}
+  #speed:hover,#play:hover{background:#31404f}
   .legend{background:rgba(21,26,33,.94);padding:9px 11px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.7}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+  .legend-toggle{display:none}
+  .leaflet-bottom.leaflet-right,
+  .leaflet-bottom.leaflet-left{margin-bottom:78px}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
   .leaflet-popup-tip{background:var(--panel)}
   .leaflet-popup-content{margin:11px 13px;font-size:12.5px}
@@ -96,13 +109,85 @@ TEMPLATE = r"""<!doctype html>
   .leaflet-popup-content a{color:#7cc4ff}
   .leaflet-bar a{background:var(--panel2);color:var(--fg);border-color:var(--line)}
   .leaflet-bar a:hover{background:#31404f}
+  #langsw{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:1250;
+    display:flex;gap:2px;padding:2px;border-radius:9px;border:1px solid var(--line);
+    background:rgba(21,26,33,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
+    font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
+  #langsw button:hover{color:var(--fg)}
+  #langsw button.on{background:var(--accent);color:#fff}
   .pulse{animation:pulse 2.1s ease-out infinite}
   @keyframes pulse{0%{r:8;opacity:.85}70%{opacity:0}100%{r:26;opacity:0}}
-  @media (max-width:880px){#wrap{flex-direction:column}#side{width:100%;flex:0 0 46%}}
+  /* Desktop keeps the panel docked; these two are only used on small screens. */
+  #drawer-btn{display:none}
+  #drawer-close{display:none}
+  #backdrop{display:none}
+
+  /* Phone/tablet: the panel becomes an off-canvas drawer so the map gets the whole
+     screen. Stacking it wasted half the display, and min-height:auto on a flex item
+     floored the panel at its content height - which is what left the map 61px tall. */
+  @media (max-width:880px){
+    #side{position:fixed;top:0;left:0;height:100%;height:100dvh;width:min(86vw,340px);
+      flex:0 0 auto;min-height:0;z-index:1200;transform:translateX(-102%);
+      transition:transform .26s ease;box-shadow:0 0 42px rgba(0,0,0,.55)}
+    #side.open{transform:none}
+    #map{flex:1 1 auto;min-height:0}
+    #drawer-btn{display:flex;align-items:center;gap:7px;position:fixed;top:10px;left:10px;
+      z-index:1300;background:rgba(21,26,33,.95);color:var(--fg);border:1px solid var(--line);
+      border-radius:9px;padding:9px 12px;font:inherit;font-size:14px;cursor:pointer;
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    #drawer-btn:active{background:#26303b}
+    /* The toggle is fixed above the drawer, so it would sit on top of the panel
+       header and cover the title. The drawer has its own close button. */
+    body.drawer-open #drawer-btn,
+    body.drawer-open #langsw{display:none}
+    #drawer-badge:not(:empty){font-size:12px;font-weight:700;color:var(--accent)}
+    #drawer-close{display:block;position:absolute;top:10px;right:10px;background:#26303b;
+      border:1px solid var(--line);color:var(--fg);border-radius:7px;width:30px;height:30px;
+      font-size:16px;line-height:1;cursor:pointer;padding:0}
+    header{padding:12px 46px 11px 14px}
+    #backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;
+      opacity:0;pointer-events:none;transition:opacity .26s}
+    #backdrop.on{opacity:1;pointer-events:auto}
+    /* keep Leaflet's own controls clear of the drawer button */
+    .leaflet-top.leaflet-left{margin-top:54px}
+    #timebar{width:calc(100% - 22px);padding:8px 11px;gap:8px;
+      bottom:calc(11px + env(safe-area-inset-bottom, 0px))}
+    #tlabel{min-width:0;font-size:11px}
+    #list{padding:8px}
+    /* The legend used to be hidden here because it sat on top of the timeline bar.
+       Instead, lift the whole bottom-right control stack clear of the bar and make
+       the legend collapse to a single "Key" button, so it is reachable without
+       permanently covering a phone-sized map. */
+    .leaflet-bottom.leaflet-right,
+    .leaflet-bottom.leaflet-left{
+      margin-bottom:calc(88px + env(safe-area-inset-bottom, 0px))}
+    /* attribution must stay visible, but it can be smaller on a phone */
+    .leaflet-control-attribution{font-size:9.5px;padding:1px 5px}
+    .legend{background:none;border:0;padding:0;line-height:1.6}
+    .legend-toggle{display:block;width:100%;text-align:left;cursor:pointer;
+      background:rgba(21,26,33,.94);border:1px solid var(--line);color:var(--fg);
+      border-radius:9px;padding:8px 13px;font:inherit;font-size:12.5px;
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .legend-body{display:none;background:rgba(21,26,33,.96);border:1px solid var(--line);
+      border-radius:9px;padding:10px 12px;margin-bottom:6px;max-width:74vw;
+      max-height:46dvh;overflow-y:auto;
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .legend.open .legend-body{display:block}
+  }
+  @media (prefers-reduced-motion:reduce){#side,#backdrop{transition:none}}
 </style></head><body>
+<button id="drawer-btn" aria-controls="side" aria-expanded="false" aria-label="Show fire list">
+  <span aria-hidden="true">&#9776;</span><span id="drawer-label">Fires</span><span id="drawer-badge"></span>
+</button>
+<div id="backdrop"></div>
+<div id="langsw" role="group" aria-label="Language / Jezik">
+  <button data-l="bs" type="button">BS</button><button data-l="en" type="button">EN</button>
+</div>
 <div id="wrap">
   <div id="side">
     <header>
+      <button id="drawer-close" aria-label="Close fire list">&times;</button>
       <h1><span class="dot" id="hdot"></span><span id="htitle">FireWatch Zavidovići</span></h1>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
@@ -112,11 +197,13 @@ TEMPLATE = r"""<!doctype html>
     <footer id="foot"></footer>
   </div>
   <div id="map"></div>
-</div>
-<div id="timebar">
-  <button id="play" title="Animate">&#9654;</button>
-  <input type="range" id="slider" min="0" max="100" value="100">
-  <span id="tlabel"></span>
+  <div id="timebar">
+    <button id="play" title="Animate">&#9654;</button>
+    <button id="speed" title="Playback speed">1&times;</button>
+    <input type="range" id="slider" min="0" max="100" value="100" step="any">  <!-- step="any": the default step of 1 quantised the animation, making
+         0.5x and 1x advance identically -->
+    <span id="tlabel"></span>
+  </div>
 </div>
 <script>
 let DATA = __DATA__;
@@ -125,7 +212,112 @@ const BOUNDARY = __BOUNDARY__;
 const SRC = {mtg:{c:"#4cc9f0",n:"Meteosat MTG (10 min)"},
              firms:{c:"#ffd166",n:"VIIRS/MODIS (NRT)"},
              s3:{c:"#b5179e",n:"Sentinel-3 SLSTR"}};
-const SEVC = {low:"#ffd166",moderate:"#ff9f1c",high:"#ff6b35",severe:"#e63946",unknown:"#8b98a5"};
+const SEVC = {low:"#ffa726",moderate:"#fb8c00",high:"#f4511e",severe:"#d81b3c",unknown:"#8b98a5"};
+
+// ---- localisation ----------------------------------------------------------
+// Bosnian plurals need three forms, so counted strings are arrays [one,few,many]
+// and plural() picks by the Slavic rule. English uses [one, other, other].
+const I18N = {
+  en: {
+    sub:"Grad Zavidovići · updated {t}", noActive:"No active fires",
+    activeFires:["{n} active fire","{n} active fires","{n} active fires"],
+    firesNoneActive:["{n} fire, none active","{n} fires, none active","{n} fires, none active"],
+    detections:"detections", ok:"ok", fail:"fail",
+    drawerFires:"Fires", showList:"Show fire list", closeList:"Close fire list",
+    key:"Key", legDet:"Detections", legSev:"Fire severity", legSize:"(size ∝ FRP)",
+    legState:"State", legBurning:"solid & filled — burning now",
+    legQuiet:"dashed — quiet / out",
+    sev_low:"low", sev_moderate:"moderate", sev_high:"high", sev_severe:"severe",
+    sev_unknown:"unknown", st_active:"active", st_quiet:"quiet",
+    noFires:"No fires · {range}",
+    nothing:"Nothing detected in or within {km} km of Grad Zavidovići in this period.",
+    peak:"peak", now:"now", latest:"latest", lastSeen:"Last seen", started:"Started",
+    extent:"Extent", weather:"Weather", note:"Note", outside:"outside municipality",
+    ofTown:"of town", ofZav:"of Zavidovići", ofN:"of {n}", across:"across",
+    placeOf:"{km} km {dir} of {name}",
+    spread:"{risk} spread risk", risk_elevated:"elevated", risk_high:"high",
+    risk_extreme:"extreme", risk_moderate:"moderate", risk_unknown:"unknown",
+    satellite:"Satellite", copyCoords:"Copy coords", copied:"copied",
+    wind:"wind", from:"from", gusts:"gusts", rh:"RH",
+    noDetRange:"no detections in range", boundary:"boundary", refreshNote:
+      "data refreshes in place every 60 s · your view is kept",
+    r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
+    rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month",
+    justNow:"just now", agoMin:"{n} min ago", agoH:"{n} h ago", agoD:"{n} d ago",
+    animate:"Animate", pause:"Pause", speed:"Playback speed",
+    zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain"
+  },
+  bs: {
+    sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
+    activeFires:["{n} aktivan požar","{n} aktivna požara","{n} aktivnih požara"],
+    firesNoneActive:["{n} požar, nijedan aktivan","{n} požara, nijedan aktivan",
+                     "{n} požara, nijedan aktivan"],
+    detections:"detekcije", ok:"ok", fail:"greška",
+    drawerFires:"Požari", showList:"Prikaži listu požara", closeList:"Zatvori listu",
+    key:"Legenda", legDet:"Detekcije", legSev:"Jačina požara", legSize:"(veličina ∝ FRP)",
+    legState:"Stanje", legBurning:"puna linija — trenutno gori",
+    legQuiet:"crtkano — mirno / ugašeno",
+    sev_low:"nizak", sev_moderate:"umjeren", sev_high:"visok", sev_severe:"ekstreman",
+    sev_unknown:"nepoznato", st_active:"aktivan", st_quiet:"mirno",
+    noFires:"Nema požara · {range}",
+    nothing:"Ništa nije detektovano u općini Zavidovići niti u krugu od {km} km u ovom periodu.",
+    peak:"maks.", now:"sada", latest:"zadnje", lastSeen:"Zadnje viđeno", started:"Počelo",
+    extent:"Raspon", weather:"Vrijeme", note:"Napomena", outside:"izvan općine",
+    ofTown:"od grada", ofZav:"od Zavidovića", ofN:"od {n}", across:"u širini",
+    placeOf:"{km} km {dir} od {name}",
+    spread:"rizik širenja: {risk}", risk_elevated:"povišen", risk_high:"visok",
+    risk_extreme:"ekstreman", risk_moderate:"umjeren", risk_unknown:"nepoznat",
+    satellite:"Satelit", copyCoords:"Kopiraj koordinate", copied:"kopirano",
+    wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
+    noDetRange:"nema detekcija u periodu", boundary:"granica", refreshNote:
+      "podaci se osvježavaju svakih 60 s · prikaz se čuva",
+    r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
+    rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec",
+    justNow:"upravo sad", agoMin:"prije {n} min", agoH:"prije {n} h", agoD:"prije {n} d",
+    animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
+    zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren"
+  }
+};
+// Compass points are computed server-side in English; translate the letters.
+const COMPASS_BS = {N:"S",NNE:"SSI",NE:"SI",ENE:"ISI",E:"I",ESE:"IJI",SE:"JI",SSE:"JJI",
+  S:"J",SSW:"JJZ",SW:"JZ",WSW:"ZJZ",W:"Z",WNW:"ZSZ",NW:"SZ",NNW:"SSZ"};
+
+let LANG = "en";
+try {
+  const saved = localStorage.getItem("fw_lang");
+  if(saved && I18N[saved]) LANG = saved;
+  else if(/^(bs|hr|sr)/i.test(navigator.language||"")) LANG = "bs";
+} catch(e) { /* file:// can block storage; fall back to English */ }
+
+function plural(n){
+  if(LANG !== "bs") return n === 1 ? 0 : 1;
+  const a = Math.abs(n) % 100, b = a % 10;
+  if(b === 1 && a !== 11) return 0;
+  if(b >= 2 && b <= 4 && !(a >= 12 && a <= 14)) return 1;
+  return 2;
+}
+function t(key, vars){
+  let v = (I18N[LANG] || I18N.en)[key];
+  if(v === undefined) v = I18N.en[key];
+  if(Array.isArray(v)) v = v[plural(vars && vars.n != null ? vars.n : 1)] || v[0];
+  if(vars) for(const k in vars) v = v.split("{"+k+"}").join(vars[k]);
+  return v;
+}
+const dir = d => LANG === "bs" ? (COMPASS_BS[d] || d) : d;
+
+// Bosnian wants the genitive after "od". Names ending in -a take -e, which covers
+// most settlements around here (Kamenica -> Kamenice, Vozuća -> Vozuće). Anything
+// else is left as-is rather than guessed at.
+function genitive(name){
+  if(LANG !== "bs" || !name) return name;
+  return /a$/.test(name) ? name.slice(0, -1) + "e" : name;
+}
+function placeOf(e){
+  const p = e.place_parts;
+  if(!p || !p.name) return e.place;                 // older snapshot: use the server text
+  if(p.km == null) return p.name;                   // sitting on the settlement itself
+  return t("placeOf", {km:p.km, dir:dir(p.dir), name:genitive(p.name)});
+}
 
 // ---- range selection -------------------------------------------------------
 // Cutoffs are computed server-side so every client agrees on the window edges
@@ -150,16 +342,21 @@ function recompute(){
 }
 
 const map = L.map("map",{zoomControl:true,attributionControl:true}).setView([44.386,18.276],10);
+map.attributionControl.setPrefix("");   // keep provider credits, drop Leaflet branding
 const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-  {maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(map);
+  {maxZoom:19,attribution:"&copy; OpenStreetMap"});
 const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
   {maxZoom:19,attribution:"Esri, Maxar, Earthstar Geographics"});
 const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
   {maxZoom:17,attribution:"&copy; OpenTopoMap (CC-BY-SA)"});
-L.control.layers({"Map":osm,"Satellite":sat,"Terrain":topo},{},{position:"topright"}).addTo(map);
+sat.addTo(map);          // satellite is the default: terrain and fuel are visible
+let layersCtl = L.control.layers(
+  {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},{},{position:"topright"}).addTo(map);
 
-const bLayer = L.geoJSON(BOUNDARY,{style:{color:"#5b8def",weight:2,opacity:.9,
-  fillColor:"#5b8def",fillOpacity:.055,dashArray:"5,4"}}).addTo(map);
+// Brighter and slightly heavier than it needed to be on the pale street map -
+// a mid-blue hairline disappears against dark forest imagery.
+const bLayer = L.geoJSON(BOUNDARY,{style:{color:"#7cc4ff",weight:2.4,opacity:.95,
+  fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
 map.fitBounds(bLayer.getBounds(),{padding:[24,24]});
 
 // Jump straight to what is burning - at municipality zoom a single fire is a
@@ -168,7 +365,7 @@ const zoomBtn = L.control({position:"topleft"});
 zoomBtn.onAdd = () => {
   const d = L.DomUtil.create("div","leaflet-bar");
   const a = L.DomUtil.create("a","",d);
-  a.href="#"; a.title="Zoom to fires"; a.innerHTML="&#128293;";
+  a.href="#"; a.title=t("zoomFires"); a.innerHTML="&#128293;";
   a.style.fontSize="15px"; a.style.textAlign="center";
   L.DomEvent.on(a,"click",e=>{
     L.DomEvent.preventDefault(e);
@@ -182,11 +379,25 @@ zoomBtn.addTo(map);
 const legend = L.control({position:"bottomright"});
 legend.onAdd = () => {
   const d = L.DomUtil.create("div","legend");
-  d.innerHTML = "<b style='color:#e6edf3'>Detections</b><br>" +
+  const rows = `<b style="color:#e6edf3">${t("legDet")}</b><br>` +
     Object.entries(SRC).map(([k,v])=>`<i style="background:${v.c}"></i>${v.n}`).join("<br>") +
-    "<br><b style='color:#e6edf3'>Fire</b><br>" +
-    "<i style='background:#ff6b35'></i>solid dot &mdash; intensity (FRP)<br>" +
-    "<i style='background:none;border:1px dashed #ff6b35'></i>dashed ring &mdash; footprint (to scale)";
+    `<br><b style="color:#e6edf3">${t("legSev")}</b> <span style="opacity:.7">${t("legSize")}</span><br>` +
+    ["low","moderate","high","severe"]
+      .map(k=>`<i style="background:${SEVC[k]}"></i>${t("sev_"+k)}`).join("<br>") +
+    `<br><b style="color:#e6edf3">${t("legState")}</b><br>` +
+    `<i style="background:#f4511e"></i>${t("legBurning")}<br>` +
+    `<i style="background:none;border:1px dashed #f4511e"></i>${t("legQuiet")}`;
+  // Body first, button after: the control sits bottom-right, so it opens upward.
+  d.innerHTML = `<div class="legend-body">${rows}</div>` +
+    `<button class="legend-toggle" aria-expanded="false">\u25eb\u00a0 ${t("key")}</button>`;
+  // Without this, tapping the legend pans the map underneath it.
+  L.DomEvent.disableClickPropagation(d);
+  L.DomEvent.disableScrollPropagation(d);
+  const btn = d.querySelector(".legend-toggle");
+  btn.addEventListener("click", () => {
+    const open = d.classList.toggle("open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
   return d;
 };
 legend.addTo(map);
@@ -196,10 +407,30 @@ const evLayer  = L.layerGroup().addTo(map);
 const trail    = L.layerGroup().addTo(map);
 let selected = null;
 
-const fmtLocal = t => new Date(t).toLocaleString("en-GB",
-  {day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Sarajevo"});
-const ago = m => m<60?`${Math.round(m)} min ago`:(m<1440?`${(m/60).toFixed(1)} h ago`:`${(m/1440).toFixed(1)} d ago`);
-const frpR = f => f==null?7:Math.max(7,Math.min(42,6+Math.sqrt(f)*3.4));
+const MONTHS = {
+  en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+  bs:["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"]
+};
+const _sarajevo = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Sarajevo",
+  day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
+function fmtLocal(ts){
+  const p = {};
+  for(const part of _sarajevo.formatToParts(new Date(ts))) p[part.type] = part.value;
+  const mon = (MONTHS[LANG] || MONTHS.en)[parseInt(p.month,10) - 1];
+  return LANG === "bs" ? `${p.day}. ${mon} ${p.hour}:${p.minute}`
+                       : `${p.day} ${mon}, ${p.hour}:${p.minute}`;
+}
+const ago = m => m<1 ? t("justNow")
+  : m<60 ? t("agoMin",{n:Math.round(m)})
+  : m<1440 ? t("agoH",{n:(m/60).toFixed(1)})
+  : t("agoD",{n:(m/1440).toFixed(1)});
+const frpR = f => f==null?13:Math.max(13,Math.min(54,10+Math.sqrt(f)*5));
+// Detection dots grow as you zoom in. Fixed-size dots either vanish at
+// municipality zoom or merge into one mass when a fire has 45 of them in 2 km.
+const detR = () => {
+  const z = map.getZoom();
+  return Math.max(6.5, Math.min(11, 5 + (z - 8) * 0.95));
+};
 
 const R_EARTH_M = 6371008.8;
 function haversineM(la1,lo1,la2,lo2){
@@ -237,14 +468,23 @@ function drawEvents(){
     // Floor of 400 m keeps a single-detection event visible at all.
     L.circle([e.lat,e.lon],{
       radius:footprintM(e),
-      color:quiet?"#6b7785":col, weight:1, opacity:.55,
-      fillColor:quiet?"#6b7785":col, fillOpacity:.07,
+      color:col, weight:1.4, opacity:quiet?.35:.6,
+      fillColor:col, fillOpacity:quiet?.04:.08,
       dashArray:"4,5", interactive:false}).addTo(evLayer);
 
+    // Soft dark halo so a warm ring keeps an edge on light terrain.
+    L.circleMarker([e.lat,e.lon],{
+      radius:frpR(e.max_frp)+1, color:"#0b0f14", weight:4, opacity:.34,
+      fill:false, interactive:false}).addTo(evLayer);
+
     const c = L.circleMarker([e.lat,e.lon],{
-      radius:frpR(e.max_frp), color:quiet?"#6b7785":col, weight:2.5,
-      fillColor:quiet?"#6b7785":col, fillOpacity:quiet?.14:.34,
-      dashArray:quiet?"3,3":null});
+      radius:frpR(e.max_frp), color:col, weight:quiet?2.5:3.5,
+      // Stroke keeps full hue even when quiet: a faded fill over green terrain
+      // desaturates toward olive, and a burnt-out severe fire should still read
+      // as severe. Dash + thin fill carry "not burning", not the colour.
+      opacity:1,
+      fillColor:col, fillOpacity:quiet?.10:.45,
+      dashArray:quiet?"6,4":null});
     c.bindPopup(popupHtml(e),{maxWidth:290});
     c.on("click",()=>select(e.id,false));
     c.on("popupopen",()=>{popupOpenId = e.id});
@@ -260,14 +500,14 @@ function drawEvents(){
 
 function popupHtml(e){
   const w = e.weather;
-  return `<b>${e.severity.toUpperCase()}</b> &middot; ${e.status}<br>
-    ${e.place}<br>
-    <span style="color:#8b98a5">${e.dist_town_km} km ${e.dir_town} of Zavidovići</span><br>
-    FRP <b>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW"}</b> peak,
-    ${e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW"} latest<br>
-    ${e.n_det} detections &middot; ${e.sources.join(", ")}<br>
-    last seen ${ago(e.age_min)} &middot; ${e.extent_km} km across
-    ${w?`<br>wind ${Math.round(w.speed)} km/h from ${w.from} (gusts ${Math.round(w.gusts)}), RH ${w.humidity}%`:""}
+  return `<b>${t("sev_"+e.severity).toUpperCase()}</b> &middot; ${t("st_"+e.status)}<br>
+    ${placeOf(e)}<br>
+    <span style="color:#8b98a5">${e.dist_town_km} km ${dir(e.dir_town)} ${t("ofZav")}</span><br>
+    FRP <b>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW"}</b> ${t("peak")},
+    ${e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW"} ${t("latest")}<br>
+    ${e.n_det} ${t("detections")} &middot; ${e.sources.join(", ")}<br>
+    ${t("lastSeen").toLowerCase()} ${ago(e.age_min)} &middot; ${e.extent_km} km ${t("across")}
+    ${w?`<br>${t("wind")} ${Math.round(w.speed)} km/h ${t("from")} ${dir(w.from)} (${t("gusts")} ${Math.round(w.gusts)}), ${t("rh")} ${w.humidity}%`:""}
     <br><br><a href="https://www.google.com/maps?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>
      &middot; <a href="https://www.openstreetmap.org/?mlat=${e.lat}&mlon=${e.lon}#map=14/${e.lat}/${e.lon}" target="_blank">OSM</a>`;
 }
@@ -277,9 +517,20 @@ function drawDets(upto){
   const shown = dets.filter(d=>d.t<=upto);
   shown.forEach(d=>{
     const age = (upto-d.t)/3600000;
-    const op = Math.max(.16,1-age/26);
-    L.circleMarker([d.lat,d.lon],{radius:3.6,color:SRC[d.source]?.c||"#fff",
-      weight:1,opacity:op,fillOpacity:op*.85,fillColor:SRC[d.source]?.c||"#fff"})
+    // Age still fades a detection, but the old floor of .16 made anything over a
+    // day old effectively invisible - with an outline it just read as an empty
+    // ring. Keep the recency gradient, raise the floor so nothing disappears.
+    const op = Math.max(.55,1-age/40);
+    // Each detection gets a white border with a dark outer edge. The stroke used
+    // to be the same colour as the fill, so a dot had no outline at all and the
+    // cyan/amber/magenta washed into green forest and tan farmland. Two thin
+    // rings keep all three source colours readable on street and satellite.
+    const dc = SRC[d.source]?.c || "#fff";
+    const dr = detR();
+    L.circleMarker([d.lat,d.lon],{radius:dr,color:"#0b0f14",
+      weight:3.4,opacity:op*.8,fill:false,interactive:false}).addTo(detLayer);
+    L.circleMarker([d.lat,d.lon],{radius:dr,color:"#ffffff",
+      weight:2,opacity:op*.95,fillOpacity:op*.95,fillColor:dc})
       .bindPopup(`${SRC[d.source]?.n||d.source}<br>${fmtLocal(d.t)}<br>FRP ${d.frp==null?"n/a":d.frp+" MW"}`)
       .addTo(detLayer);
   });
@@ -289,7 +540,7 @@ function drawDets(upto){
   }
   document.getElementById("tlabel").textContent = dets.length
     ? `${fmtLocal(upto)} · ${shown.length}/${dets.length}`
-    : "no detections in range";
+    : t("noDetRange");
 }
 
 function sparkline(e){
@@ -312,41 +563,40 @@ function sparkline(e){
 function renderList(){
   const el = document.getElementById("list");
   if(!EVENTS.length){
-    const label = (DATA.ranges&&DATA.ranges[RANGE]||RANGE).toLowerCase();
     el.innerHTML = `<div class="empty"><div class="big">🌲</div>
-      <b>No fires ${label}</b><br><span style="font-size:12px">
-      Nothing detected in or within ${DATA.buffer_km} km of Grad Zavidovići
-      in this period.</span></div>`;
+      <b>${t("noFires",{range:t("r_"+RANGE)})}</b><br><span style="font-size:12px">
+      ${t("nothing",{km:DATA.buffer_km})}</span></div>`;
     return;
   }
   el.innerHTML = EVENTS.map(e=>{
     const col = e.status==="active"?(SEVC[e.severity]||"#888"):"#6b7785";
     const w = e.weather;
     return `<div class="ev" id="ev-${e.id}" data-id="${e.id}" style="border-left-color:${col}">
-      <h2><span>${e.status==="active"?"🔥":"💤"} ${e.place}</span>
-          <span class="sev" style="color:${col}">${e.severity}</span></h2>
+      <h2><span>${e.status==="active"?"🔥":"💤"} ${placeOf(e)}</span>
+          <span class="sev" style="color:${col}">${t("sev_"+e.severity)}</span></h2>
       <div class="meta">
-        <span>FRP</span><span>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW peak / "+
-          (e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW now")}</span>
-        <span>Last seen</span><span>${ago(e.age_min)} · ${fmtLocal(Date.parse(e.last_ts))}</span>
-        <span>Started</span><span>${fmtLocal(Date.parse(e.first_ts))}</span>
-        <span>Detections</span><span>${e.series.length}${e.series.length!==e.n_det?` of ${e.n_det}`:""} · ${e.sources.map(s=>
+        <span>FRP</span><span>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW "+t("peak")+" / "+
+          (e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW "+t("now"))}</span>
+        <span>${t("lastSeen")}</span><span>${ago(e.age_min)} · ${fmtLocal(Date.parse(e.last_ts))}</span>
+        <span>${t("started")}</span><span>${fmtLocal(Date.parse(e.first_ts))}</span>
+        <span>${t("legDet")}</span><span>${e.series.length}${e.series.length!==e.n_det?" "+t("ofN",{n:e.n_det}):""} · ${e.sources.map(s=>
           `<span style="color:${SRC[s]?.c||"#fff"}">${s}</span>`).join(" ")}</span>
-        <span>Extent</span><span>${e.extent_km} km · ${e.dist_town_km} km ${e.dir_town} of town</span>
-        ${w?`<span>Weather</span><span>${w.temp}°C, RH ${w.humidity}%, wind ${Math.round(w.speed)} km/h from ${w.from}
-             ${e.risk?`· <b style="color:${e.risk==="extreme"||e.risk==="high"?"#e63946":"#8b98a5"}">${e.risk} spread risk</b>`:""}</span>`:""}
-        ${e.inside?"":'<span>Note</span><span style="color:#ffd166">outside municipality</span>'}
+        <span>${t("extent")}</span><span>${e.extent_km} km · ${e.dist_town_km} km ${dir(e.dir_town)} ${t("ofTown")}</span>
+        ${w?`<span>${t("weather")}</span><span>${w.temp}°C, ${t("rh")} ${w.humidity}%, ${t("wind")} ${Math.round(w.speed)} km/h ${t("from")} ${dir(w.from)}
+             ${e.risk?`· <b style="color:${e.risk==="extreme"||e.risk==="high"?"#e63946":"#8b98a5"}">${t("spread",{risk:t("risk_"+e.risk)})}</b>`:""}</span>`:""}
+        ${e.inside?"":`<span>${t("note")}</span><span style="color:#ffd166">${t("outside")}</span>`}
       </div>
       ${sparkline(e)}
       <div class="acts">
         <a href="https://www.google.com/maps?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>
-        <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${e.lat},${e.lon}&zoom=15&basemap=satellite" target="_blank">Satellite</a>
-        <button onclick="navigator.clipboard.writeText('${e.lat}, ${e.lon}');this.textContent='copied'">Copy coords</button>
+        <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${e.lat},${e.lon}&zoom=15&basemap=satellite" target="_blank">${t("satellite")}</a>
+        <button onclick="navigator.clipboard.writeText('${e.lat}, ${e.lon}');this.textContent='${t("copied")}'">${t("copyCoords")}</button>
       </div></div>`;
   }).join("");
   el.querySelectorAll(".ev").forEach(d=>d.onclick=ev=>{
     if(ev.target.tagName==="A"||ev.target.tagName==="BUTTON") return;
     select(d.dataset.id,true);
+    if(isMobile()) setDrawer(false);   // otherwise the drawer hides the fire
   });
 }
 
@@ -360,11 +610,11 @@ function select(id,fly){
 
 function renderRange(){
   const el = document.getElementById("hrange");
-  el.innerHTML = Object.entries(DATA.ranges||{}).map(([k,label])=>{
+  el.innerHTML = Object.keys(DATA.ranges||{}).map(k=>{
     const c = (DATA.range_counts||{})[k]||{};
-    const short = (DATA.ranges_short||{})[k] || label;
+    const label = t("r_"+k), short = t("rs_"+k);
     return `<button data-r="${k}" class="${k===RANGE?"on":""}" title="${label}">${short}${
-      c.events!=null?` <b>${c.events}</b>`:""}</button>`;
+      c.events!=null?` <b>(${c.events})</b>`:""}</button>`;
   }).join("");
   el.querySelectorAll("button").forEach(b=>b.onclick=()=>{
     RANGE = b.dataset.r;
@@ -382,36 +632,137 @@ function renderHeader(){
   const dot = document.getElementById("hdot");
   dot.style.background = col; dot.style.boxShadow = `0 0 9px ${col}`;
   document.getElementById("htitle").textContent = act
-    ? `${act} active fire${act>1?"s":""}`
-    : (EVENTS.length ? `${EVENTS.length} fire${EVENTS.length>1?"s":""}, none active` : "No active fires");
+    ? t("activeFires",{n:act})
+    : (EVENTS.length ? t("firesNoneActive",{n:EVENTS.length}) : t("noActive"));
   document.getElementById("hsub").textContent =
-    `Grad Zavidovići · updated ${fmtLocal(Date.parse(DATA.generated_at))}`;
+    t("sub",{t:fmtLocal(Date.parse(DATA.generated_at))});
+  const badge = document.getElementById("drawer-badge");
+  if(badge) badge.textContent = act ? String(act) : "";
   document.getElementById("hchips").innerHTML = [
-    `<span class="chip">detections <b>${dets.length}</b></span>`,
+    `<span class="chip">${t("detections")} <b>${dets.length}</b></span>`,
     ...Object.entries(DATA.source_status||{}).map(([k,v])=>
-      `<span class="chip" title="${(v.detail||"").replace(/"/g,"")}">${k} <b style="color:${v.ok?"#3fb950":"#e63946"}">${v.ok?"ok":"fail"}</b></span>`)
+      `<span class="chip" title="${(v.detail||"").replace(/"/g,"")}">${k} <b style="color:${v.ok?"#3fb950":"#e63946"}">${v.ok?t("ok"):t("fail")}</b></span>`)
   ].join("");
   document.getElementById("foot").innerHTML =
-    `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; boundary: OSM rel. 2528292
-     <br>data refreshes in place every 60 s &middot; your view is kept`;
+    `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292
+     <br>${t("refreshNote")}`;
 }
+
+// Chrome on Android reports the visible height in innerHeight, so this keeps a
+// usable viewport height for browsers without dvh. visualViewport fires as the
+// URL bar slides away, which plain resize does not always cover.
+function syncAppVh(){
+  document.documentElement.style.setProperty("--appvh", window.innerHeight + "px");
+}
+syncAppVh();
+addEventListener("resize", syncAppVh);
+addEventListener("orientationchange", syncAppVh);
+if(window.visualViewport) visualViewport.addEventListener("resize", syncAppVh);
+
+// ---- mobile drawer ---------------------------------------------------------
+const sideEl = document.getElementById("side");
+const backdropEl = document.getElementById("backdrop");
+const drawerBtn = document.getElementById("drawer-btn");
+const isMobile = () => matchMedia("(max-width:880px)").matches;
+
+function setDrawer(open){
+  sideEl.classList.toggle("open", open);
+  backdropEl.classList.toggle("on", open);
+  document.body.classList.toggle("drawer-open", open);
+  drawerBtn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+drawerBtn.onclick = () => setDrawer(!sideEl.classList.contains("open"));
+backdropEl.onclick = () => setDrawer(false);
+document.getElementById("drawer-close").onclick = () => setDrawer(false);
+document.addEventListener("keydown", e => { if(e.key === "Escape") setDrawer(false); });
+// Leaving mobile width must not leave the drawer state stuck on the docked panel.
+matchMedia("(max-width:880px)").addEventListener("change", () => setDrawer(false));
 
 const slider = document.getElementById("slider");
 const sliderTime = () => +slider.value===100 ? tMax : tMin+(tMax-tMin)*(+slider.value/100);
+map.on("zoomend", () => drawDets(sliderTime()));
 slider.oninput = () => drawDets(sliderTime());
 let timer=null;
-document.getElementById("play").onclick = function(){
-  if(timer){clearInterval(timer);timer=null;this.innerHTML="&#9654;";return}
+// Three playback speeds. The tick interval stays fixed so motion stays smooth;
+// the speed sets how far the slider advances per tick, i.e. how long one pass
+// over the selected range takes.
+const SPEEDS = [{label:"0.5\u00d7", ms:10000},
+                {label:"1\u00d7",   ms:5000},
+                {label:"2\u00d7",   ms:2500}];
+const TICK_MS = 60;
+let speedIx = 1;                                   // 1x by default
+const playBtn = document.getElementById("play");
+const speedBtn = document.getElementById("speed");
+speedBtn.textContent = SPEEDS[speedIx].label;
+
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  playBtn.innerHTML = "&#9654;";
+  playBtn.title = t("animate");
+}
+
+function startPlay(fromHere){
   if(!dets.length) return;
-  this.innerHTML="&#10074;&#10074;"; slider.value=0;
-  timer=setInterval(()=>{
-    slider.value = Math.min(100,+slider.value+1.4);
+  if(timer){ clearInterval(timer); timer = null; }
+  playBtn.innerHTML = "&#10074;&#10074;";
+  playBtn.title = t("pause");
+  if(!fromHere) slider.value = 0;
+  const step = 100 / (SPEEDS[speedIx].ms / TICK_MS);
+  timer = setInterval(() => {
+    slider.value = Math.min(100, +slider.value + step);
     drawDets(sliderTime());
-    if(+slider.value>=100){clearInterval(timer);timer=null;
-      document.getElementById("play").innerHTML="&#9654;"}
-  },70);
+    if(+slider.value >= 100) stopPlay();
+  }, TICK_MS);
+}
+
+playBtn.onclick = () => timer ? stopPlay() : startPlay(false);
+speedBtn.onclick = () => {
+  speedIx = (speedIx + 1) % SPEEDS.length;
+  speedBtn.textContent = SPEEDS[speedIx].label;
+  // Already running: adopt the new speed without losing the current position.
+  if(timer) startPlay(true);
 };
 
+// ---- language switching ----------------------------------------------------
+// The legend and the layer control build their labels in onAdd, so they are
+// removed and re-added rather than patched in place.
+function applyStaticLabels(){
+  document.documentElement.lang = LANG;
+  document.getElementById("drawer-label").textContent = t("drawerFires");
+  const db = document.getElementById("drawer-btn");
+  db.setAttribute("aria-label", t("showList"));
+  document.getElementById("drawer-close").setAttribute("aria-label", t("closeList"));
+  playBtn.title = timer ? t("pause") : t("animate");
+  speedBtn.title = t("speed");
+  document.querySelectorAll("#langsw button").forEach(b =>
+    b.classList.toggle("on", b.dataset.l === LANG));
+}
+
+function rebuildControls(){
+  legend.remove(); legend.addTo(map);
+  layersCtl.remove();
+  layersCtl = L.control.layers(
+    {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},{},{position:"topright"}).addTo(map);
+  zoomBtn.remove(); zoomBtn.addTo(map);
+}
+
+function renderAll(){
+  applyStaticLabels();
+  recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
+  drawDets(sliderTime());
+}
+
+function setLang(l){
+  if(!I18N[l] || l === LANG) return;
+  LANG = l;
+  try { localStorage.setItem("fw_lang", l); } catch(e) { /* storage may be blocked */ }
+  rebuildControls();
+  renderAll();
+}
+document.querySelectorAll("#langsw button").forEach(b =>
+  b.addEventListener("click", () => setLang(b.dataset.l)));
+
+applyStaticLabels();
 recompute(); renderRange(); renderHeader(); drawEvents(); renderList(); drawDets(tMax);
 // ---- live refresh without losing the reader's place ------------------------
 // A file:// page cannot fetch() a sibling JSON file, but it can load one as a
@@ -494,6 +845,26 @@ def write_data(snapshot: dict, html_path: Path | None = None) -> Path:
     return out
 
 
+def sync_public(html_path: Path | None = None) -> bool:
+    """Mirror the map into PUBLIC_DIR, but only if that directory already exists.
+
+    `firewatch-ctl expose` creates it; until then this is a no-op, so nothing is
+    ever staged for publication unless the user asked for it. Only the two map
+    files are copied - the log, database and snapshot stay private.
+    """
+    if not PUBLIC_DIR.is_dir():
+        return False
+    src = Path(html_path or MAP_PATH)
+    for f in (src, data_path_for(src)):
+        if f.exists():
+            shutil.copy2(f, PUBLIC_DIR / f.name)
+    # Also publish the page as index.html so the bare URL opens the map instead
+    # of a directory listing - that is the link people actually share.
+    if src.exists():
+        shutil.copy2(src, PUBLIC_DIR / "index.html")
+    return True
+
+
 def render(snapshot: dict, path: Path | None = None) -> Path:
     out = Path(path or MAP_PATH)
     boundary = json.loads(BOUNDARY_GEOJSON.read_text())
@@ -504,4 +875,5 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     write_data(snapshot, out)
+    sync_public(out)
     return out

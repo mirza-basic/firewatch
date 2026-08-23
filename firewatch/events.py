@@ -169,6 +169,8 @@ def build_events(dets: list[dict]) -> list[dict]:
             "status": "active" if (now - last_ts) <= quiet_after else "quiet",
             "inside": any(d["inside"] for d in group),
             "place": geo.describe_location(lat, lon),
+            # components so the map can localise the phrase
+            "place_parts": geo.location_parts(lat, lon),
             "dist_town_km": round(dist_town, 1),
             "dir_town": dir_town,
             "extent_km": round(extent, 2),

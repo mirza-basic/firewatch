@@ -95,6 +95,19 @@ def nearest_settlement(lat: float, lon: float) -> tuple[dict | None, float, str]
     return best, best_km, compass(bearing_deg(best["lat"], best["lon"], lat, lon))
 
 
+def location_parts(lat: float, lon: float) -> dict:
+    """Components of the location phrase, so the UI can compose it in any language.
+
+    describe_location() bakes an English sentence; the map needs the pieces to
+    build "6.7 km IJI od Kamenice" as well as "6.7 km ESE of Kamenica".
+    """
+    place, km, direction = nearest_settlement(lat, lon)
+    if place is None:
+        return {"name": None, "km": None, "dir": None}
+    return {"name": place["n"], "km": round(km, 1) if km >= 0.8 else None,
+            "dir": direction if km >= 0.8 else None}
+
+
 def describe_location(lat: float, lon: float) -> str:
     """Human-readable placement, e.g. '3.4 km SSE of Vozuća'."""
     place, km, direction = nearest_settlement(lat, lon)

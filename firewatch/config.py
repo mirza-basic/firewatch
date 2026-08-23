@@ -20,6 +20,11 @@ DB_PATH = SUPPORT_DIR / "firewatch.db"
 LOG_PATH = SUPPORT_DIR / "firewatch.log"
 SNAPSHOT_PATH = SUPPORT_DIR / "snapshot.json"
 MAP_PATH = SUPPORT_DIR / "fire-map.html"
+# Directory served publicly when `firewatch-ctl expose` is used. It holds only the
+# map and its data file - never the log, database or snapshot, which sit in the
+# parent directory and have no business being on a public URL. Created on demand,
+# so nothing is published unless you ask for it.
+PUBLIC_DIR = SUPPORT_DIR / "public"
 
 BOUNDARY_GEOJSON = DATA_DIR / "zavidovici.geojson"
 SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
@@ -65,6 +70,16 @@ DEFAULTS = {
     # Do not re-notify the same event for the same reason within this window.
     "notify_cooldown_min": 25,
     "notifications_enabled": True,
+    # SMS alerts via httpSMS (your Android phone is the gateway). Numbers must be
+    # E.164, e.g. "+38761234567". The API key is never stored here - it comes from
+    # HTTPSMS_API_KEY or the macOS Keychain (`firewatch-ctl set-sms-key`).
+    "sms_enabled": True,
+    "sms_from": "",                    # the Android phone running the httpSMS app
+    "sms_to": [],                      # list of recipients, E.164
+    # "extinguished" is left out on purpose: it is the informational one, and an
+    # SMS costs a segment every time a fire merely cools off.
+    "sms_kinds": ["new", "reignited", "intensified", "grew"],
+    "sms_max_chars": 320,              # 2 GSM-7 segments
     "sound_new": "Basso",
     "sound_update": "Tink",
     # Include detections outside the municipality but within this buffer, flagged

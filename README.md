@@ -54,6 +54,59 @@ notifications you can click to open Google Maps directly:
 
 FireWatch picks it up automatically on next start.
 
+## SMS alerts
+
+Alerts can also arrive by SMS through [httpSMS](https://httpsms.com), which uses
+your own Android phone as the gateway. Each message carries the fire details and a
+link to the live map, resolved at send time because the ngrok URL is ephemeral.
+
+    ./firewatch-ctl sms           show settings and what is missing
+    ./firewatch-ctl set-sms-key   store the httpSMS API key in the Keychain
+    ./firewatch-ctl test-sms      preview + send a sample alert
+
+Three things to set, once:
+
+    # 1. the API key from https://httpsms.com/settings  (prompted, not echoed)
+    ./firewatch-ctl set-sms-key
+
+    # 2. the gateway phone, E.164 format
+    python3 - <<'EOF'
+    from firewatch.config import CFG
+    CFG["sms_from"] = "+387XXXXXXXXX"   # the Android phone running httpSMS
+    CFG.save()
+    EOF
+
+    # 3. one or more recipients
+    ./firewatch-ctl sms-add +387XXXXXXXXX
+    ./firewatch-ctl sms-add +387YYYYYYYYY      # a friend, etc.
+    ./firewatch-ctl sms-remove +387YYYYYYYYY
+
+    ./firewatch-ctl test-sms
+    ./firewatch-ctl restart
+
+`sms_to` holds a list. One recipient goes through `/v1/messages/send`; several go
+through `/v1/messages/bulk-send`, which takes `to` as an array — so a fan-out is a
+single API call, not one per number. A plain string or a comma-separated string
+still works, so older configs keep running.
+
+Each recipient consumes one message from the phone's own throughput budget
+(`messages_per_minute`, default 10, max 29 in the httpSMS app), so a handful of
+friends is fine; a large list during a busy fire day is not.
+
+The key lives in the macOS Keychain (service `firewatch-httpsms`), never in
+`config.json`. `HTTPSMS_API_KEY` overrides it.
+
+**Message text is transliterated to ASCII** — "Zavidovici", not "Zavidovići". One
+non-GSM character switches the whole SMS to UCS-2 encoding, which cuts a segment
+from 160 characters to 70; folding the diacritics keeps a typical alert to a single
+segment. A real alert measures ~136 characters including the map link.
+
+Which alerts are texted is `sms_kinds` — by default `new`, `reignited`,
+`intensified`, `grew`. `extinguished` is excluded so a fire merely cooling off does
+not cost a message. SMS respects the same 25-minute per-event cooldown as the
+desktop notifications, and is sent as an independent channel: it still goes out
+when the Mac is asleep and nobody sees the notification.
+
 ## Commands
 
     ./firewatch-ctl install | uninstall | start | stop | restart

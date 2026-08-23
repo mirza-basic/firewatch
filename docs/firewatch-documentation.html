@@ -470,6 +470,9 @@ the total:</p>
       the map view</td><td>On map open</td><td><span class="pill no">none</span></td></tr>
     <tr><td>NASA FIRMS map key</td><td>Authenticating the area queries</td>
       <td>Every FIRMS call</td><td><span class="pill ok">required</span></td></tr>
+    <tr><td>httpSMS</td><td>Sending alert SMS through an Android phone acting as the
+      gateway</td><td>Per alert, if configured</td>
+      <td><span class="pill ok">required</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -618,7 +621,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <polyline points="380,530 380,552 628,552 628,574" class="s-line" marker-end="url(#a3)"/>
 
     <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
-    <text x="30" y="602" class="s-t-b">6 &middot; Notify</text>
+    <text x="30" y="602" class="s-t-b">6 &middot; Notify + SMS</text>
     <text x="30" y="618" class="s-t-s">rate-limited per event</text>
     <text x="30" y="633" class="s-t-m">and kind, 25 min</text>
 
@@ -747,8 +750,10 @@ schedules, so one slow or failing feed never blocks the others.</p>
 
   <li>
     <h3>Notify</h3>
-    <p>Alerts become macOS notifications, suppressed if the same event already
-    notified for the same reason inside 25 minutes.</p>
+    <p>Alerts become macOS notifications and, when configured, an SMS &mdash; two
+    independent channels, so a failed notification never suppresses the text.
+    Either way the alert is suppressed if the same event already fired for the same
+    reason inside 25 minutes.</p>
   </li>
 
   <li>
@@ -898,6 +903,19 @@ notification to <em>Script Editor</em> and a click does nothing. If
 <code>terminal-notifier</code> is installed, FireWatch uses it instead and the
 notification itself becomes a link that opens Google Maps at the fire. The app
 detects which is available at startup and shows it in the menu.</p>
+
+<h3>SMS</h3>
+<p>Alerts can also arrive as an SMS, sent through
+<a href="https://httpsms.com">httpSMS</a> with an Android phone acting as the
+gateway. Each message carries the place, severity, peak and current FRP, how many
+detections and from which satellites, distance and bearing from town, raw
+coordinates and a link to the live map &mdash; about 136 characters, one segment.
+Several recipients go out in a single <code>bulk-send</code> call.</p>
+<p>The text is deliberately transliterated to ASCII: one non-GSM character switches
+an SMS to UCS-2 encoding, cutting a segment from 160 characters to 70, so
+&ldquo;Zavidovici&rdquo; costs a third of what &ldquo;Zavidovi&#263;i&rdquo; would.
+SMS is an <em>independent</em> channel &mdash; it still goes out when the Mac is
+asleep and nobody sees the desktop notification.</p>
 
 <h3>Fire map</h3>
 <p>A self-contained HTML file, regenerated every cycle. Every 60 seconds the page

@@ -140,6 +140,27 @@ These all cost real debugging time. Most are silent failures.
     every minute. Programmatic `openPopup()` needs `autoPan` disabled for the same
     reason.
 
+## SMS alerts
+
+`sms.py` posts to httpSMS (`POST https://api.httpsms.com/v1/messages/send`, header
+`x-api-key`, body `{from,to,content}`). The poller treats it as a channel
+independent of the desktop notification — `mark_notified` fires if *either*
+succeeded, so a failed notification never suppresses the SMS.
+
+- The API key comes from `HTTPSMS_API_KEY` or the macOS Keychain (service
+  `firewatch-httpsms`), never `config.json`.
+- **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
+  because one non-GSM character switches the whole message to UCS-2, dropping a
+  segment from 160 characters to 70. `segments()` reports the real cost.
+- The map link is resolved at send time via `expose.find_tunnel()` — the free
+  ngrok URL changes on every agent restart, so it must not be cached.
+- `sms_to` is a **list**. `recipients()` also accepts a plain or
+  comma-separated string for backward compatibility. One recipient uses
+  `/messages/send`; two or more use `/messages/bulk-send` with `to` as an
+  array — one call for the fan-out.
+- Inert until `sms_from`, `sms_to` and the key are all present; `sms.ready()`
+  returns the specific reason it is not usable, including non-E.164 numbers.
+
 ## State and configuration
 
 - `~/Library/Application Support/FireWatch/` — `firewatch.db` (SQLite: `detections`,
