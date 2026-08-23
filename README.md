@@ -214,7 +214,19 @@ VIIRS/MODIS and Sentinel-3 alone, without the 10-minute geostationary detail.
 - municipality boundary, and OSM / satellite / terrain base layers
 - fire circles sized by FRP, coloured by severity, pulsing while active
 - individual detections coloured by satellite, fading with age
-- **time slider with a play button** that animates the fire's progression
+- a **scrollable timeline ruler** instead of a slider: labelled time ticks, a fixed
+  centre playhead, and every detection drawn on the track as a coloured mark, so you
+  can see when things happened and scroll straight to them
+- it spans the **whole selected range**, not just the period containing detections —
+  a quiet week reads as a quiet week
+- a **step unit** button cycling minute / hour / day / week. Because a scroller can
+  be arbitrarily long it loses no precision at fine units: a month of minutes is
+  ~86,000 px of track, exact to the minute. All four units work on every range; the
+  *default* is the finest under 400 steps
+- **play button** with three speeds, animating by scrolling the track; touching the
+  ruler takes over and pauses playback
+- keyboard support on the ruler: arrows step one unit, PageUp/Down ten, Home/End the
+  ends, with `aria-valuetext` announcing the moment under the playhead
 - per-fire panel with an FRP sparkline, weather, spread risk and outbound links
 - 🔥 button to zoom straight to what is burning
 

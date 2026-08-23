@@ -925,8 +925,11 @@ because a <code>file://</code> page cannot fetch a sibling JSON file but can loa
 as a script. Zoom, pan, selected range, timeline position and any open popup all
 survive the update, so it works as a live wall display that never jumps. Fire circles are sized by FRP and
 coloured by severity, pulsing while active; individual detections are coloured by
-satellite and fade with age; a time slider with a play button animates the fire's
-progression across the selected range. The initial snapshot is still inlined for first
+satellite and fade with age; a scrollable timeline ruler spans the whole selected range — not merely the
+period containing detections, so an empty fortnight reads as empty. It carries
+labelled time ticks, a fixed centre playhead, and every detection as a coloured
+mark on the track; the step unit switches between minute, hour, day and week, and
+a play button at three speeds animates the fire's progression by scrolling it. The initial snapshot is still inlined for first
 paint, so the page renders correctly even if the data file is missing.</p>
 
 <h3>Command line</h3>

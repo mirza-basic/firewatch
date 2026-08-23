@@ -83,11 +83,31 @@ TEMPLATE = r"""<!doctype html>
   footer{padding:10px 14px;border-top:1px solid var(--line);color:var(--dim);font-size:11px}
   .empty{text-align:center;color:var(--dim);padding:40px 20px}
   .empty .big{font-size:34px;margin-bottom:10px}
-  #timebar{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:1050;
+  /* Anchored to both edges of the map area rather than centred, so the ruler gets
+     the full width available - 370px is the docked side panel. */
+  #timebar{position:absolute;left:384px;right:14px;bottom:18px;z-index:1050;
     background:rgba(21,26,33,.94);border:1px solid var(--line);border-radius:11px;
-    padding:10px 14px;display:flex;align-items:center;gap:11px;width:min(620px,72vw);
+    padding:10px 14px;display:flex;align-items:center;gap:11px;
     backdrop-filter:blur(9px)}
-  #timebar input[type=range]{flex:1;accent-color:var(--accent)}
+  #tlwrap{position:relative;flex:1 1 auto;min-width:0;height:40px}
+  #tlscroll{position:absolute;inset:0;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;cursor:grab;
+    border-radius:7px;background:#101720;border:1px solid var(--line)}
+  #tlscroll::-webkit-scrollbar{display:none}
+  #tlscroll:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #tltrack{position:relative;height:100%}
+  #tlcontent{position:absolute;top:0;bottom:0}
+  #tlmarks,#tlticks{position:absolute;inset:0}
+  /* the moment being shown sits under this line, dead centre */
+  #playhead{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;
+    background:var(--accent);pointer-events:none;border-radius:2px;
+    box-shadow:0 0 7px rgba(255,107,53,.7)}
+  .tk{position:absolute;top:0;bottom:0;width:1px;background:#31404f}
+  .tk.maj{background:#4a5866;width:1px}
+  .tlab{position:absolute;top:3px;font-size:9.5px;color:var(--dim);
+    white-space:nowrap;transform:translateX(-50%);pointer-events:none}
+  .tmk{position:absolute;bottom:3px;width:3px;height:11px;border-radius:1px;
+    opacity:.95}
   #tlabel{font-size:11.5px;color:var(--dim);min-width:132px;white-space:nowrap;
     font-variant-numeric:tabular-nums}
   #play{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
@@ -95,13 +115,15 @@ TEMPLATE = r"""<!doctype html>
   #speed{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
     height:26px;min-width:38px;padding:0 6px;cursor:pointer;font:inherit;font-size:11.5px;
     font-variant-numeric:tabular-nums}
-  #speed:hover,#play:hover{background:#31404f}
+  #unit{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
+    height:26px;min-width:44px;padding:0 7px;cursor:pointer;font:inherit;font-size:11.5px}
+  #speed:hover,#play:hover,#unit:hover{background:#31404f}
   .legend{background:rgba(21,26,33,.94);padding:9px 11px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.7}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
   .legend-toggle{display:none}
   .leaflet-bottom.leaflet-right,
-  .leaflet-bottom.leaflet-left{margin-bottom:78px}
+  .leaflet-bottom.leaflet-left{margin-bottom:94px}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
   .leaflet-popup-tip{background:var(--panel)}
   .leaflet-popup-content{margin:11px 13px;font-size:12.5px}
@@ -151,9 +173,13 @@ TEMPLATE = r"""<!doctype html>
     #backdrop.on{opacity:1;pointer-events:auto}
     /* keep Leaflet's own controls clear of the drawer button */
     .leaflet-top.leaflet-left{margin-top:54px}
-    #timebar{width:calc(100% - 22px);padding:8px 11px;gap:8px;
+    /* the drawer is off-canvas, so the map is full width here */
+    #timebar{left:11px;right:11px;padding:8px 11px;gap:8px;flex-wrap:wrap;
       bottom:calc(11px + env(safe-area-inset-bottom, 0px))}
-    #tlabel{min-width:0;font-size:11px}
+    #tlabel{min-width:0;font-size:11px;flex:1 1 auto}
+    /* the ruler onto its own row, full width - beside the buttons it was too
+       narrow to scrub, and the bar overflowed */
+    #tlwrap{order:9;flex:1 1 100%;margin-top:3px}
     #list{padding:8px}
     /* The legend used to be hidden here because it sat on top of the timeline bar.
        Instead, lift the whole bottom-right control stack clear of the bar and make
@@ -161,7 +187,7 @@ TEMPLATE = r"""<!doctype html>
        permanently covering a phone-sized map. */
     .leaflet-bottom.leaflet-right,
     .leaflet-bottom.leaflet-left{
-      margin-bottom:calc(88px + env(safe-area-inset-bottom, 0px))}
+      margin-bottom:calc(124px + env(safe-area-inset-bottom, 0px))}
     /* attribution must stay visible, but it can be smaller on a phone */
     .leaflet-control-attribution{font-size:9.5px;padding:1px 5px}
     .legend{background:none;border:0;padding:0;line-height:1.6}
@@ -200,8 +226,16 @@ TEMPLATE = r"""<!doctype html>
   <div id="timebar">
     <button id="play" title="Animate">&#9654;</button>
     <button id="speed" title="Playback speed">1&times;</button>
-    <input type="range" id="slider" min="0" max="100" value="100" step="any">  <!-- step="any": the default step of 1 quantised the animation, making
-         0.5x and 1x advance identically -->
+    <button id="unit" title="Timeline step">hour</button>
+    <!-- Scrollable time ruler. The moment under the centre playhead is "now
+         showing"; the track is rebuilt whenever the range or step unit changes. -->
+    <div id="tlwrap">
+      <div id="tlscroll" tabindex="0" role="slider" aria-label="Timeline">
+        <div id="tltrack"><div id="tlcontent"><div id="tlmarks"></div>
+          <div id="tlticks"></div></div></div>
+      </div>
+      <div id="playhead" aria-hidden="true"></div>
+    </div>
     <span id="tlabel"></span>
   </div>
 </div>
@@ -245,6 +279,7 @@ const I18N = {
     rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month",
     justNow:"just now", agoMin:"{n} min ago", agoH:"{n} h ago", agoD:"{n} d ago",
     animate:"Animate", pause:"Pause", speed:"Playback speed",
+    step:"Timeline step", u_min:"min", u_hour:"hour", u_day:"day", u_week:"week",
     zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain"
   },
   bs: {
@@ -275,6 +310,7 @@ const I18N = {
     rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec",
     justNow:"upravo sad", agoMin:"prije {n} min", agoH:"prije {n} h", agoD:"prije {n} d",
     animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
+    step:"Korak vremenske ose", u_min:"min", u_hour:"sat", u_day:"dan", u_week:"sedm.",
     zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren"
   }
 };
@@ -336,8 +372,14 @@ function recompute(){
   dets = [];
   EVENTS.forEach(e => e.series.forEach(s => dets.push({...s, ev:e.id, t:Date.parse(s.ts)})));
   dets.sort((a,b)=>a.t-b.t);
-  tMin = dets.length ? dets[0].t : c;
-  tMax = dets.length ? dets[dets.length-1].t : Date.now();
+  // Span the whole selected range, not just the period that happens to contain
+  // detections. A quiet week should read as a quiet week, not collapse the
+  // timeline to the one afternoon something burned.
+  tMin = c;
+  tMax = Math.max(Date.now(), dets.length ? dets[dets.length - 1].t : 0);
+  if(autoUnit) unitIx = pickUnit(tMax - tMin);
+  clampUnit();
+  rebuildSlider();
   if(selected && !EVENTS.some(e=>e.id===selected)) selected = null;
 }
 
@@ -413,10 +455,15 @@ const MONTHS = {
 };
 const _sarajevo = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Sarajevo",
   day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
-function fmtLocal(ts){
+function tlParts(ts){
   const p = {};
   for(const part of _sarajevo.formatToParts(new Date(ts))) p[part.type] = part.value;
-  const mon = (MONTHS[LANG] || MONTHS.en)[parseInt(p.month,10) - 1];
+  return p;
+}
+const monName = mm => (MONTHS[LANG] || MONTHS.en)[parseInt(mm, 10) - 1];
+function fmtLocal(ts){
+  const p = tlParts(ts);
+  const mon = monName(p.month);
   return LANG === "bs" ? `${p.day}. ${mon} ${p.hour}:${p.minute}`
                        : `${p.day} ${mon}, ${p.hour}:${p.minute}`;
 }
@@ -538,9 +585,11 @@ function drawDets(upto){
     const pts = shown.filter(d=>d.ev===selected).map(d=>[d.lat,d.lon]);
     if(pts.length>1) L.polyline(pts,{color:"#ff6b35",weight:1.4,opacity:.5,dashArray:"3,4"}).addTo(trail);
   }
-  document.getElementById("tlabel").textContent = dets.length
-    ? `${fmtLocal(upto)} · ${shown.length}/${dets.length}`
-    : t("noDetRange");
+  // The clock alone says where you are on the timeline; a step index on top of it
+  // was noise. It still shows with no detections, which is the point of spanning
+  // the whole range.
+  document.getElementById("tlabel").textContent =
+    fmtLocal(upto) + (dets.length ? ` · ${shown.length}/${dets.length}` : "");
 }
 
 function sparkline(e){
@@ -619,7 +668,10 @@ function renderRange(){
   el.querySelectorAll("button").forEach(b=>b.onclick=()=>{
     RANGE = b.dataset.r;
     recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
-    slider.value = 100; drawDets(tMax);
+    setSliderTime(tMax); drawDets(sliderTime());
+// clientWidth is only trustworthy after the first layout pass, and the track's
+// end padding is half of it.
+requestAnimationFrame(() => { rebuildSlider(); drawDets(sliderTime()); });
   });
 }
 
@@ -678,10 +730,166 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") setDrawer(fal
 // Leaving mobile width must not leave the drawer state stuck on the docked panel.
 matchMedia("(max-width:880px)").addEventListener("change", () => setDrawer(false));
 
-const slider = document.getElementById("slider");
-const sliderTime = () => +slider.value===100 ? tMax : tMin+(tMax-tMin)*(+slider.value/100);
+const scrollEl  = document.getElementById("tlscroll");
+const trackEl   = document.getElementById("tltrack");
+const contentEl = document.getElementById("tlcontent");
+const marksEl   = document.getElementById("tlmarks");
+const ticksEl   = document.getElementById("tlticks");
+
+// ---- timeline step -------------------------------------------------------
+// The slider counts whole units so dragging lands on round times. Switching unit
+// keeps the moment you were looking at and just changes the resolution.
+const UNITS = [
+  {key:"min",  ms:60000},
+  {key:"hour", ms:3600000},
+  {key:"day",  ms:86400000},
+  {key:"week", ms:604800000},
+];
+let unitIx = 1;          // hour
+let autoUnit = true;     // until the reader picks one explicitly
+const unitMs = () => UNITS[unitIx].ms;
+const unitBtn = document.getElementById("unit");
+
+function stepCount(){
+  return Math.max(1, Math.ceil((tMax - tMin) / unitMs()));
+}
+// Pick the finest unit that keeps the slider usable: enough steps to scrub
+// meaningfully, few enough that one nudge is not a month.
+function pickUnit(span){
+  for(let i = 0; i < UNITS.length; i++){
+    const n = Math.ceil(span / UNITS[i].ms);
+    if(n <= 400) return i;
+  }
+  return UNITS.length - 1;
+}
+// Every unit stays selectable on every range. An earlier version bumped the unit
+// whenever it produced "too many" steps, which quietly removed minutes from all
+// but the 24h range - the default range is 3 days, so cycling never reached them.
+// A month in minutes is 43200 steps: coarse to drag, but exact, and the reader
+// asked for it. Only a genuinely pathological count is corrected.
+const MAX_STEPS = 200000;
+function clampUnit(){
+  while(unitIx < UNITS.length - 1 && stepCount() > MAX_STEPS) unitIx++;
+}
+// Pixels per unit. A scroller can be arbitrarily long, so unlike a slider it
+// loses no precision at fine units: a month of minutes is ~86000px of track,
+// which scrolls perfectly well and is exact to the minute.
+const PX_PER_UNIT = {min:2, hour:14, day:46, week:96};
+const pxUnit = () => PX_PER_UNIT[UNITS[unitIx].key];
+const trackPx = () => stepCount() * pxUnit();
+const wrapW = () => scrollEl.clientWidth || 1;
+
+// x within the content layer for a moment, and the inverse
+const xOf = ms => ((ms - tMin) / unitMs()) * pxUnit();
+const msOf = x => tMin + (x / pxUnit()) * unitMs();
+
+// Names kept from the slider version so every call site stays valid.
+function sliderTime(){
+  return Math.min(tMax, Math.max(tMin, msOf(scrollEl.scrollLeft)));
+}
+// Scroll events arrive asynchronously, so a flag set-then-cleared around the
+// assignment is already false by the time the event fires - which made the
+// handler treat playback's own scrolling as a reader interruption and stop it
+// after the first tick. Remember the position we set instead and compare.
+let progAt = -1;
+function setScroll(x){
+  progAt = x;
+  scrollEl.scrollLeft = x;
+}
+const isOurScroll = () => Math.abs(scrollEl.scrollLeft - progAt) < 2;
+
+function setSliderTime(ms){
+  const x = Math.min(trackPx(), Math.max(0, xOf(Math.min(Math.max(ms, tMin), tMax))));
+  setScroll(x);
+  paintTicks();
+  syncAria();
+}
+function rebuildSlider(){
+  const prev = sliderTime();
+  const half = wrapW() / 2;
+  // Half a viewport of padding at each end so the first and last instants can
+  // reach the centre playhead.
+  trackEl.style.width = (trackPx() + wrapW()) + "px";
+  contentEl.style.left = half + "px";
+  contentEl.style.width = trackPx() + "px";
+  let minor = pxUnit();
+  while(minor < 9) minor *= 2;          // keep hairlines from merging into grey
+  contentEl.style.backgroundImage =
+    "repeating-linear-gradient(to right, #263442 0 1px, transparent 1px " + minor + "px)";
+  paintMarks();
+  setSliderTime(isFinite(prev) ? prev : tMax);
+  if(unitBtn) unitBtn.textContent = t("u_" + UNITS[unitIx].key);
+}
+
+// Detection marks live on the track, so you can see when things happened and
+// scroll straight to them instead of hunting blind.
+function paintMarks(){
+  marksEl.innerHTML = dets.map(d =>
+    `<div class="tmk" style="left:${xOf(d.t).toFixed(1)}px;background:${
+      SRC[d.source]?.c || "#fff"}"></div>`).join("");
+}
+
+// Labels are drawn only for the visible window - a month of minutes would be
+// thousands of them otherwise.
+function paintTicks(){
+  const step = Math.max(1, Math.ceil(74 / pxUnit()));   // >= ~74px apart
+  const from = Math.max(0, Math.floor((scrollEl.scrollLeft - wrapW() / 2) / pxUnit()) - step);
+  const to = Math.min(stepCount(), Math.ceil((scrollEl.scrollLeft + wrapW()) / pxUnit()) + step);
+  const out = [];
+  for(let i = Math.floor(from / step) * step; i <= to; i += step){
+    const ms = tMin + i * unitMs();
+    out.push(`<div class="tk maj" style="left:${xOf(ms).toFixed(1)}px"></div>`);
+    out.push(`<div class="tlab" style="left:${xOf(ms).toFixed(1)}px">${tickLabel(ms)}</div>`);
+  }
+  ticksEl.innerHTML = out.join("");
+}
+function tickLabel(ms){
+  const u = UNITS[unitIx].key;
+  const p = tlParts(ms);
+  if(u === "min" || u === "hour")
+    return (p.hour === "00" && p.minute === "00")
+      ? `${p.day} ${monName(p.month)}` : `${p.hour}:${p.minute}`;
+  return `${p.day} ${monName(p.month)}`;
+}
+
+function syncAria(){
+  scrollEl.setAttribute("aria-valuemin", "0");
+  scrollEl.setAttribute("aria-valuemax", String(stepCount()));
+  scrollEl.setAttribute("aria-valuenow",
+    String(Math.round((sliderTime() - tMin) / unitMs())));
+  scrollEl.setAttribute("aria-valuetext", fmtLocal(sliderTime()));
+}
+
+let rafPending = false;
+scrollEl.addEventListener("scroll", () => {
+  // A scroll the reader started should take over from playback.
+  if(timer && !isOurScroll()) stopPlay();
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    paintTicks();
+    syncAria();
+    drawDets(sliderTime());
+  });
+}, {passive:true});
+
+// A scroller is not keyboard-navigable on its own.
+scrollEl.addEventListener("keydown", e => {
+  const one = pxUnit(), big = one * 10;
+  const map = {ArrowLeft:-one, ArrowRight:one, PageUp:-big, PageDown:big,
+               Home:-Infinity, End:Infinity};
+  if(!(e.key in map)) return;
+  e.preventDefault();
+  stopPlay();
+  const d = map[e.key];
+  setScroll(d === -Infinity ? 0
+    : d === Infinity ? trackPx() : scrollEl.scrollLeft + d);
+  paintTicks(); syncAria(); drawDets(sliderTime());
+});
+
 map.on("zoomend", () => drawDets(sliderTime()));
-slider.oninput = () => drawDets(sliderTime());
+addEventListener("resize", () => rebuildSlider());
 let timer=null;
 // Three playback speeds. The tick interval stays fixed so motion stays smooth;
 // the speed sets how far the slider advances per tick, i.e. how long one pass
@@ -702,20 +910,36 @@ function stopPlay(){
 }
 
 function startPlay(fromHere){
-  if(!dets.length) return;
   if(timer){ clearInterval(timer); timer = null; }
   playBtn.innerHTML = "&#10074;&#10074;";
   playBtn.title = t("pause");
-  if(!fromHere) slider.value = 0;
-  const step = 100 / (SPEEDS[speedIx].ms / TICK_MS);
+  const total = trackPx();
+  if(!fromHere) setSliderTime(tMin);
+  // Scroll position is animated in pixels, so a fine unit stays smooth rather
+  // than stepping - the track is long, not coarse.
+  let pos = scrollEl.scrollLeft;
+  const per = total / (SPEEDS[speedIx].ms / TICK_MS);
   timer = setInterval(() => {
-    slider.value = Math.min(100, +slider.value + step);
+    pos = Math.min(total, pos + per);
+    setScroll(pos);
+    paintTicks(); syncAria();
     drawDets(sliderTime());
-    if(+slider.value >= 100) stopPlay();
+    if(pos >= total) stopPlay();
   }, TICK_MS);
 }
 
 playBtn.onclick = () => timer ? stopPlay() : startPlay(false);
+unitBtn.textContent = t("u_" + UNITS[unitIx].key);
+unitBtn.onclick = () => {
+  const at = sliderTime();            // keep the moment being viewed
+  unitIx = (unitIx + 1) % UNITS.length;
+  autoUnit = false;
+  clampUnit();
+  rebuildSlider();
+  setSliderTime(at);
+  drawDets(sliderTime());
+};
+
 speedBtn.onclick = () => {
   speedIx = (speedIx + 1) % SPEEDS.length;
   speedBtn.textContent = SPEEDS[speedIx].label;
@@ -734,6 +958,8 @@ function applyStaticLabels(){
   document.getElementById("drawer-close").setAttribute("aria-label", t("closeList"));
   playBtn.title = timer ? t("pause") : t("animate");
   speedBtn.title = t("speed");
+  unitBtn.title = t("step");
+  unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
     b.classList.toggle("on", b.dataset.l === LANG));
 }
@@ -763,7 +989,8 @@ document.querySelectorAll("#langsw button").forEach(b =>
   b.addEventListener("click", () => setLang(b.dataset.l)));
 
 applyStaticLabels();
-recompute(); renderRange(); renderHeader(); drawEvents(); renderList(); drawDets(tMax);
+recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
+setSliderTime(tMax); drawDets(sliderTime());
 // ---- live refresh without losing the reader's place ------------------------
 // A file:// page cannot fetch() a sibling JSON file, but it can load one as a
 // script. The poller rewrites fire-map-data.js each cycle; we pull it in with a
@@ -776,13 +1003,13 @@ let refreshFails = 0;
 function applyData(d){
   if(!d || !d.generated_at) return false;
   if(d.generated_at === DATA.generated_at) return false;   // nothing new
-  const pct = +slider.value;                               // remember scrub position
+  const at = sliderTime();                                 // remember the moment shown
   DATA = d;
   if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
   const wasOpen = popupOpenId;
   recompute();
   renderRange(); renderHeader(); drawEvents(); renderList();
-  slider.value = pct;
+  setSliderTime(at);
   drawDets(sliderTime());
   if(wasOpen && markerById[wasOpen]){
     // openPopup() auto-pans to fit the popup, which would nudge the view the
