@@ -891,14 +891,30 @@ scrollEl.addEventListener("keydown", e => {
 map.on("zoomend", () => drawDets(sliderTime()));
 addEventListener("resize", () => rebuildSlider());
 let timer=null;
-// Three playback speeds. The tick interval stays fixed so motion stays smooth;
-// the speed sets how far the slider advances per tick, i.e. how long one pass
-// over the selected range takes.
-const SPEEDS = [{label:"0.5\u00d7", ms:10000},
-                {label:"1\u00d7",   ms:5000},
-                {label:"2\u00d7",   ms:2500}];
+// Playback speed is a rate over timeline *steps*, not a fixed duration per pass.
+// A fixed duration made every unit take the same five seconds, so switching to
+// minutes bought detail and lost nothing else - the animation just skipped
+// faster. Rate-based, the unit button also chooses pace: minutes crawl, days
+// sweep. The tick interval stays fixed so motion stays smooth regardless.
+const SPEEDS = [{label:"0.5\u00d7", mult:0.5},
+                {label:"1\u00d7",   mult:1},
+                {label:"2\u00d7",   mult:2},
+                {label:"4\u00d7",   mult:4}];
+const STEPS_PER_SEC = 4;                           // at 1x
+// Both ends need a guard: a 3-day range in day steps is 3 steps and would be a
+// blink, and 30 days in minute steps is 43200 and would run for three hours.
+// The ceiling is deliberately generous - minute steps are the deliberate choice
+// to watch a fire develop, and a tight cap turned every range into the same
+// two-and-a-half-minute skim. 4x is the escape hatch, not a lower ceiling.
+const MIN_PASS_MS = 10000, MAX_PASS_MS = 600000;
 const TICK_MS = 60;
 let speedIx = 1;                                   // 1x by default
+
+// How long one pass over the whole range should take at the current unit+speed.
+function passMs(){
+  const raw = 1000 * stepCount() / (STEPS_PER_SEC * SPEEDS[speedIx].mult);
+  return Math.min(MAX_PASS_MS, Math.max(MIN_PASS_MS, raw));
+}
 const playBtn = document.getElementById("play");
 const speedBtn = document.getElementById("speed");
 speedBtn.textContent = SPEEDS[speedIx].label;
@@ -918,7 +934,7 @@ function startPlay(fromHere){
   // Scroll position is animated in pixels, so a fine unit stays smooth rather
   // than stepping - the track is long, not coarse.
   let pos = scrollEl.scrollLeft;
-  const per = total / (SPEEDS[speedIx].ms / TICK_MS);
+  const per = total / (passMs() / TICK_MS);
   timer = setInterval(() => {
     pos = Math.min(total, pos + per);
     setScroll(pos);
@@ -938,6 +954,9 @@ unitBtn.onclick = () => {
   rebuildSlider();
   setSliderTime(at);
   drawDets(sliderTime());
+  // The running timer holds a pixel position and a rate from the old track;
+  // both are meaningless now that the unit - and so the pace - changed.
+  if(timer) startPlay(true);
 };
 
 speedBtn.onclick = () => {
