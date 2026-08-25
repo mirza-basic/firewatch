@@ -11,7 +11,9 @@ patching individual rows, and cheap at this scale.
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
+import sys
 import threading
 import webbrowser
 from functools import partial
@@ -20,12 +22,13 @@ from pathlib import Path
 import rumps
 
 from . import events as ev_mod
-from . import mapgen, notify, poller, sources
+from . import expose, mapgen, notify, poller, sms, sources
 from .config import CFG, LOG_PATH, MAP_PATH, SUPPORT_DIR
 
 log = logging.getLogger("firewatch.menubar")
 
 IDLE_TITLE = "🌲"
+SERVICE_LABEL = "com.firewatch.zavidovici"
 SEV_MARK = {"low": "", "moderate": "!", "high": "!!", "severe": "!!!"}
 
 
@@ -42,6 +45,16 @@ def _ago(minutes: float) -> str:
 def _info(text: str) -> rumps.MenuItem:
     """A non-clickable informational row."""
     return rumps.MenuItem(text, callback=None)
+
+
+def _service_target() -> str:
+    return f"gui/{os.getuid()}/{SERVICE_LABEL}"
+
+
+def service_loaded() -> bool:
+    """True when launchd owns this process, i.e. it will restart us if we die."""
+    return subprocess.run(["launchctl", "print", _service_target()],
+                          capture_output=True).returncode == 0
 
 
 class FireWatchApp(rumps.App):
@@ -108,20 +121,52 @@ class FireWatchApp(rumps.App):
         rows += [
             rumps.separator,
             rumps.MenuItem("Open Fire Map", callback=self.open_map, key="m"),
+            *self._public_rows(snap),
             rumps.MenuItem("Refresh Now", callback=self.refresh, key="r"),
             rumps.separator,
             notif,
             rumps.MenuItem("Send Test Notification", callback=self.test_notify),
+            self._test_sms_item(),
             rumps.MenuItem(f"Alerts via: {notify.backend()}", callback=None),
             rumps.separator,
             rumps.MenuItem("FIRMS Quota…", callback=self.show_quota),
             rumps.MenuItem("Open Data Folder", callback=self.open_folder),
             rumps.MenuItem("View Log", callback=self.open_log),
             rumps.separator,
+            rumps.MenuItem("Restart FireWatch", callback=self.restart_service),
             rumps.MenuItem("Quit FireWatch", callback=self.quit_app, key="q"),
         ]
         self.menu.clear()
         self.menu = rows
+
+    def _public_rows(self, snap: dict) -> list:
+        """The ngrok link, read from the snapshot rather than queried here.
+
+        Asking ngrok directly would put a blocking HTTP call on the main thread
+        every rebuild; the poller already resolves the URL each cycle, so the
+        menu just displays what it published.
+        """
+        url = snap.get("public_url")
+        if not url:
+            return [rumps.MenuItem("Publish Map Online…", callback=self.open_public,
+                                   key="p")]
+        return [
+            rumps.MenuItem("Open Public Map", callback=self.open_public, key="p"),
+            _info(f"   {url.split('//', 1)[-1]}"),
+            rumps.MenuItem("Copy Public Link", callback=self.copy_public),
+        ]
+
+    def _test_sms_item(self) -> rumps.MenuItem:
+        """Greyed out, with the reason in the title, when SMS cannot be sent.
+
+        `sms.ready()` already returns exactly why - no key, no sender, a number
+        that is not E.164 - so showing that beats a menu entry that looks live
+        and then silently does nothing.
+        """
+        ok, why = sms.ready()
+        if not ok:
+            return _info(f"Send Test SMS — unavailable: {why}")
+        return rumps.MenuItem("Send Test SMS…", callback=self.test_sms)
 
     def _range_item(self, snap: dict) -> rumps.MenuItem:
         """Last 24h / 3 days / 7 days / month, with the event count for each."""
@@ -204,6 +249,56 @@ class FireWatchApp(rumps.App):
             mapgen.render(self.snapshot)
         webbrowser.open(Path(MAP_PATH).as_uri())
 
+    def open_public(self, _=None):
+        """Open the ngrok URL, publishing first if nothing is up yet.
+
+        Off the main thread: publishing starts an agent and waits on its API,
+        which would otherwise freeze the menu bar for up to 20 seconds.
+        """
+        def work():
+            try:
+                url = (expose.find_tunnel() or {}).get("public_url")
+                if not url:
+                    url = expose.expose().get("public_url")
+            except Exception as exc:
+                log.warning("could not publish the map: %s", exc)
+                notify.send("FireWatch", str(exc)[:180],
+                            subtitle="Could not publish the map")
+                return
+            self.snapshot["public_url"] = url
+            webbrowser.open(url)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def copy_public(self, _=None):
+        url = self.snapshot.get("public_url")
+        if not url:
+            return
+        subprocess.run("pbcopy", input=url.encode())
+        notify.send("FireWatch", url, subtitle="Public map link copied")
+
+    def restart_service(self, _=None):
+        """Restart the whole app, the way `firewatch-ctl restart` does.
+
+        The running agent holds its modules in memory, so this is what picks up a
+        code change or clears a wedged poll thread. Under launchd the kickstart
+        kills this very process, so it has to be detached or it would die with us
+        before launchd got the message; started from a terminal there is nothing
+        to kickstart, so we re-exec instead.
+        """
+        if rumps.alert("Restart FireWatch?",
+                       "The menu bar app quits and starts again. Detections, "
+                       "events and settings are kept.",
+                       ok="Restart", cancel="Cancel") != 1:
+            return
+        self.poller.stop()
+        if service_loaded():
+            subprocess.Popen(["launchctl", "kickstart", "-k", _service_target()],
+                             start_new_session=True)
+        else:
+            log.info("not running under launchd - re-exec instead")
+            os.execv(sys.executable, [sys.executable, "-m", "firewatch", "menubar"])
+
     def refresh(self, _=None):
         if self._refreshing:
             return
@@ -219,6 +314,37 @@ class FireWatchApp(rumps.App):
     def test_notify(self, _=None):
         notify.send("🔥 FireWatch test", "Notifications are working",
                     subtitle="Grad Zavidovići", sound=CFG["sound_update"])
+
+    def test_sms(self, _=None):
+        """Confirm, then send the test message to every configured recipient.
+
+        Confirmed first because this one leaves the machine: it reaches real
+        phones and costs a segment each. The dialog shows the exact text, so what
+        was approved is what goes out. The send itself is a network call and must
+        stay off the main thread or the whole menu bar freezes on it.
+        """
+        text = sms.test_text()
+        to = sms.recipients()
+        if rumps.alert(
+                f"Send a test SMS to {len(to)} recipient"
+                f"{'s' if len(to) != 1 else ''}?",
+                f"{', '.join(to)}\n\n{text}\n\n"
+                f"{len(text)} characters · {sms.segments(text)} segment(s)",
+                ok="Send", cancel="Cancel") != 1:
+            return
+
+        def work():
+            try:
+                sent = sms.send(text)
+            except Exception:
+                log.exception("test sms failed")
+                sent = False
+            notify.send("FireWatch",
+                        "Test SMS delivered to httpSMS" if sent
+                        else "Test SMS failed — see the log",
+                        subtitle=", ".join(to))
+
+        threading.Thread(target=work, daemon=True).start()
 
     def show_quota(self, _=None):
         q = sources.firms_quota()

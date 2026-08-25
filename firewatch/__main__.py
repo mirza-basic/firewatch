@@ -154,7 +154,11 @@ def cmd_expose() -> int:
 
 
 def cmd_unexpose() -> int:
-    removed = expose_mod.unexpose()
+    try:
+        removed = expose_mod.unexpose()
+    except expose_mod.ExposeError as exc:
+        print(f"\n  {exc}\n")
+        return 1
     print("  tunnel removed" if removed else "  no firewatch tunnel was running")
     return 0
 
@@ -163,6 +167,8 @@ def cmd_expose_status() -> int:
     st = expose_mod.status()
     print(f"\n  ngrok binary : {st['ngrok'] or 'not found'}")
     print(f"  agent running: {st['agent_up']}")
+    print(f"  keep published: {st['auto_expose']}"
+          "  (tunnel is rebuilt each cycle if it goes away)")
     print(f"  public dir   : {st['public_dir']}")
     print(f"  staged files : {', '.join(st['staged']) or '(none — not exposed)'}")
     print(f"  fire map URL : {st['firewatch_tunnel'] or '(not published)'}")
@@ -286,18 +292,28 @@ def cmd_sms_remove(number: str | None) -> int:
 
 
 def cmd_test_sms() -> int:
+    """Send the test message, and print what a real alert would look like.
+
+    Only the first is sent. A test that arrives reading "FIRE NEW: ..." is
+    indistinguishable from the real thing on a recipient's phone, so the sample
+    alert is shown here for its formatting and segment count and goes no further.
+    """
     poller.setup_logging()
-    evs = poller.load_snapshot().get("events") or []
-    if not evs:
-        print("  no events in the snapshot to build a sample from")
-        return 1
-    alert = {"kind": "new", "event": evs[0], "detail": "sample from test-sms"}
-    text = sms_mod.alert_text(alert)
+    text = sms_mod.test_text()
     ok, why = sms_mod.ready()
     print(f"\n  usable: {ok} ({why})")
     print(f"  {len(text)} chars, {sms_mod.segments(text)} segment(s)")
-    print("  ---- message ----")
+    print("  ---- message to send ----")
     print("\n".join("  | " + l for l in text.splitlines()))
+
+    evs = poller.load_snapshot().get("events") or []
+    if evs:
+        alert = {"kind": "new", "event": evs[0], "detail": "sample"}
+        sample = sms_mod.alert_text(alert)
+        print(f"  ---- a real alert, for comparison (not sent) ----")
+        print("\n".join("  | " + l for l in sample.splitlines()))
+        print(f"  {len(sample)} chars, {sms_mod.segments(sample)} segment(s)")
+
     if not ok:
         print("\n  not sent\n")
         return 1

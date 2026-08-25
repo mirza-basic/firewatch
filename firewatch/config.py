@@ -21,10 +21,18 @@ LOG_PATH = SUPPORT_DIR / "firewatch.log"
 SNAPSHOT_PATH = SUPPORT_DIR / "snapshot.json"
 MAP_PATH = SUPPORT_DIR / "fire-map.html"
 # Directory served publicly when `firewatch-ctl expose` is used. It holds only the
-# map and its data file - never the log, database or snapshot, which sit in the
-# parent directory and have no business being on a public URL. Created on demand,
-# so nothing is published unless you ask for it.
-PUBLIC_DIR = SUPPORT_DIR / "public"
+# map and its data file - never the log, database or snapshot, which stay in
+# SUPPORT_DIR and have no business being on a public URL. Created on demand, so
+# nothing is published unless you ask for it.
+#
+# NOT under SUPPORT_DIR, despite everything else living there: ngrok serves a
+# directory as `file://<path>`, and its file server (3.37.2) does not decode
+# percent-escapes - so "Application%20Support" is looked up literally, finds
+# nothing, and every request dies as ERR_NGROK_3004 with the tunnel still listed
+# as up. A literal space cannot be sent either; the agent API rejects the URL.
+# The only reliable fix is a path with no spaces in it. Caches is the right kind
+# of place for it too: every file here is rewritten from the snapshot each cycle.
+PUBLIC_DIR = Path.home() / "Library" / "Caches" / "FireWatch" / "public"
 
 BOUNDARY_GEOJSON = DATA_DIR / "zavidovici.geojson"
 SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
@@ -70,6 +78,11 @@ DEFAULTS = {
     # Do not re-notify the same event for the same reason within this window.
     "notify_cooldown_min": 25,
     "notifications_enabled": True,
+    # Set by `expose`, cleared by `unexpose`. While true the poller re-creates the
+    # ngrok tunnel whenever it finds it gone - the agent is shared with anything
+    # else on this machine that uses ngrok, and restarting it silently drops every
+    # tunnel it was carrying, including the URL already sent out in SMS alerts.
+    "auto_expose": False,
     # SMS alerts via httpSMS (your Android phone is the gateway). Numbers must be
     # E.164, e.g. "+38761234567". The API key is never stored here - it comes from
     # HTTPSMS_API_KEY or the macOS Keychain (`firewatch-ctl set-sms-key`).

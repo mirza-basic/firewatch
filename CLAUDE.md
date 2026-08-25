@@ -139,6 +139,25 @@ These all cost real debugging time. Most are silent failures.
     must not call `fitBounds`/`setView`/`flyTo`, or the reader's view gets yanked
     every minute. Programmatic `openPopup()` needs `autoPan` disabled for the same
     reason.
+12. **Never point an ngrok `file://` tunnel at a path containing a space.**
+    `as_uri()` percent-encodes it and the agent's file server does not decode the
+    escape, so it serves nothing: the tunnel is listed as up, the URL answers 503
+    `ERR_NGROK_3004`, and `http.count` in the tunnel metrics stays at zero. This is
+    why `PUBLIC_DIR` lives under `~/Library/Caches` and not next to everything else
+    in *Application Support*. A literal space fails too — the agent API rejects the
+    URL outright.
+13. **A freshly started ngrok agent answers its local API before it can create
+    tunnels.** For a second or two every POST is refused with 503 / `error_code
+    104` ("not yet ready"), so `agent_up()` returning True is not the same as
+    ready. Worse, a POST that fails this way *keeps the name*: afterwards it 404s
+    on GET, 404s on DELETE and 400s on POST for the life of that agent process.
+    `_create_tunnel` waits the window out and, if it still meets a burned name,
+    moves to `firewatch-2` — which is why `find_tunnel` matches suffixed names.
+14. **ngrok never closes a `file://` tunnel.** The DELETE hangs and the tunnel stays
+    listed, so `unexpose` switches publishing off first and then says plainly that
+    the URL stays up until the agent restarts. A free account also allows only three
+    endpoints per agent session — a fourth is refused with `ERR_NGROK_324`, and the
+    session is shared with anything else on the machine that uses ngrok.
 
 ## SMS alerts
 
@@ -161,11 +180,31 @@ succeeded, so a failed notification never suppresses the SMS.
 - Inert until `sms_from`, `sms_to` and the key are all present; `sms.ready()`
   returns the specific reason it is not usable, including non-E.164 numbers.
 
+## Publishing the map
+
+`expose.py` serves `PUBLIC_DIR` — the map and its data file, nothing else — through
+the ngrok agent's local API on :4040, joining whatever session is already running
+rather than starting a second one.
+
+The failure that matters is invisible from inside the app: the agent is shared with
+any other ngrok user on the machine, and when it restarts it drops every tunnel it
+was carrying. The poller keeps writing fresh files and the local map keeps working,
+so the only symptom is that the public URL — already sent out in SMS alerts, and
+unrecoverable once gone, because free-tier URLs are random — quietly stops
+resolving. So `expose.ensure()` runs every cycle and rebuilds the tunnel whenever it
+finds it missing, gated on `auto_expose`: set by `expose`, cleared by `unexpose`, so
+nothing is ever published that was not asked for. The resulting URL goes into
+`snapshot.json` as `public_url`, which is where the menu bar reads it — querying
+ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
+
 ## State and configuration
 
 - `~/Library/Application Support/FireWatch/` — `firewatch.db` (SQLite: `detections`,
   `events`, `notified`, `meta`), `snapshot.json`, `fire-map.html`, `firewatch.log`,
   `stdout/stderr.log`.
+- `~/Library/Caches/FireWatch/public/` — the only directory ever exposed publicly.
+  Rewritten from the snapshot every cycle, so losing it costs nothing. It is *not*
+  under Application Support, for the reason in landmine 12.
 - `~/.config/firewatch/config.json` — user overrides only; anything absent falls back
   to `DEFAULTS` in `config.py`. Restart after editing.
 - The FIRMS map key is committed in `config.py` DEFAULTS (and in the legacy shell

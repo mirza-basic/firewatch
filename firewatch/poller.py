@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import timedelta
 
-from . import enrich, events, mapgen, notify, sms, sources, store
+from . import enrich, events, expose, mapgen, notify, sms, sources, store
 from .config import CFG, LOG_PATH, SNAPSHOT_PATH, ensure_dirs
 from .store import iso, utcnow
 
@@ -157,13 +157,21 @@ class Poller:
                              a["event"]["place"], a.get("detail", ""),
                              notified, texted)
 
+            # Before the snapshot is written, not after: the menu bar and the map
+            # read the URL from it, and a tunnel that died since the last cycle
+            # would otherwise be advertised for another four minutes.
+            try:
+                public_url = expose.ensure()
+            except Exception:
+                log.exception("public map check failed")
+                public_url = None
+
             snap = {
                 "generated_at": iso(utcnow()),
+                "public_url": public_url,
                 "events": current,
                 "summary": events.summarise(current),
                 "ranges": {k: v["label"] for k, v in events.RANGES.items()},
-            "ranges_short": {k: v.get("short", v["label"])
-                             for k, v in events.RANGES.items()},
                 "ranges_short": {k: v.get("short", v["label"])
                                  for k, v in events.RANGES.items()},
                 "range_counts": events.range_counts(current),
@@ -247,7 +255,7 @@ def backfill(days: int = 30) -> dict:
 
 
 def _empty_snapshot() -> dict:
-    return {"generated_at": iso(utcnow()), "events": [],
+    return {"generated_at": iso(utcnow()), "events": [], "public_url": None,
             "summary": {"n_active": 0, "n_active_inside": 0, "n_total": 0,
                         "worst": 0.0, "severity": "none"},
             "ranges": {k: v["label"] for k, v in events.RANGES.items()},

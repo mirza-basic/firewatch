@@ -896,6 +896,10 @@ high severity and 48 MW. Each fire opens a submenu with severity, peak and curre
 FRP, detections per satellite, distance and bearing from town, footprint, weather,
 spread risk, and one-click actions: Google Maps, satellite view, copy coordinates,
 show on map.</p>
+<p>Below the fire list sit the actions that apply to the whole service: open the
+local map, open or copy the public link, force a refresh, and restart FireWatch —
+the last being what picks up a code change or clears a wedged poll thread, without
+dropping to a terminal.</p>
 
 <h3>Notifications</h3>
 <p>Two delivery paths. <code>osascript</code> always works but macOS attributes the
@@ -916,6 +920,19 @@ an SMS to UCS-2 encoding, cutting a segment from 160 characters to 70, so
 &ldquo;Zavidovici&rdquo; costs a third of what &ldquo;Zavidovi&#263;i&rdquo; would.
 SMS is an <em>independent</em> channel &mdash; it still goes out when the Mac is
 asleep and nobody sees the desktop notification.</p>
+
+<h3>Sharing the map</h3>
+<p>The map can be published on a public URL, which is the link the SMS alerts carry.
+ngrok serves one directory — the map and its data file, never the database, log or
+snapshot — and FireWatch joins whatever ngrok session is already running on the
+machine rather than starting a second one, because a free account allows only one.</p>
+<p>The interesting part is keeping it alive. That session is shared with anything
+else on the machine using ngrok, and restarting it drops every tunnel it carried.
+Nothing inside FireWatch notices: fresh files keep being written, the local map keeps
+working, and the only symptom is that the public URL — already sent out in SMS
+alerts, and gone for good once dropped, because free-tier URLs are random — quietly
+stops resolving. So every cycle checks that the tunnel is still there and rebuilds it
+if not, and the current URL travels in the snapshot alongside the fires.</p>
 
 <h3>Fire map</h3>
 <p>A self-contained HTML file, regenerated every cycle. Every 60 seconds the page
@@ -939,7 +956,10 @@ python3 -m firewatch watch                 headless loop, notifications only
 python3 -m firewatch map                   rebuild and open the map
 python3 -m firewatch backfill [days]       deep-fetch history (default 30)
 python3 -m firewatch history [n]           recent detections from the database
-python3 -m firewatch quota                 FIRMS transaction usage</code></pre>
+python3 -m firewatch quota                 FIRMS transaction usage
+python3 -m firewatch expose                publish the map, print the URL
+python3 -m firewatch unexpose              stop publishing
+python3 -m firewatch expose-status         publish state and every tunnel</code></pre>
 
 <!-- ==================== 8 ==================== -->
 <h2 id="quota"><span class="num">08</span> Cost &amp; rate limits</h2>
@@ -1010,6 +1030,27 @@ first time the menu bar persisted a preference it also froze all twenty defaults
 disk — after which changing a default in code had no effect on an existing install.
 It cost an hour of "why is this value not updating". <code>save()</code> now writes
 only genuine overrides.</p>
+
+<h4>A space in the path takes the public map down silently</h4>
+<p>ngrok serves a directory as <code>file://&lt;path&gt;</code>, and Python's
+<code>as_uri()</code> dutifully percent-encodes the space in <em>Application
+Support</em>. The agent never decodes it, looks up a directory that does not exist,
+and answers every request with <code>ERR_NGROK_3004</code> — while still listing the
+tunnel as up and reporting a healthy public URL. The giveaway is
+<code>http.count: 0</code> in the tunnel's own metrics: connections arriving, no
+responses leaving. Passing a literal space instead does not help, as the agent API
+rejects the URL outright, so the served directory now lives under
+<code>~/Library/Caches</code>, where no component has a space in it.</p>
+
+<h4>A tunnel name can be burned for the life of an agent</h4>
+<p>The agent's local API starts answering before the agent can actually create
+tunnels — for a second or so every request is refused with
+<code>error_code 104</code>, "not yet ready". A creation that fails in that window
+nonetheless keeps the name: afterwards it 404s on lookup, 404s on delete, and 400s
+with "already exists" on every retry, permanently, until the agent process restarts.
+Waiting the window out fixes the common case; meeting a name already burned means
+moving to the next one. Deleting a <code>file://</code> tunnel does not work either —
+the request simply never returns.</p>
 
 <h4>The daemon holds old code</h4>
 <p>The running agent keeps its modules in memory and keeps rewriting

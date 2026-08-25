@@ -21,6 +21,7 @@ Two things shape the message body:
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -144,6 +145,37 @@ def alert_text(alert: dict) -> str:
     if len(text) > cap:
         text = text[:cap - 1].rstrip() + "…".encode("ascii", "replace").decode()
     return text
+
+
+def test_text() -> str:
+    """A test message that cannot be mistaken for a real alert.
+
+    It is built from the newest event when there is one, so the formatting, the
+    transliteration and the segment count are exercised on real data - but it
+    leads with TEST and says outright that nothing is burning. A test that reads
+    like "FIRE NEW: ..." on a recipient's phone is worse than no test at all,
+    and the menu bar puts this one click away from anyone.
+    """
+    lines = ["FIREWATCH TEST - no fire, checking SMS delivery"]
+    evs = _latest_events()
+    if evs:
+        ev = evs[0]
+        peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
+        lines.append(f"Sample: {ev.get('place', '?')} {peak}MW "
+                     f"{ev.get('severity', '?')}")
+    url = map_url()
+    if url:
+        lines.append(f"Map: {url}")
+    return ascii_only("\n".join(lines))
+
+
+def _latest_events() -> list[dict]:
+    """Events from the published snapshot, newest first. Empty on any problem."""
+    try:
+        from .config import SNAPSHOT_PATH
+        return json.loads(SNAPSHOT_PATH.read_text()).get("events") or []
+    except Exception:
+        return []
 
 
 # ------------------------------------------------------------------------- send
