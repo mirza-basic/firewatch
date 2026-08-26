@@ -377,9 +377,15 @@ string and nothing is optional.</p>
     <tr><td class="mono">MAP_KEY</td><td class="mono">32-hex key</td>
       <td>Free registration. Invalid → HTTP 400 <code>Invalid MAP_KEY.</code></td></tr>
     <tr><td class="mono">dataset</td>
-      <td class="mono">VIIRS_SNPP_NRT<br>VIIRS_NOAA20_NRT<br>VIIRS_NOAA21_NRT<br>MODIS_NRT</td>
+      <td class="mono">VIIRS_SNPP_NRT<br>VIIRS_NOAA20_NRT<br>VIIRS_NOAA21_NRT<br>MODIS_NRT<br>
+        <span style="opacity:.7">VIIRS_SNPP_SP<br>VIIRS_NOAA20_SP<br>MODIS_SP</span></td>
       <td>One request per dataset — there is no multi-dataset form. Invalid →
-        <code>Invalid source.</code></td></tr>
+        <code>Invalid source.</code> The <code>_NRT</code> sets serve roughly the last
+        40 days and then return a header-only CSV; the <code>_SP</code> archive twins
+        (used by <code>backfill</code> only) begin about three months back and run for
+        years. <code>VIIRS_NOAA21_SP</code> does not exist. The same pixel appears in
+        both twins, so the suffix is stripped before it reaches a
+        <code>uid</code>.</td></tr>
     <tr><td class="mono">area</td><td class="mono">17.9845,44.2017,<br>18.5684,44.5705</td>
       <td>Municipality bbox + 6 km. Order is <em>west,south,east,north</em>;
         reversed → <code>West greater than East.</code></td></tr>
@@ -814,10 +820,23 @@ reason — the hard 5-day cap — by stitching six consecutive windows:</p>
 
 <pre><code>remaining = days_back
 start = utcnow() - timedelta(days=remaining - 1)
+nrt_from = utcnow() - timedelta(days=CFG["firms_nrt_days"])
 while remaining &gt; 0:
     chunk = min(5, remaining)
-    out.extend(fetch_firms(days=chunk, start_date=start.strftime("%Y-%m-%d")))
-    start += timedelta(days=chunk); remaining -= chunk</code></pre>
+    end = start + timedelta(days=chunk)
+    sets = []
+    if end &gt;= nrt_from: sets.append(CFG["firms_datasets"])          <span class="cmt"># live</span>
+    if start &lt; nrt_from: sets.append(CFG["firms_archive_datasets"])  <span class="cmt"># _SP</span>
+    for ds in sets:
+        out.extend(fetch_firms(days=chunk, start_date=start.strftime("%Y-%m-%d"),
+                               datasets=ds))
+    start = end; remaining -= chunk</code></pre>
+
+<p>Which dataset list a window gets is not cosmetic. Past roughly 40 days the
+near-real-time sets answer <strong>HTTP 200 with only the CSV header</strong> — the
+same response as a fortnight with no fires — so a year-long backfill run against them
+returns nothing and reports success. The archive twins cover the far end, and the
+band between the two horizons (about 40 to 90 days back) genuinely has neither.</p>
 
 <p>Transient gateway failures on the WFS get three attempts with escalating backoff
 (2 s, then 5 s), which turns the routine 502/503 into a small delay rather than a

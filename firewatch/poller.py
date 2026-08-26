@@ -232,11 +232,15 @@ def backfill(days: int = 30) -> dict:
     two days of data is misleading rather than useful.
     """
     log.info("backfilling %d days from all sources", days)
+    # Each WFS source is clamped to its own archive depth; asking MTG for a year
+    # is 183 chunked requests that can only come back empty.
+    mtg_days = min(days, sources.ARCHIVE_DAYS["mtg"])
+    s3_days = min(days, sources.ARCHIVE_DAYS["s3"])
     got: list[dict] = []
     for name, fn in (
-        ("mtg", lambda: sources.fetch_mtg(since_hours=days * 24)),
+        ("mtg", lambda: sources.fetch_mtg(since_hours=mtg_days * 24)),
         ("firms", lambda: sources.fetch_firms_range(days)),
-        ("s3", lambda: sources.fetch_sentinel3(since_hours=days * 24)),
+        ("s3", lambda: sources.fetch_sentinel3(since_hours=s3_days * 24)),
     ):
         try:
             d = fn()

@@ -66,6 +66,13 @@ def _classify(lat: float, lon: float) -> tuple[bool, bool]:
 # long windows are split into chunks and unioned client-side.
 WFS_CHUNK_HOURS = 48.0
 
+# How far back each EUMETView layer actually holds data, measured over a 600 km
+# box (where any 48 h summer window has fires, so an empty answer means an empty
+# archive and not a quiet sky): MTG returns nothing past ~40 days, while the
+# Sentinel-3 layers keep thinning out but still answer beyond a year. `backfill`
+# clamps to these instead of crawling hundreds of chunks that can only be empty.
+ARCHIVE_DAYS = {"mtg": 40, "s3": 400}
+
 
 def _wfs_features(session: requests.Session, layer: str, since: datetime,
                   pad_km: float, until: datetime | None = None) -> list[dict]:
@@ -191,12 +198,29 @@ def fetch_sentinel3(since_hours: float = 24.0) -> list[dict]:
 
 # ------------------------------------------------------------------------- FIRMS
 
-def fetch_firms(days: int = 1, start_date: str | None = None) -> list[dict]:
-    """NASA FIRMS near-real-time VIIRS/MODIS hotspots.
+def _firms_sensor(ds: str) -> str:
+    """Dataset name reduced to the satellite that flew it.
+
+    VIIRS_SNPP_NRT and VIIRS_SNPP_SP are the same instrument on the same overpass,
+    processed twice. The dataset name is part of the uid, so keeping the suffix
+    would store one pixel as two detections - inflating counts and footprints for
+    every period the live feed and the archive both cover.
+    """
+    for suffix in ("_NRT", "_SP"):
+        if ds.endswith(suffix):
+            return ds[: -len(suffix)]
+    return ds
+
+
+def fetch_firms(days: int = 1, start_date: str | None = None,
+                datasets: list[str] | None = None) -> list[dict]:
+    """NASA FIRMS VIIRS/MODIS hotspots.
 
     `start_date` is the first day of the window and `days` counts forward from it
     (the API caps days at 5). Costs 2 transactions per dataset against the
     5000-per-10-minute key limit, so a full sweep of 4 datasets is 8 - negligible.
+    `datasets` overrides the live list, which is how `fetch_firms_range` reaches
+    the SP archive for windows the NRT feed no longer serves.
     """
     session = _session()
     key = CFG["firms_map_key"]
@@ -205,7 +229,7 @@ def fetch_firms(days: int = 1, start_date: str | None = None) -> list[dict]:
     start = start_date or utcnow().strftime("%Y-%m-%d")
     days = max(1, min(int(days), 5))          # API accepts [1..5] only
     out = []
-    for ds in CFG["firms_datasets"]:
+    for ds in datasets or CFG["firms_datasets"]:
         url = f"{FIRMS_BASE}/api/area/csv/{key}/{ds}/{area}/{days}/{start}"
         try:
             r = session.get(url, timeout=CFG["http_timeout"])
@@ -231,17 +255,19 @@ def fetch_firms(days: int = 1, start_date: str | None = None) -> list[dict]:
             ts = _firms_ts(row.get("acq_date"), row.get("acq_time"))
             if ts is None:
                 continue
+            sensor = _firms_sensor(ds)
             out.append({
-                "uid": f"firms:{ds}:{lat:.5f}:{lon:.5f}:{iso(ts)}",
-                "source": "firms", "sensor": ds,
+                "uid": f"firms:{sensor}:{lat:.5f}:{lon:.5f}:{iso(ts)}",
+                "source": "firms", "sensor": sensor,
                 "lat": lat, "lon": lon, "ts": iso(ts),
                 "frp": _f(row.get("frp")),
                 "confidence": _firms_conf(row.get("confidence")),
                 "daynight": row.get("daynight"), "inside": inside,
-                "raw": {k: row.get(k) for k in
-                        ("bright_ti4", "bright_ti5", "brightness", "bright_t31",
-                         "frp", "confidence", "satellite", "instrument", "version")
-                        if row.get(k) is not None},
+                "raw": {"dataset": ds,
+                        **{k: row.get(k) for k in
+                           ("bright_ti4", "bright_ti5", "brightness", "bright_t31",
+                            "frp", "confidence", "satellite", "instrument", "version")
+                           if row.get(k) is not None}},
             })
     return out
 
@@ -284,13 +310,28 @@ def firms_quota() -> dict | None:
 
 
 def fetch_firms_range(days_back: int) -> list[dict]:
-    """FIRMS over more than 5 days, by stitching consecutive 5-day windows."""
+    """FIRMS over more than 5 days, by stitching consecutive 5-day windows.
+
+    Windows older than `firms_nrt_days` are asked of the SP archive instead of the
+    live feed: NRT answers them with a header-only CSV, which looks exactly like a
+    quiet fortnight. Both lists are tried across the boundary window so nothing
+    falls between them.
+    """
     out = []
     remaining = max(1, int(days_back))
     start = utcnow() - timedelta(days=remaining - 1)
+    nrt_from = utcnow() - timedelta(days=CFG["firms_nrt_days"])
     while remaining > 0:
         chunk = min(5, remaining)
-        out.extend(fetch_firms(days=chunk, start_date=start.strftime("%Y-%m-%d")))
-        start += timedelta(days=chunk)
+        end = start + timedelta(days=chunk)
+        sets = []
+        if end >= nrt_from:
+            sets.append(CFG["firms_datasets"])
+        if start < nrt_from:
+            sets.append(CFG["firms_archive_datasets"])
+        for ds in sets:
+            out.extend(fetch_firms(days=chunk, start_date=start.strftime("%Y-%m-%d"),
+                                   datasets=ds))
+        start = end
         remaining -= chunk
     return out

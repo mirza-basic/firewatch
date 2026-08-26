@@ -118,7 +118,7 @@ when the Mac is asleep and nobody sees the notification.
 Or drive the package directly:
 
     python3 -m firewatch menubar | poll | watch | status | map | quota | history | test-notify
-    python3 -m firewatch status 24h|3d|7d|30d    state for one time range
+    python3 -m firewatch status 24h|3d|7d|30d|1y state for one time range
     python3 -m firewatch backfill [days]         deep-fetch history (default 30)
 
 `watch` is the headless loop if you ever want it without the menu bar.

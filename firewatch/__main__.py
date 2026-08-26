@@ -6,7 +6,7 @@
     python3 -m firewatch status [range]  show last known state
     python3 -m firewatch backfill [days] deep-fetch history (default 30)
 
-  [range] is 24h | 3d | 7d | 30d  (default: 3d, or default_range from config)
+  [range] is 24h | 3d | 7d | 30d | 1y  (default: 3d, or default_range from config)
     python3 -m firewatch map         rebuild and open the fire map
     python3 -m firewatch quota       FIRMS transaction usage
     python3 -m firewatch expose      publish the map via ngrok, print the URL

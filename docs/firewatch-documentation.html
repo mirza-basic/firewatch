@@ -597,7 +597,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <text x="30" y="235" class="s-t-b">2 &middot; Deduplicate into SQLite</text>
     <text x="30" y="251" class="s-t-s">INSERT OR IGNORE on uid — the database decides what is new, not a payload diff</text>
     <line x1="380" y1="260" x2="380" y2="300" class="s-line" marker-end="url(#a3)"/>
-    <text x="392" y="284" class="s-t-m">all detections in the 720 h window</text>
+    <text x="392" y="284" class="s-t-m">all detections in the 8760 h window</text>
 
     <rect x="16" y="304" width="728" height="46" rx="6" class="s-box-hi"/>
     <text x="30" y="325" class="s-t-b">3 &middot; Cluster into fire events</text>
@@ -863,14 +863,14 @@ prompted this system peaked at 10.5 MW — a real forest fire, at the bottom of
 </table>
 </div>
 
-<p>Detections are kept <strong>60 days</strong> and pruned at most once a day. The
-clustering window is <strong>720 hours</strong>. Those two numbers are deliberately
+<p>Detections are kept <strong>400 days</strong> and pruned at most once a day. The
+clustering window is <strong>8760 hours</strong>. Those two numbers are deliberately
 different: retention must exceed the longest view range, or the oldest data would be
 deleted exactly as it came into view.</p>
 
 <h3>Time ranges</h3>
-<p>Four rolling windows — <strong>Last 24h</strong>, <strong>3 days</strong>,
-<strong>7 days</strong>, <strong>Last month</strong> — offered identically in the map,
+<p>Five rolling windows — <strong>Last 24h</strong>, <strong>3 days</strong>,
+<strong>7 days</strong>, <strong>Last month</strong>, <strong>Last year</strong> — offered identically in the map,
 the menu bar and the CLI. All are measured back from now rather than from midnight,
 so a fire never falls out of the shortest range just because the clock ticked over.
 An event belongs to a range if it was <em>last active</em> inside it, and its
@@ -881,6 +881,16 @@ about what you are looking at.</p>
 of overlap, and every range is a read over history already on disk. What the longer
 windows buy is pattern — the month view over Zavidovići surfaced repeated ignitions
 near Kamenica on 7, 15 and 17 August that no 3-day view would ever show.</p>
+
+<p>The year range is the honest limit of that idea: it is a read over stored history,
+so it is only ever as deep as the database, and the database is only as deep as the
+feeds will sell you. Measured in August 2026, the MTG service holds about 40 days;
+the FIRMS near-real-time datasets about the same, and then answer older queries with
+a header-only CSV that looks exactly like a quiet fortnight; the FIRMS standard-
+processing archive picks up around three months back and runs for years; Sentinel-3
+is thin but reaches furthest. Between 40 and 90 days ago FIRMS therefore has nothing
+to give — that band fills in later, as standard processing catches up, but only when
+<code>backfill</code> is run again. Nothing re-fetches history on its own.</p>
 
 <!-- ==================== 7 ==================== -->
 <h2 id="delivery"><span class="num">07</span> How it reaches you</h2>
@@ -948,9 +958,19 @@ labelled time ticks, a fixed centre playhead, and every detection as a coloured
 mark on the track; the step unit switches between minute, hour, day and week, and
 a play button at three speeds animates the fire's progression by scrolling it. The initial snapshot is still inlined for first
 paint, so the page renders correctly even if the data file is missing.</p>
+<p>Two buttons on the left arm a measure tool: click along the map for a distance,
+or round a shape for an area. Segments are labelled individually, a two-point line
+also reports its bearing, and areas are given in km&sup2; and hectares at once
+&mdash; hectares being how forest and burn scars are actually quoted here. Both are
+computed on the sphere, not in the projection: Web Mercator overstates area by
+1/cos&sup2;(lat), which at 44&deg;N would turn a 100 ha scar into 194 ha. Finish
+with a double-click, <kbd>Enter</kbd> or <em>Done</em>; <kbd>Backspace</kbd> drops
+the last point and <kbd>Esc</kbd> puts the tool away. Measurements live in their
+own map pane, so the 60-second refresh &mdash; which rebuilds every fire layer from
+scratch &mdash; leaves them standing.</p>
 
 <h3>Command line</h3>
-<pre><code>python3 -m firewatch status 24h|3d|7d|30d   current state for one range
+<pre><code>python3 -m firewatch status 24h|3d|7d|30d|1y   current state for one range
 python3 -m firewatch poll                  one cycle, printed report
 python3 -m firewatch watch                 headless loop, notifications only
 python3 -m firewatch map                   rebuild and open the map

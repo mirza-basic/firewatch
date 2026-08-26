@@ -131,6 +131,45 @@ TEMPLATE = r"""<!doctype html>
   .leaflet-popup-content a{color:#7cc4ff}
   .leaflet-bar a{background:var(--panel2);color:var(--fg);border-color:var(--line)}
   .leaflet-bar a:hover{background:#31404f}
+  /* --- measure tool -------------------------------------------------------
+     While measuring, the fire markers and the boundary must not swallow a click
+     that is meant to drop a vertex, so hit testing is turned off for the panes
+     that hold them. The measure pane is a sibling of the overlay pane, hence its
+     own rule - finished measurements are clickable (for their remove popup) only
+     when the tool is off. */
+  .leaflet-container.measuring{cursor:crosshair}
+  /* !important is load-bearing: Leaflet's own
+     `.leaflet-pane>svg path.leaflet-interactive` rule is more specific than this
+     one, so without it a click meant for a vertex opens a fire popup instead. */
+  .measuring .leaflet-overlay-pane path,
+  .measuring .leaflet-marker-pane,
+  .measuring .leaflet-measure-pane path{pointer-events:none!important}
+  .mbar a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .mbar a.on:hover{background:var(--accent)}
+  .mlabel.leaflet-tooltip{background:rgba(21,26,33,.92);border:1px solid var(--line);
+    color:var(--fg);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600;
+    white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:none;text-align:center}
+  .mlabel.leaflet-tooltip:before{display:none}
+  .mlabel.seg{font-weight:400;font-size:10px;color:var(--dim);padding:1px 5px}
+  .mlabel.live{border-color:var(--accent)}
+  .mpanel{background:rgba(21,26,33,.94);border:1px solid var(--line);border-radius:9px;
+    padding:9px 11px;font-size:11px;color:var(--dim);width:206px;line-height:1.4;
+    backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+  .mpanel .mrow{color:var(--fg);font-size:14px;font-weight:600;margin-bottom:5px;
+    font-variant-numeric:tabular-nums}
+  .mpanel .mrow:empty{display:none}
+  .macts{display:flex;gap:5px;margin-top:8px}
+  .macts button{flex:1;background:#26303b;border:1px solid var(--line);color:var(--fg);
+    border-radius:6px;padding:4px 6px;font:inherit;font-size:11.5px;cursor:pointer}
+  .macts button:hover:enabled{background:#31404f}
+  .macts button:disabled{opacity:.42;cursor:default}
+  .macts button.pri:enabled{background:var(--accent);border-color:var(--accent);
+    color:#fff;font-weight:600}
+  .mpop b{color:var(--accent)}
+  .mpop button{margin-top:8px;background:#26303b;border:1px solid var(--line);
+    color:var(--fg);border-radius:6px;padding:4px 9px;font:inherit;font-size:11.5px;
+    cursor:pointer}
+  .mpop button:hover{background:#31404f}
   #langsw{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:1250;
     display:flex;gap:2px;padding:2px;border-radius:9px;border:1px solid var(--line);
     background:rgba(21,26,33,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
@@ -181,6 +220,7 @@ TEMPLATE = r"""<!doctype html>
        narrow to scrub, and the bar overflowed */
     #tlwrap{order:9;flex:1 1 100%;margin-top:3px}
     #list{padding:8px}
+    .mpanel{width:min(52vw,190px);padding:8px 9px}
     /* The legend used to be hidden here because it sat on top of the timeline bar.
        Instead, lift the whole bottom-right control stack clear of the bar and make
        the legend collapse to a single "Key" button, so it is reachable without
@@ -276,11 +316,18 @@ const I18N = {
     noDetRange:"no detections in range", boundary:"boundary", refreshNote:
       "data refreshes in place every 60 s · your view is kept",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
-    rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month",
+    r_1y:"Last year",
+    rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month", rs_1y:"Year",
     justNow:"just now", agoMin:"{n} min ago", agoH:"{n} h ago", agoD:"{n} d ago",
     animate:"Animate", pause:"Pause", speed:"Playback speed",
     step:"Timeline step", u_min:"min", u_hour:"hour", u_day:"day", u_week:"week",
-    zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain"
+    zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain",
+    m_dist:"Measure distance", m_area:"Measure area", m_clear:"Clear measurements",
+    m_hintDist:"Click the map to add points. Double-click, or Done, to finish.",
+    m_hintArea:"Click round the area you want. Double-click, or Done, to close it.",
+    m_needDist:"one more point", m_needArea:"at least three points",
+    m_done:"Done", m_undo:"Undo", m_close:"Close", m_remove:"Remove",
+    m_perimeter:"perimeter"
   },
   bs: {
     sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
@@ -307,11 +354,18 @@ const I18N = {
     noDetRange:"nema detekcija u periodu", boundary:"granica", refreshNote:
       "podaci se osvježavaju svakih 60 s · prikaz se čuva",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
-    rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec",
+    r_1y:"Zadnja godina",
+    rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec", rs_1y:"Godina",
     justNow:"upravo sad", agoMin:"prije {n} min", agoH:"prije {n} h", agoD:"prije {n} d",
     animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
     step:"Korak vremenske ose", u_min:"min", u_hour:"sat", u_day:"dan", u_week:"sedm.",
-    zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren"
+    zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren",
+    m_dist:"Izmjeri udaljenost", m_area:"Izmjeri površinu", m_clear:"Obriši mjerenja",
+    m_hintDist:"Klikni po karti da dodaš točke. Dvoklik ili Gotovo za završetak.",
+    m_hintArea:"Klikni oko površine koju mjeriš. Dvoklik ili Gotovo da se zatvori.",
+    m_needDist:"još jedna točka", m_needArea:"najmanje tri točke",
+    m_done:"Gotovo", m_undo:"Vrati", m_close:"Zatvori", m_remove:"Ukloni",
+    m_perimeter:"obim"
   }
 };
 // Compass points are computed server-side in English; translate the letters.
@@ -454,18 +508,35 @@ const MONTHS = {
   bs:["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"]
 };
 const _sarajevo = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Sarajevo",
-  day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
+  year:"numeric",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",
+  hour12:false});
 function tlParts(ts){
   const p = {};
   for(const part of _sarajevo.formatToParts(new Date(ts))) p[part.type] = part.value;
   return p;
 }
 const monName = mm => (MONTHS[LANG] || MONTHS.en)[parseInt(mm, 10) - 1];
+// Every stamp used to be "14 Mar, 09:12", which was fine while nothing on the page
+// was older than a month. With a year range it is genuinely ambiguous, so the year
+// is spelled out wherever it is not the current one - present-day stamps, which are
+// most of them, stay short.
+const CUR_YEAR = tlParts(Date.now()).year;
+// `sep` carries the full stop Bosnian puts after a year in a date, which would
+// read as a typo on a bare ruler tick.
+const yearBit = (p, sep = "") => p.year === CUR_YEAR ? "" : ` ${p.year}${sep}`;
 function fmtLocal(ts){
   const p = tlParts(ts);
   const mon = monName(p.month);
-  return LANG === "bs" ? `${p.day}. ${mon} ${p.hour}:${p.minute}`
-                       : `${p.day} ${mon}, ${p.hour}:${p.minute}`;
+  return LANG === "bs" ? `${p.day}. ${mon}${yearBit(p, ".")} ${p.hour}:${p.minute}`
+                       : `${p.day} ${mon}${yearBit(p)}, ${p.hour}:${p.minute}`;
+}
+// The timeline readout always carries the year, whatever it is: it is the one label
+// that answers "where am I", and it should not need a convention to read.
+function fmtStamp(ts){
+  const p = tlParts(ts);
+  const mon = monName(p.month);
+  return LANG === "bs" ? `${p.day}. ${mon} ${p.year}. ${p.hour}:${p.minute}`
+                       : `${p.day} ${mon} ${p.year}, ${p.hour}:${p.minute}`;
 }
 const ago = m => m<1 ? t("justNow")
   : m<60 ? t("agoMin",{n:Math.round(m)})
@@ -589,7 +660,7 @@ function drawDets(upto){
   // was noise. It still shows with no detections, which is the point of spanning
   // the whole range.
   document.getElementById("tlabel").textContent =
-    fmtLocal(upto) + (dets.length ? ` · ${shown.length}/${dets.length}` : "");
+    fmtStamp(upto) + (dets.length ? ` · ${shown.length}/${dets.length}` : "");
 }
 
 function sparkline(e){
@@ -780,6 +851,7 @@ const trackPx = () => stepCount() * pxUnit();
 const wrapW = () => scrollEl.clientWidth || 1;
 
 // x within the content layer for a moment, and the inverse
+const spansYears = () => tlParts(tMin).year !== tlParts(tMax).year;
 const xOf = ms => ((ms - tMin) / unitMs()) * pxUnit();
 const msOf = x => tMin + (x / pxUnit()) * unitMs();
 
@@ -832,7 +904,9 @@ function paintMarks(){
 // Labels are drawn only for the visible window - a month of minutes would be
 // thousands of them otherwise.
 function paintTicks(){
-  const step = Math.max(1, Math.ceil(74 / pxUnit()));   // >= ~74px apart
+  // Wider spacing once labels can carry a year, or "14 Mar 2025" collides with
+  // its neighbour at the spacing bare dates were measured for.
+  const step = Math.max(1, Math.ceil((spansYears() ? 96 : 74) / pxUnit()));
   const from = Math.max(0, Math.floor((scrollEl.scrollLeft - wrapW() / 2) / pxUnit()) - step);
   const to = Math.min(stepCount(), Math.ceil((scrollEl.scrollLeft + wrapW()) / pxUnit()) + step);
   const out = [];
@@ -848,8 +922,8 @@ function tickLabel(ms){
   const p = tlParts(ms);
   if(u === "min" || u === "hour")
     return (p.hour === "00" && p.minute === "00")
-      ? `${p.day} ${monName(p.month)}` : `${p.hour}:${p.minute}`;
-  return `${p.day} ${monName(p.month)}`;
+      ? `${p.day} ${monName(p.month)}${yearBit(p)}` : `${p.hour}:${p.minute}`;
+  return `${p.day} ${monName(p.month)}${yearBit(p)}`;
 }
 
 function syncAria(){
@@ -857,7 +931,7 @@ function syncAria(){
   scrollEl.setAttribute("aria-valuemax", String(stepCount()));
   scrollEl.setAttribute("aria-valuenow",
     String(Math.round((sliderTime() - tMin) / unitMs())));
-  scrollEl.setAttribute("aria-valuetext", fmtLocal(sliderTime()));
+  scrollEl.setAttribute("aria-valuetext", fmtStamp(sliderTime()));
 }
 
 let rafPending = false;
@@ -966,6 +1040,311 @@ speedBtn.onclick = () => {
   if(timer) startPlay(true);
 };
 
+// ---- measure tool ----------------------------------------------------------
+// Distance along a line, and the area of a polygon, drawn by hand rather than by
+// pulling in Leaflet.draw + Leaflet.measure: that is two more CDN files and a
+// light theme to override, when all this actually needs is a polyline, a polygon
+// and two bits of spherical maths. Measurements live in their own pane and layer
+// group, so the 60 s refresh - which rebuilds every fire layer from scratch -
+// never touches them, and neither does a range change.
+map.createPane("measure").style.zIndex = 650;
+const M_PANE = "measure", M_COL = "#7cffb2";
+const mLayer = L.layerGroup().addTo(map);
+
+const COMPASS16 = Object.keys(COMPASS_BS);      // already in compass order
+function bearingDeg(a, b){
+  const r = Math.PI/180, p1 = a.lat*r, p2 = b.lat*r, dl = (b.lng - a.lng)*r;
+  const y = Math.sin(dl)*Math.cos(p2);
+  const x = Math.cos(p1)*Math.sin(p2) - Math.sin(p1)*Math.cos(p2)*Math.cos(dl);
+  return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
+}
+
+// Spherical excess, never the projected pixel area: Web Mercator inflates area by
+// 1/cos(lat)^2, which is ~1.94x at 44 N - a 100 ha burn scar would read as 194 ha.
+function geoAreaM2(pts){
+  if(pts.length < 3) return 0;
+  const r = Math.PI/180;
+  let sum = 0;
+  for(let i=0; i<pts.length; i++){
+    const p1 = pts[i], p2 = pts[(i+1) % pts.length];
+    sum += (p2.lng - p1.lng)*r * (2 + Math.sin(p1.lat*r) + Math.sin(p2.lat*r));
+  }
+  return Math.abs(sum * R_EARTH_M * R_EARTH_M / 2);
+}
+const segM = (a,b) => haversineM(a.lat, a.lng, b.lat, b.lng);
+function pathM(pts, closed){
+  let m = 0;
+  for(let i=1; i<pts.length; i++) m += segM(pts[i-1], pts[i]);
+  if(closed && pts.length > 2) m += segM(pts[pts.length-1], pts[0]);
+  return m;
+}
+function num(n, d){
+  try {
+    return n.toLocaleString(LANG === "bs" ? "bs-BA" : "en-GB",
+      {minimumFractionDigits:d, maximumFractionDigits:d});
+  } catch(e){ return n.toFixed(d); }
+}
+const fmtLen = m => m < 1000 ? num(m,0) + " m"
+                             : num(m/1000, m < 10000 ? 2 : 1) + " km";
+// Hectares alongside km2: forest and burn-scar sizes are quoted in hectares here,
+// and 1 km2 = 100 ha is not a conversion anyone does mid-sentence.
+function fmtArea(a){
+  if(a < 1e4) return num(a, 0) + " m²";
+  if(a < 1e6) return num(a/1e4, 2) + " ha";
+  return num(a/1e6, 2) + " km² · " + num(a/1e4, 0) + " ha";
+}
+
+const mTip = (latlng, html, cls, opts) => L.tooltip(Object.assign(
+  {permanent:true, direction:"center", className:"mlabel " + (cls || ""),
+   interactive:false, opacity:1}, opts || {})).setLatLng(latlng).setContent(html);
+
+let mMode = null;         // null | "dist" | "area"
+let draft = null;         // the measurement being drawn
+const mShapes = [];       // finished ones, in the order they were drawn
+const needPts = () => mMode === "area" ? 3 : 2;
+
+function shapeStats(mode, pts){
+  const closed = mode === "area";
+  return {len: pathM(pts, closed), area: closed ? geoAreaM2(pts) : 0};
+}
+function shapeSummary(mode, pts){
+  const s = shapeStats(mode, pts);
+  if(mode === "area")
+    return `<b>${fmtArea(s.area)}</b><br><span style="opacity:.72">` +
+           `${t("m_perimeter")} ${fmtLen(s.len)}</span>`;
+  // A two-point line is a bearing as much as a distance - which way a fire would
+  // have to run to cover it is the question being asked.
+  if(pts.length === 2){
+    const b = bearingDeg(pts[0], pts[1]);
+    return `<b>${fmtLen(s.len)}</b><br><span style="opacity:.72">` +
+           `${dir(COMPASS16[Math.round(b/22.5) % 16])} ${num(b,0)}°</span>`;
+  }
+  return `<b>${fmtLen(s.len)}</b>`;
+}
+
+const mVert = (p, r) => L.circleMarker(p, {pane:M_PANE, radius:r, color:"#0b0f14",
+  weight:1.4, fillColor:M_COL, fillOpacity:1, interactive:false});
+
+function renderShape(sh){
+  const closed = sh.mode === "area";
+  const shape = closed
+    ? L.polygon(sh.pts, {pane:M_PANE, color:M_COL, weight:2.2, opacity:.95,
+        fillColor:M_COL, fillOpacity:.13})
+    : L.polyline(sh.pts, {pane:M_PANE, color:M_COL, weight:2.8, opacity:.95});
+  sh.layers = [shape];
+  // Added before the label is built: L.Polygon.getCenter() throws outright
+  // ("Must add layer to map before using getCenter") until the layer is on a map.
+  mLayer.addLayer(shape);
+  sh.pts.forEach(p => sh.layers.push(mVert(p, 3.4)));
+  // Per-segment lengths, but only while they stay readable - a twenty-vertex
+  // trace turns into a wall of overlapping labels otherwise.
+  const segs = sh.pts.length - (closed ? 0 : 1);
+  if(sh.pts.length > 2 && segs <= 12){
+    for(let i=0; i<segs; i++){
+      const a = sh.pts[i], b = sh.pts[(i+1) % sh.pts.length];
+      sh.layers.push(mTip(L.latLng((a.lat+b.lat)/2, (a.lng+b.lng)/2),
+        fmtLen(segM(a,b)), "seg"));
+    }
+  }
+  const sum = shapeSummary(sh.mode, sh.pts);
+  sh.layers.push(mTip(closed ? shape.getCenter() : sh.pts[sh.pts.length-1], sum));
+  const pop = L.DomUtil.create("div", "mpop");
+  pop.innerHTML = sum + `<div><button type="button">${t("m_remove")}</button></div>`;
+  pop.querySelector("button").onclick = () => removeShape(sh);
+  shape.bindPopup(pop);
+  sh.layers.forEach(l => { if(l !== shape) mLayer.addLayer(l); });
+}
+
+function removeShape(sh){
+  map.closePopup();
+  (sh.layers || []).forEach(l => mLayer.removeLayer(l));
+  const i = mShapes.indexOf(sh);
+  if(i >= 0) mShapes.splice(i, 1);
+  mRefresh();
+}
+const clearShapes = () => mShapes.slice().forEach(removeShape);
+
+// Labels carry translated words and locale-formatted numbers, so a language
+// switch has to rebuild them. The geometry is kept; only the layers are redrawn.
+function relabelShapes(){
+  mShapes.forEach(sh => {
+    (sh.layers || []).forEach(l => mLayer.removeLayer(l));
+    renderShape(sh);
+  });
+}
+
+function newDraft(){
+  const closed = mMode === "area";
+  draft = {pts:[], verts:[], live:null};
+  draft.line = closed
+    ? L.polygon([], {pane:M_PANE, color:M_COL, weight:2.2, opacity:.95,
+        dashArray:"6,5", fillColor:M_COL, fillOpacity:.10, interactive:false})
+    : L.polyline([], {pane:M_PANE, color:M_COL, weight:2.6, opacity:.95,
+        interactive:false});
+  draft.rubber = L.polyline([], {pane:M_PANE, color:M_COL, weight:1.6, opacity:.8,
+    dashArray:"4,5", interactive:false});
+  mLayer.addLayer(draft.line);
+  mLayer.addLayer(draft.rubber);
+}
+function clearDraft(){
+  if(!draft) return;
+  [draft.line, draft.rubber, draft.live].concat(draft.verts)
+    .forEach(l => { if(l) mLayer.removeLayer(l); });
+  draft = null;
+}
+function drawDraft(){
+  if(!draft) return;
+  draft.line.setLatLngs(draft.pts);
+  draft.verts.forEach(v => mLayer.removeLayer(v));
+  draft.verts = draft.pts.map(p => mVert(p, 3.6));
+  draft.verts.forEach(v => mLayer.addLayer(v));
+  if(!draft.pts.length) draft.rubber.setLatLngs([]);
+  mPanelUpdate();
+}
+
+function addPoint(ll){
+  if(!draft) return;
+  const n = draft.pts.length;
+  if(n){
+    // The second click of a finishing double-click arrives as a click first;
+    // dropping a near-duplicate keeps it from adding a zero-length segment.
+    const a = map.latLngToContainerPoint(draft.pts[n-1]);
+    if(a.distanceTo(map.latLngToContainerPoint(ll)) < 12) return;
+  }
+  draft.pts.push(ll);
+  drawDraft();
+}
+function undoPoint(){
+  if(!draft || !draft.pts.length) return;
+  draft.pts.pop();
+  drawDraft();
+}
+function finishDraft(){
+  if(!draft || draft.pts.length < needPts()) return;
+  const sh = {mode:mMode, pts:draft.pts.slice(), layers:[]};
+  clearDraft();
+  mShapes.push(sh);
+  renderShape(sh);
+  newDraft();                 // the tool stays armed for the next measurement
+  mPanelUpdate(); mRefresh();
+}
+
+function onMeasureMove(e){
+  if(!draft || !draft.pts.length) return;
+  const closed = mMode === "area", last = draft.pts[draft.pts.length-1];
+  // Closing leg included once the polygon has real area, so the rubber band shows
+  // the shape that would actually be measured, not an open chain.
+  draft.rubber.setLatLngs(closed && draft.pts.length > 1
+    ? [last, e.latlng, draft.pts[0]] : [last, e.latlng]);
+  const pts = draft.pts.concat([e.latlng]);
+  let html = closed && pts.length > 2 ? fmtArea(geoAreaM2(pts))
+                                      : fmtLen(pathM(pts, false));
+  html += `<br><span style="opacity:.7;font-weight:400">+${fmtLen(segM(last, e.latlng))}</span>`;
+  if(!draft.live){
+    // Beside the cursor, not under it - the crosshair has to stay visible.
+    draft.live = mTip(e.latlng, html, "live", {direction:"right", offset:[14,0]});
+    mLayer.addLayer(draft.live);
+  } else draft.live.setLatLng(e.latlng).setContent(html);
+}
+
+const mPanelCtl = L.control({position:"topright"});
+mPanelCtl.onAdd = () => {
+  const d = L.DomUtil.create("div", "mpanel");
+  L.DomEvent.disableClickPropagation(d);
+  L.DomEvent.disableScrollPropagation(d);
+  d.innerHTML = `<div class="mrow"></div><div class="mhint"></div>` +
+    `<div class="macts"><button type="button" class="pri mdone"></button>` +
+    `<button type="button" class="mundo"></button>` +
+    `<button type="button" class="mexit"></button></div>`;
+  d.querySelector(".mdone").onclick = () => finishDraft();
+  d.querySelector(".mundo").onclick = () => undoPoint();
+  d.querySelector(".mexit").onclick = () => exitMeasure();
+  mPanelCtl._el = d;
+  return d;
+};
+function mPanelUpdate(){
+  const el = mPanelCtl._el;
+  if(!el || !mMode) return;
+  const n = draft ? draft.pts.length : 0, closed = mMode === "area";
+  const row = el.querySelector(".mrow");
+  if(n >= needPts()){
+    const s = shapeStats(mMode, draft.pts);
+    row.innerHTML = closed
+      ? `${fmtArea(s.area)}<br><span style="opacity:.7;font-size:11px;font-weight:400">` +
+        `${t("m_perimeter")} ${fmtLen(s.len)}</span>`
+      : fmtLen(s.len);
+  } else row.textContent = n ? t(closed ? "m_needArea" : "m_needDist") : "";
+  el.querySelector(".mhint").textContent = t(closed ? "m_hintArea" : "m_hintDist");
+  const done = el.querySelector(".mdone"), undo = el.querySelector(".mundo");
+  done.textContent = t("m_done"); undo.textContent = t("m_undo");
+  el.querySelector(".mexit").textContent = t("m_close");
+  done.disabled = n < needPts();
+  undo.disabled = !n;
+}
+
+const mCtl = L.control({position:"topleft"});
+mCtl.onAdd = () => {
+  const d = L.DomUtil.create("div", "leaflet-bar mbar");
+  const mk = (glyph, cls, fn) => {
+    const a = L.DomUtil.create("a", cls, d);
+    a.href = "#"; a.innerHTML = glyph;
+    a.style.fontSize = "14px"; a.style.textAlign = "center";
+    L.DomEvent.on(a, "click", e => { L.DomEvent.stop(e); fn(); });
+    return a;
+  };
+  mk("📏", "m-dist", () => enterMeasure("dist"));
+  mk("⬠",       "m-area", () => enterMeasure("area"));
+  mk("✕",       "m-clear", clearShapes);
+  mCtl._d = d;
+  mLabels(); mRefresh();
+  return d;
+};
+function mLabels(){
+  const d = mCtl._d;
+  if(!d) return;
+  d.querySelector(".m-dist").title = t("m_dist");
+  d.querySelector(".m-area").title = t("m_area");
+  d.querySelector(".m-clear").title = t("m_clear");
+}
+function mRefresh(){
+  const d = mCtl._d;
+  if(!d) return;
+  d.querySelector(".m-dist").classList.toggle("on", mMode === "dist");
+  d.querySelector(".m-area").classList.toggle("on", mMode === "area");
+  d.querySelector(".m-clear").style.display = mShapes.length ? "" : "none";
+}
+
+function enterMeasure(mode){
+  if(mMode === mode){ exitMeasure(); return; }
+  clearDraft();
+  mMode = mode;
+  L.DomUtil.addClass(map.getContainer(), "measuring");
+  map.doubleClickZoom.disable();      // double-click ends a measurement instead
+  newDraft();
+  mPanelCtl.remove(); mPanelCtl.addTo(map);
+  setDrawer(false);                  // on a phone the drawer covers the map
+  mPanelUpdate(); mRefresh();
+}
+function exitMeasure(){
+  clearDraft();
+  mMode = null;
+  L.DomUtil.removeClass(map.getContainer(), "measuring");
+  map.doubleClickZoom.enable();
+  mPanelCtl.remove();
+  mRefresh();
+}
+mCtl.addTo(map);
+
+map.on("click", e => { if(mMode) addPoint(e.latlng); });
+map.on("dblclick", () => { if(mMode) finishDraft(); });
+map.on("mousemove", e => { if(mMode) onMeasureMove(e); });
+document.addEventListener("keydown", e => {
+  if(!mMode) return;
+  if(e.key === "Escape") exitMeasure();
+  else if(e.key === "Enter"){ e.preventDefault(); finishDraft(); }
+  else if(e.key === "Backspace"){ e.preventDefault(); undoPoint(); }
+});
+
 // ---- language switching ----------------------------------------------------
 // The legend and the layer control build their labels in onAdd, so they are
 // removed and re-added rather than patched in place.
@@ -981,6 +1360,7 @@ function applyStaticLabels(){
   unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
     b.classList.toggle("on", b.dataset.l === LANG));
+  mLabels(); mPanelUpdate();
 }
 
 function rebuildControls(){
@@ -989,6 +1369,9 @@ function rebuildControls(){
   layersCtl = L.control.layers(
     {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},{},{position:"topright"}).addTo(map);
   zoomBtn.remove(); zoomBtn.addTo(map);
+  mCtl.remove(); mCtl.addTo(map);
+  if(mMode){ mPanelCtl.remove(); mPanelCtl.addTo(map); mPanelUpdate(); }
+  relabelShapes();
 }
 
 function renderAll(){

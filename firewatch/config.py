@@ -40,14 +40,29 @@ SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
 DEFAULTS = {
     # NASA FIRMS map key. Limit is 5000 transactions / 10 min; an area call costs 2.
     "firms_map_key": "REDACTED-ROTATE-THIS-KEY",
-    # Only the near-real-time sensors are useful for alerting. The _SP (standard
-    # processing) sets lag by weeks and BA_* are burned-area products, not hotspots.
+    # Only the near-real-time sensors are useful for alerting; the _SP (standard
+    # processing) twins lag months and are used for history only, below. BA_* are
+    # burned-area products, not hotspots, and are never fetched.
     "firms_datasets": [
         "VIIRS_SNPP_NRT",
         "VIIRS_NOAA20_NRT",
         "VIIRS_NOAA21_NRT",
         "MODIS_NRT",
     ],
+    # Archive twins, used by `backfill` for windows older than the NRT horizon.
+    # Measured against this key: NRT serves roughly the last 40 days and returns
+    # a header-only CSV beyond that - HTTP 200, indistinguishable from "no
+    # fires". SP (standard processing) lags about three months and then goes back
+    # years, so 40-90 days ago has neither and stays empty until SP catches up.
+    # NOAA21 has no SP dataset at all (HTTP 400 "Invalid source"), which is why
+    # this list is one satellite shorter than the live one.
+    "firms_archive_datasets": [
+        "VIIRS_SNPP_SP",
+        "VIIRS_NOAA20_SP",
+        "MODIS_SP",
+    ],
+    # Deep-fetch windows starting further back than this use the archive list.
+    "firms_nrt_days": 40,
     # Poll intervals in seconds. MTG publishes a new 10-minute slice with roughly
     # 25 minutes of latency, so checking every 4 minutes catches it promptly.
     "interval_mtg": 240,
@@ -63,13 +78,16 @@ DEFAULTS = {
     "quiet_hours": 4.0,
     # Working window for clustering. This is the *view* horizon, not the fetch
     # horizon: each poll only fetches ~24 h of overlap because history already
-    # lives in SQLite, so a 7-day window costs nothing extra per cycle.
-    "window_hours": 720.0,
-    # Which range the menu bar and map open on: 24h | 3d | 7d | 30d
+    # lives in SQLite, so a year-long window is one wider read per cycle, not a
+    # year of fetching.
+    # At the observed rate (~130 detections a month) clustering a year is still a
+    # few thousand rows, and the union-find pass breaks out on the 8 h gap.
+    "window_hours": 8760.0,
+    # Which range the menu bar and map open on: 24h | 3d | 7d | 30d | 1y
     "default_range": "3d",
-    # Keep detections this long. Must exceed the largest view range (30 days) or
+    # Keep detections this long. Must exceed the largest view range (a year) or
     # the oldest data would be pruned just as it comes into view.
-    "retention_days": 60,
+    "retention_days": 400,
     # Confidence floor for MTG FRP points (0-100). Low values are noisy.
     "mtg_min_confidence": 30,
     # Notify only when max FRP grows by at least this factor AND this many MW.

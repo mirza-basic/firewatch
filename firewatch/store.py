@@ -68,12 +68,41 @@ def parse_iso(s: str) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+# Detection uids used to carry the full FIRMS dataset name, suffix and all, so
+# VIIRS_SNPP_NRT and VIIRS_SNPP_SP - the same instrument, the same overpass,
+# processed twice - stored one pixel as two detections. That only became reachable
+# when `backfill` started fetching the SP archive for history, and it would have
+# double-counted every FIRMS detection in the overlap. Stored rows have to be
+# collapsed too, or the old ones never match the new uids.
+UID_SCHEME = 2
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    row = con.execute("SELECT v FROM meta WHERE k='uid_scheme'").fetchone()
+    if row and int(row["v"]) >= UID_SCHEME:
+        return
+    for suffix in ("_NRT", "_SP"):
+        con.execute(
+            "UPDATE OR IGNORE detections"
+            "   SET uid = replace(uid, ?, ''), sensor = replace(sensor, ?, '')"
+            " WHERE source = 'firms' AND instr(uid, ?) > 0",
+            (suffix, suffix, suffix))
+    # Whatever OR IGNORE skipped is a row whose collapsed uid is already taken:
+    # the duplicate this migration exists to remove.
+    con.execute("DELETE FROM detections WHERE source = 'firms'"
+                " AND (instr(uid, '_NRT') > 0 OR instr(uid, '_SP') > 0)")
+    con.execute("INSERT INTO meta(k, v) VALUES('uid_scheme', ?)"
+                " ON CONFLICT(k) DO UPDATE SET v = excluded.v", (str(UID_SCHEME),))
+    con.commit()
+
+
 def connect() -> sqlite3.Connection:
     ensure_dirs()
     con = sqlite3.connect(DB_PATH, timeout=30)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")
     con.executescript(SCHEMA)
+    _migrate(con)
     return con
 
 

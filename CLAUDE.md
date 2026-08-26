@@ -31,10 +31,10 @@ python3 -m firewatch quota            # FIRMS transaction usage (free call)
 python3 -m firewatch test-notify
 
 # tests
-python3 tests_events.py               # 22 assertions, exits non-zero on failure
+python3 tests_events.py               # 23 assertions, exits non-zero on failure
 ```
 
-`[range]` is `24h | 3d | 7d | 30d`.
+`[range]` is `24h | 3d | 7d | 30d | 1y`.
 
 ### Tests
 
@@ -79,10 +79,12 @@ clustering is what makes an alert mean "something changed" rather than "a satell
 looked again". Events carry a stable id derived from their earliest detection.
 
 **Fetch window ≠ view window ≠ retention.** Each poll fetches only ~24 h of overlap;
-`window_hours` (720) is how far back events are *built*; `retention_days` (60) is how
+`window_hours` (8760) is how far back events are *built*; `retention_days` (400) is how
 long detections are *kept*. Retention must exceed the largest view range or the oldest
 data is pruned exactly as it comes into view. Time-range filters are pure reads over
-stored history and cost no API traffic.
+stored history and cost no API traffic — but they can only show what is stored, so the
+year view is shallow until `backfill` has run, and no deeper than the feeds' own
+archives (FIRMS is NRT-only; Sentinel-3 goes back furthest).
 
 ### Data sources
 
@@ -91,6 +93,22 @@ stored history and cost no API traffic.
 | `fetch_mtg` | Meteosat MTG FRP (EUMETView WFS) | 10 min, ~25 min latency | the fast path; makes near-live alerting possible |
 | `fetch_firms` | NASA FIRMS VIIRS ×3 + MODIS (CSV) | 4–7/day, ~3 h latency | sensitive (375 m); the only keyed API |
 | `fetch_sentinel3` | Sentinel-3 A/B SLSTR FRP (EUMETView WFS) | ~2/day | extra passes; deepest archive (>1 year) |
+
+**How far back each feed actually reaches**, measured (August 2026) over a 600 km
+box so that an empty answer means an empty archive rather than a quiet sky —
+`sources.ARCHIVE_DAYS` and `firms_nrt_days` encode these, and `backfill` clamps to
+them rather than crawling chunks that can only be empty:
+
+| Feed | Depth | |
+|---|---|---|
+| MTG WFS | ~40 days | thins from ~day 30; nothing at 60 |
+| Sentinel-3 WFS | > 1 year | sparse but real throughout |
+| FIRMS `*_NRT` | ~40 days | header-only CSV beyond that, HTTP 200 |
+| FIRMS `*_SP` | ~90 days → years | standard processing lags ~3 months |
+
+So roughly **40–90 days back, FIRMS has nothing to give**: too old for NRT, too
+recent for SP. That gap fills itself in as SP catches up, but only if `backfill` is
+run again — nothing re-fetches history on its own.
 
 `data/zavidovici.geojson` (boundary, OSM relation 2528292) and
 `data/settlements.json` (413 places) are **build-time artifacts, committed to the
@@ -118,6 +136,15 @@ These all cost real debugging time. Most are silent failures.
    HTTP 200 with only the CSV header. The guard checks status *and* body shape.
 6. **FIRMS `acq_time` is an unpadded `HHMM` integer** — `22` means 00:22, not 22:00.
    Always `.zfill(4)` before parsing.
+
+   **A FIRMS dataset name is not a sensor identity either.** `VIIRS_SNPP_NRT` and
+   `VIIRS_SNPP_SP` are the same instrument on the same overpass, processed twice, so
+   putting the dataset name in the `uid` stored one pixel as two detections — which
+   inflates `n_det`, footprints and "grew" alerts wherever the live feed and the
+   archive overlap. `_firms_sensor()` strips the suffix for both `uid` and `sensor`,
+   the original stays in `raw.dataset`, and `store.UID_SCHEME` migrates rows written
+   under the old scheme. Note `VIIRS_NOAA21` has no SP twin — HTTP 400 "Invalid
+   source" — so the archive list is one satellite shorter.
 7. **`Config.save()` must write overrides only.** Writing the resolved dict freezes
    every default to disk, after which changing a default in code has no effect on an
    existing install.
@@ -153,7 +180,16 @@ These all cost real debugging time. Most are silent failures.
     on GET, 404s on DELETE and 400s on POST for the life of that agent process.
     `_create_tunnel` waits the window out and, if it still meets a burned name,
     moves to `firewatch-2` — which is why `find_tunnel` matches suffixed names.
-14. **ngrok never closes a `file://` tunnel.** The DELETE hangs and the tunnel stays
+14. **`L.Polygon.getCenter()` throws until the layer is on a map** ("Must add
+    layer to map before using getCenter"), so the measure tool adds the polygon to
+    its layer group *before* it builds the area label, not after.
+15. **Suppressing hit testing while measuring needs `!important`.** Leaflet's own
+    `.leaflet-pane>svg path.leaflet-interactive` rule is more specific than any
+    reasonable selector, so without it a click meant to drop a vertex opens a fire
+    popup instead. Measure geometry lives in its own `measure` pane (z-index 650)
+    so the 60 s refresh, which clears and rebuilds every fire layer, cannot take it
+    with it.
+16. **ngrok never closes a `file://` tunnel.** The DELETE hangs and the tunnel stays
     listed, so `unexpose` switches publishing off first and then says plainly that
     the URL stays up until the agent restarts. A free account also allows only three
     endpoints per agent session — a fourth is refused with `ERR_NGROK_324`, and the

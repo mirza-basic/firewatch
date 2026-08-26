@@ -23,6 +23,10 @@ RANGES = {
     "3d": {"label": "Last 3 days", "short": "3 days", "hours": 72.0},
     "7d": {"label": "Last 7 days", "short": "7 days", "hours": 168.0},
     "30d": {"label": "Last month", "short": "Month", "hours": 720.0},
+    # The year view is a read over whatever history is stored; it costs no API
+    # traffic, but it is only as deep as the database. A fresh install shows the
+    # same thing here as in "Last month" until `backfill` has run.
+    "1y": {"label": "Last year", "short": "Year", "hours": 8760.0},
 }
 DEFAULT_RANGE = "3d"
 

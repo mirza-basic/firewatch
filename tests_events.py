@@ -89,13 +89,14 @@ def in_ranges(minutes_ago):
     return [k for k in events.RANGES if events.filter_events([e], k)]
 
 cases = [
-    (30,           {"24h", "3d", "7d", "30d"}, "30 min ago"),
-    (60 * 20,      {"24h", "3d", "7d", "30d"}, "20 h ago"),
-    (60 * 30,      {"3d", "7d", "30d"},        "30 h ago (past 24h)"),
-    (60 * 24 * 2,  {"3d", "7d", "30d"},        "2 days ago"),
-    (60 * 24 * 5,  {"7d", "30d"},              "5 days ago"),
-    (60 * 24 * 20, {"30d"},                    "20 days ago"),
-    (60 * 24 * 45, set(),                      "45 days ago"),
+    (30,            {"24h", "3d", "7d", "30d", "1y"}, "30 min ago"),
+    (60 * 20,       {"24h", "3d", "7d", "30d", "1y"}, "20 h ago"),
+    (60 * 30,       {"3d", "7d", "30d", "1y"},        "30 h ago (past 24h)"),
+    (60 * 24 * 2,   {"3d", "7d", "30d", "1y"},        "2 days ago"),
+    (60 * 24 * 5,   {"7d", "30d", "1y"},              "5 days ago"),
+    (60 * 24 * 20,  {"30d", "1y"},                    "20 days ago"),
+    (60 * 24 * 45,  {"1y"},                           "45 days ago (past the month)"),
+    (60 * 24 * 400, set(),                            "400 days ago (past the year)"),
 ]
 for mins, want, why in cases:
     got = set(in_ranges(mins))
@@ -103,9 +104,9 @@ for mins, want, why in cases:
     print(f"  {'PASS' if ok else 'FAIL'}  {('range: ' + why):34s} got={sorted(got)} want={sorted(want)}")
     passed += ok; failed += not ok
 
-# 12. all four ranges are ordered shortest-first and carry labels
+# 12. every range is ordered shortest-first and carries labels
 order = list(events.RANGES)
-ok = order == ["24h", "3d", "7d", "30d"] and all(
+ok = order == ["24h", "3d", "7d", "30d", "1y"] and all(
     "label" in v and "short" in v for v in events.RANGES.values())
 print(f"  {'PASS' if ok else 'FAIL'}  {'range order + labels':34s} {order}")
 passed += ok; failed += not ok
