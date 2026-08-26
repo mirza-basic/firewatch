@@ -25,6 +25,8 @@ python3 -m firewatch poll [range]     # one cycle + printed report
 python3 -m firewatch watch            # headless loop, notifications only
 python3 -m firewatch status [range]   # last published state
 python3 -m firewatch map              # rebuild + open the HTML map
+python3 -m firewatch buffer [km]      # rebuild the drawn "nearby" band
+python3 -m firewatch reclip [--apply] # drop stored history the clip now rejects
 python3 -m firewatch backfill [days]  # deep history fetch (default 30, ~5 min)
 python3 -m firewatch history [n]      # raw detections from SQLite
 python3 -m firewatch quota            # FIRMS transaction usage (free call)
@@ -57,7 +59,7 @@ understanding the codebase:
 
 ```
 sources.py   fetch each feed on its own schedule, failures isolated per source
-geo.py       clip to the real municipality polygon (+6 km buffer → "nearby")
+geo.py       clip to the real municipality polygon (+2 km buffer → "nearby")
 store.py     INSERT OR IGNORE by uid → returns ONLY never-seen detections
 events.py    cluster detections into fire events (single linkage, 3.5 km / 8 h)
 enrich.py    nearest settlement, wind, spread risk (active events only)
@@ -110,10 +112,27 @@ So roughly **40–90 days back, FIRMS has nothing to give**: too old for NRT, to
 recent for SP. That gap fills itself in as SP catches up, but only if `backfill` is
 run again — nothing re-fetches history on its own.
 
-`data/zavidovici.geojson` (boundary, OSM relation 2528292) and
-`data/settlements.json` (413 places) are **build-time artifacts, committed to the
-repo**. Nominatim and Overpass are never called at runtime. Regenerating them means
+`data/zavidovici.geojson` (boundary, OSM relation 2528292),
+`data/settlements.json` (413 places) and `data/zavidovici-buffer.geojson` (the
+drawn "nearby" band) are **build-time artifacts, committed to the repo**. Nominatim
+and Overpass are never called at runtime. Regenerating the first two means
 re-querying those services; Overpass is flaky and needs mirror fallback and retries.
+
+The buffer band is regenerated with `python3 -m firewatch buffer [km]`, which is the
+only thing in the project that imports `shapely` and `pyproj` — both are imported
+inside `geo.build_buffer()` so the running app still needs only its four
+dependencies. `geo.load_buffer()` returns `None` unless the artifact's `buffer_km`
+matches the configured `nearby_buffer_km`, and `mapgen` then omits the band rather
+than drawing a confident line in the wrong place. **Change `nearby_buffer_km` and
+the band silently disappears from the map until you rebuild it.**
+
+Narrowing `nearby_buffer_km` does **not** retroactively drop history. The clip runs
+at fetch time only, so detections the old, wider setting let in stay in the database
+and on the map until `python3 -m firewatch reclip --apply` removes them — a dry run
+by default, and it copies the database first, because retention is 400 days and the
+feeds will not serve that history again. Events need no separate cleanup:
+`save_events` deletes any event id that no longer falls out of the clustering, so
+they correct themselves on the next cycle.
 
 ## Landmines
 

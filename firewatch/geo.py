@@ -130,3 +130,91 @@ def centroid(points: list[tuple[float, float]]) -> tuple[float, float]:
         return 0.0, 0.0
     return (sum(p[0] for p in points) / len(points),
             sum(p[1] for p in points) / len(points))
+
+
+# --------------------------------------------------------------------------- buffer
+
+@lru_cache(maxsize=1)
+def load_buffer() -> dict | None:
+    """The pre-built "nearby" band, or None if it is missing or out of date.
+
+    Returned only when the artifact was built for the buffer distance currently
+    configured - otherwise the map would draw a confident line in the wrong place,
+    which is worse than drawing none at all.
+    """
+    from .config import BUFFER_GEOJSON, CFG
+    try:
+        fc = json.loads(BUFFER_GEOJSON.read_text())
+    except (OSError, ValueError):
+        return None
+    built_km = (fc.get("features") or [{}])[0].get("properties", {}).get("buffer_km")
+    if built_km is None or abs(float(built_km) - float(CFG["nearby_buffer_km"])) > 1e-6:
+        return None
+    return fc
+
+
+def build_buffer(km: float | None = None):
+    """Regenerate data/zavidovici-buffer.geojson.
+
+    Build-time only. shapely and pyproj are imported here and nowhere else, so the
+    running app keeps its four dependencies; regenerating needs them installed.
+
+    Two details worth keeping straight:
+
+    * The band is buffer *minus* municipality, so it renders as a ring with the
+      municipality as a hole - the map can then fill it faintly without washing
+      out the area you actually care about.
+    * It is offset in UTM 33N metres, not degrees. Buffering in lon/lat would be
+      stretched by 1/cos(lat) - about 40% at this latitude.
+
+    It draws distance to the *outline*, while _classify() measures distance to the
+    nearest boundary *vertex*, which is never smaller, so the band is drawn a touch
+    generous rather than exactly. The worst case is sqrt(km^2 + (L/2)^2) - km for
+    the longest ring segment L (1.54 km here): ~49 m at a 6 km buffer, ~143 m at
+    2 km. It grows as the buffer shrinks - worth re-checking if this ever drops
+    below a kilometre or so.
+    """
+    from shapely.geometry import mapping, shape
+    from shapely.ops import transform as sh_transform
+    from pyproj import Transformer
+
+    from .config import BUFFER_GEOJSON, CFG
+    km = float(CFG["nearby_buffer_km"] if km is None else km)
+
+    fc = json.loads(BOUNDARY_GEOJSON.read_text())
+    poly = shape(fc["features"][0]["geometry"])
+    to_m = Transformer.from_crs("EPSG:4326", "EPSG:32633", always_xy=True).transform
+    to_deg = Transformer.from_crs("EPSG:32633", "EPSG:4326", always_xy=True).transform
+
+    poly_m = sh_transform(to_m, poly)
+    # quad_segs=12 approximates each round join with chords that cut ~13 m inside
+    # the true arc (6000*(1-cos(3.75deg))); that alone put a real detection outside
+    # the drawn band. 64 brings it to well under a metre and simplify() collapses
+    # the redundant points again, so the extra resolution is nearly free.
+    band_m = poly_m.buffer(km * 1000, quad_segs=64).difference(poly_m)
+    # Simplification pulls the outer edge *inward*, which can drop a detection that
+    # the classifier kept - at 25 m one of the 183 stored detections fell outside
+    # the drawn band. 8 m is invisible at any usable zoom and keeps the picture on
+    # the generous side of the filter, which is the direction that cannot mislead.
+    band = sh_transform(to_deg, band_m.simplify(8))
+
+    out = {"type": "FeatureCollection", "features": [{
+        "type": "Feature",
+        "properties": {"buffer_km": km,
+                       "note": "nearby band: within buffer_km of the municipality"},
+        "geometry": _round_geom(mapping(band), 5)}]}
+    BUFFER_GEOJSON.write_text(json.dumps(out, separators=(",", ":")))
+    load_buffer.cache_clear()
+    return BUFFER_GEOJSON
+
+
+def _round_geom(geom, nd: int):
+    """Trim coordinate precision. 5 decimals is ~1 m here - far finer than the
+    geometry warrants, and it keeps the inlined copy small."""
+    def walk(c):
+        if isinstance(c, (list, tuple)):
+            if c and isinstance(c[0], (int, float)):
+                return [round(float(v), nd) for v in c]
+            return [walk(x) for x in c]
+        return c
+    return {**geom, "coordinates": walk(geom["coordinates"])}

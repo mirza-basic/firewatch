@@ -589,7 +589,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <!-- stages -->
     <rect x="16" y="124" width="728" height="46" rx="6" class="s-box"/>
     <text x="30" y="145" class="s-t-b">1 &middot; Spatial clip</text>
-    <text x="30" y="161" class="s-t-s">inside the 731-point boundary, or within the 6 km buffer (flagged “nearby”)</text>
+    <text x="30" y="161" class="s-t-s">inside the 731-point boundary, or within the 2 km buffer (flagged “nearby”)</text>
     <line x1="380" y1="170" x2="380" y2="210" class="s-line" marker-end="url(#a3)"/>
     <text x="392" y="194" class="s-t-m">detections in scope</text>
 
@@ -646,11 +646,13 @@ schedules, so one slow or failing feed never blocks the others.</p>
   <li>
     <h3>Spatial clip</h3>
     <p>All three APIs can only be queried by rectangle, so we ask for the
-    municipality's bounding box grown by 6 km, then test every returned point
+    municipality's bounding box grown by 2 km, then test every returned point
     against the real outline with a ray-casting algorithm. A detection inside is
-    <code>inside=1</code>; one outside but within 6 km of the border is kept and
+    <code>inside=1</code>; one outside but within 2 km of the border is kept and
     flagged <em>nearby</em>, because a fire two kilometres over the line still
-    matters to you; anything further is dropped.</p>
+    matters to you; anything further is dropped. That band is drawn on the map as
+    a faint dashed ring around the municipality, so it is visible where the cutoff
+    actually falls; it can be switched off in the layer control.</p>
     <figure>
       <svg viewBox="0 0 340 262" role="img" aria-label="Diagram of spatial clipping. A dashed rectangle marks the bounding box actually sent to the APIs. Inside it, the real municipality outline is drawn as a polygon, surrounded by a dashed buffer ring. One detection inside the polygon is kept, one in the buffer band is kept and flagged nearby, and one in the corner of the bounding box beyond the buffer is dropped.">
         <rect x="6" y="6" width="296" height="232" rx="4" class="s-dash"/>
@@ -958,6 +960,13 @@ labelled time ticks, a fixed centre playhead, and every detection as a coloured
 mark on the track; the step unit switches between minute, hour, day and week, and
 a play button at three speeds animates the fire's progression by scrolling it. The initial snapshot is still inlined for first
 paint, so the page renders correctly even if the data file is missing.</p>
+<p>The municipality outline is drawn from the same 731-point polygon the clip
+uses, with the 2 km <em>nearby</em> band around it as a separate toggleable layer.
+The band is a build-time artifact
+(<code>data/zavidovici-buffer.geojson</code>, rebuilt with <code>python3 -m
+firewatch buffer</code>) rather than something offset in the browser, and the page
+omits it entirely if it was built for a different buffer distance than the one
+configured &mdash; a ring in the wrong place would be worse than no ring.</p>
 <p>Two buttons on the left arm a measure tool: click along the map for a distance,
 or round a shape for an area. Segments are labelled individually, a two-point line
 also reports its bearing, and areas are given in km&sup2; and hectares at once
@@ -1137,7 +1146,7 @@ sensitivity; <code>nearby_buffer_km</code> for how far past the border to watch;
   only about 4 weeks, so the oldest part of "Last month" is covered by VIIRS, MODIS
   and Sentinel-3 alone — the fires are there, the 10-minute detail is not.</li>
   <li><strong>Boundary fires may flip.</strong> A detection exactly on the border can
-  fall either side; the 6 km buffer exists so those are flagged rather than
+  fall either side; the 2 km buffer exists so those are flagged rather than
   lost.</li>
   <li><strong>Local reporting is still faster.</strong> For a fire near people, a
   phone call beats every satellite here by hours.</li>

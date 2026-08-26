@@ -224,6 +224,45 @@ def prune(con: sqlite3.Connection, keep_days: int = 30) -> int:
     return n
 
 
+def out_of_scope(con: sqlite3.Connection) -> list[dict]:
+    """Stored detections the current spatial clip would no longer accept.
+
+    Re-derived from the geometry rather than trusting the stored `inside` flag, so
+    this stays correct if the boundary file is ever regenerated too. Lowering
+    nearby_buffer_km does not retroactively touch history - the clip only runs at
+    fetch time - so this is what finds what the old, wider setting let in.
+    """
+    from . import geo
+    from .config import CFG
+    km = float(CFG["nearby_buffer_km"])
+    gone = []
+    for r in con.execute("SELECT * FROM detections"):
+        d = dict(r)
+        if geo.point_in_boundary(d["lat"], d["lon"]):
+            continue
+        if geo.distance_to_boundary_km(d["lat"], d["lon"]) <= km:
+            continue
+        gone.append(d)
+    return gone
+
+
+def delete_detections(con: sqlite3.Connection, uids: list[str]) -> int:
+    """Remove detections by uid, in batches SQLite will accept.
+
+    Events are left alone on purpose: they are rebuilt from the surviving
+    detections on the next cycle, and save_events() deletes any event id that no
+    longer comes out of the clustering.
+    """
+    n = 0
+    for i in range(0, len(uids), 400):
+        chunk = uids[i:i + 400]
+        n += con.execute(
+            "DELETE FROM detections WHERE uid IN (%s)" % ",".join("?" * len(chunk)),
+            tuple(chunk)).rowcount
+    con.commit()
+    return n
+
+
 def stats(con: sqlite3.Connection) -> dict:
     row = con.execute(
         "SELECT COUNT(*) n, MIN(ts) mn, MAX(ts) mx FROM detections"

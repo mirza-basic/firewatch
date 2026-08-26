@@ -19,6 +19,7 @@ import os
 import shutil
 from pathlib import Path
 
+from . import geo
 from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR
 
 TEMPLATE = r"""<!doctype html>
@@ -283,6 +284,7 @@ TEMPLATE = r"""<!doctype html>
 let DATA = __DATA__;
 const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
+const BUFFER = __BUFFER__;
 const SRC = {mtg:{c:"#4cc9f0",n:"Meteosat MTG (10 min)"},
              firms:{c:"#ffd166",n:"VIIRS/MODIS (NRT)"},
              s3:{c:"#b5179e",n:"Sentinel-3 SLSTR"}};
@@ -327,7 +329,9 @@ const I18N = {
     m_hintArea:"Click round the area you want. Double-click, or Done, to close it.",
     m_needDist:"one more point", m_needArea:"at least three points",
     m_done:"Done", m_undo:"Undo", m_close:"Close", m_remove:"Remove",
-    m_perimeter:"perimeter"
+    m_perimeter:"perimeter",
+    lBuffer:"{km} km buffer", legZone:"Watched area",
+    zoneNote:"kept, flagged nearby"
   },
   bs: {
     sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
@@ -365,7 +369,9 @@ const I18N = {
     m_hintArea:"Klikni oko površine koju mjeriš. Dvoklik ili Gotovo da se zatvori.",
     m_needDist:"još jedna točka", m_needArea:"najmanje tri točke",
     m_done:"Gotovo", m_undo:"Vrati", m_close:"Zatvori", m_remove:"Ukloni",
-    m_perimeter:"obim"
+    m_perimeter:"obim",
+    lBuffer:"pojas {km} km", legZone:"Praćeno područje",
+    zoneNote:"prati se, označeno kao blizu"
   }
 };
 // Compass points are computed server-side in English; translate the letters.
@@ -446,8 +452,26 @@ const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Wo
 const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
   {maxZoom:17,attribution:"&copy; OpenTopoMap (CC-BY-SA)"});
 sat.addTo(map);          // satellite is the default: terrain and fuel are visible
+
+// The "nearby" band - everything within nearby_buffer_km of the outline, which is
+// exactly what the spatial clip keeps and flags `inside=0`. Pre-built into
+// data/zavidovici-buffer.geojson rather than offset in the browser: offsetting a
+// 731-point ring correctly is real work, and the answer only changes when the
+// config does. Drawn before the boundary so the outline stays the stronger line.
+// The artifact wins over DATA.buffer_km: the band on screen *is* the artifact, so
+// if the snapshot was written before a buffer change the label must follow the
+// geometry, not the stale config value that came with the data.
+const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
+  || DATA.buffer_km || 6;
+const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
+  opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
+// A separate object each time: L.control.layers keeps a reference, so reusing one
+// across rebuilds would carry the old language's key with it.
+const overlays = () => bandLayer ? {[t("lBuffer",{km:bufKm()})]:bandLayer} : {};
+
 let layersCtl = L.control.layers(
-  {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},{},{position:"topright"}).addTo(map);
+  {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
+  {position:"topright"}).addTo(map);
 
 // Brighter and slightly heavier than it needed to be on the pale street map -
 // a mid-blue hairline disappears against dark forest imagery.
@@ -482,7 +506,12 @@ legend.onAdd = () => {
       .map(k=>`<i style="background:${SEVC[k]}"></i>${t("sev_"+k)}`).join("<br>") +
     `<br><b style="color:#e6edf3">${t("legState")}</b><br>` +
     `<i style="background:#f4511e"></i>${t("legBurning")}<br>` +
-    `<i style="background:none;border:1px dashed #f4511e"></i>${t("legQuiet")}`;
+    `<i style="background:none;border:1px dashed #f4511e"></i>${t("legQuiet")}` +
+    (bandLayer ? `<br><b style="color:#e6edf3">${t("legZone")}</b><br>` +
+      `<i style="background:#7cc4ff;opacity:.9"></i>${t("boundary")}<br>` +
+      `<i style="background:rgba(124,196,255,.14);border:1px dashed #7cc4ff"></i>` +
+      `${t("lBuffer",{km:bufKm()})} <span style="opacity:.7">— ${t("zoneNote")}</span>`
+      : "");
   // Body first, button after: the control sits bottom-right, so it opens upward.
   d.innerHTML = `<div class="legend-body">${rows}</div>` +
     `<button class="legend-toggle" aria-expanded="false">\u25eb\u00a0 ${t("key")}</button>`;
@@ -1367,7 +1396,8 @@ function rebuildControls(){
   legend.remove(); legend.addTo(map);
   layersCtl.remove();
   layersCtl = L.control.layers(
-    {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},{},{position:"topright"}).addTo(map);
+    {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
+    {position:"topright"}).addTo(map);
   zoomBtn.remove(); zoomBtn.addTo(map);
   mCtl.remove(); mCtl.addTo(map);
   if(mMode){ mPanelCtl.remove(); mPanelCtl.addTo(map); mPanelUpdate(); }
@@ -1497,9 +1527,14 @@ def sync_public(html_path: Path | None = None) -> bool:
 def render(snapshot: dict, path: Path | None = None) -> Path:
     out = Path(path or MAP_PATH)
     boundary = json.loads(BOUNDARY_GEOJSON.read_text())
+    # None when the artifact is missing or was built for a different buffer
+    # distance; the page then simply omits the band rather than drawing a
+    # confident line in the wrong place. `python3 -m firewatch buffer` rebuilds it.
+    band = geo.load_buffer()
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(snapshot, ensure_ascii=False))
             .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":")))
+            .replace("__BUFFER__", json.dumps(band, separators=(",", ":")))
             .replace("__DATA_JS__", data_path_for(out).name))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

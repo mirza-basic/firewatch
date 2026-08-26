@@ -181,8 +181,9 @@ VIIRS/MODIS and Sentinel-3 alone, without the 10-minute geostationary detail.
    is active), FIRMS and Sentinel-3 every 20 min. A failing source never blocks the
    others, and WFS calls retry transient 502/503s.
 2. **Clips** every detection to the real municipality outline (OSM relation 2528292,
-   731-point polygon) plus a 6 km buffer, so fires just over the border are flagged
-   rather than silently dropped.
+   731-point polygon) plus a 2 km buffer, so fires just over the border are flagged
+   rather than silently dropped. The map draws that buffer as a dashed band around
+   the municipality, so you can see where the cutoff falls.
 3. **Stores** detections in SQLite keyed by source + position + timestamp. Novelty is
    decided by the database, so a detection re-reported across polls or sensors is only
    ever new once — that is the "compare with the last response" part.
@@ -264,7 +265,10 @@ Edit `~/.config/firewatch/config.json` (any subset of the defaults in
 
 - `interval_mtg`, `interval_mtg_active` — poll cadence
 - `mtg_min_confidence` (default 30) — raise to cut false positives
-- `nearby_buffer_km` (default 6) — how far outside the border to watch
+- `nearby_buffer_km` (default 2) — how far outside the border to watch. Changing it
+  needs `python3 -m firewatch buffer` afterwards, or the band vanishes from the map.
+  Narrowing it only affects new fetches; `python3 -m firewatch reclip --apply` drops
+  the history a wider setting had already let in
 - `quiet_hours` (default 4) — when a fire counts as out
 - `window_hours` (default 720) — how far back events are built; the view horizon
 - `default_range` (default `3d`) — which range the menu bar and map open on

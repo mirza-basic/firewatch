@@ -36,6 +36,10 @@ PUBLIC_DIR = Path.home() / "Library" / "Caches" / "FireWatch" / "public"
 
 BOUNDARY_GEOJSON = DATA_DIR / "zavidovici.geojson"
 SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
+# The "nearby" band drawn on the map: everything within nearby_buffer_km of the
+# outline. Like the two files above it is a build-time artifact - see
+# geo.build_buffer() - so the running app needs neither shapely nor pyproj.
+BUFFER_GEOJSON = DATA_DIR / "zavidovici-buffer.geojson"
 
 DEFAULTS = {
     # NASA FIRMS map key. Limit is 5000 transactions / 10 min; an area call costs 2.
@@ -114,8 +118,10 @@ DEFAULTS = {
     "sound_new": "Basso",
     "sound_update": "Tink",
     # Include detections outside the municipality but within this buffer, flagged
-    # as "nearby" - a fire 2 km over the border still matters to you.
-    "nearby_buffer_km": 6.0,
+    # as "nearby" - a fire just over the border still matters to you.
+    # Changing this needs `python3 -m firewatch buffer` afterwards, or the band
+    # drawn on the map goes stale and is silently omitted.
+    "nearby_buffer_km": 2.0,
     "http_timeout": 90,
     "user_agent": "firewatch-zavidovici/1.0 (+https://github.com/) contact: local",
 }

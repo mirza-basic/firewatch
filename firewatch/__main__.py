@@ -8,6 +8,8 @@
 
   [range] is 24h | 3d | 7d | 30d | 1y  (default: 3d, or default_range from config)
     python3 -m firewatch map         rebuild and open the fire map
+    python3 -m firewatch buffer [km] rebuild the drawn "nearby" band (build-time)
+    python3 -m firewatch reclip [--apply]  drop stored history the clip now rejects
     python3 -m firewatch quota       FIRMS transaction usage
     python3 -m firewatch expose      publish the map via ngrok, print the URL
     python3 -m firewatch unexpose    stop publishing (other tunnels untouched)
@@ -322,6 +324,77 @@ def cmd_test_sms() -> int:
     return 0 if sent else 1
 
 
+def cmd_buffer(km: float | None = None) -> int:
+    """Rebuild the drawn "nearby" band. Build-time: needs shapely and pyproj."""
+    from . import geo
+    from .config import CFG
+    try:
+        out = geo.build_buffer(km)
+    except ImportError as exc:
+        print(f"\n  needs shapely and pyproj to rebuild: {exc}\n")
+        return 1
+    fc = json.loads(out.read_text())
+    g = fc["features"][0]["geometry"]
+    rings = (g["coordinates"] if g["type"] == "Polygon"
+             else [r for poly in g["coordinates"] for r in poly])
+    print(f"\n  {out}")
+    print(f"  {fc['features'][0]['properties']['buffer_km']} km band · "
+          f"{len(rings)} rings · {sum(len(r) for r in rings)} points · "
+          f"{out.stat().st_size / 1024:.1f} KB")
+    print(f"  configured nearby_buffer_km is {CFG['nearby_buffer_km']}\n")
+    return 0
+
+
+def cmd_reclip(apply: bool = False) -> int:
+    """Re-apply the spatial clip to stored history.
+
+    New detections are already filtered at fetch time, so this is only for history
+    that a previously wider nearby_buffer_km let in. Dry run unless --apply, and it
+    copies the database first: retention is 400 days, so what goes here is not
+    coming back from the feeds.
+    """
+    import shutil
+    from . import geo, store
+    from .config import CFG, DB_PATH
+
+    con = store.connect()
+    try:
+        gone = store.out_of_scope(con)
+        km = CFG["nearby_buffer_km"]
+        total = store.stats(con)["detections"]
+        print(f"\n  spatial clip: inside the boundary, or within {km} km of it")
+        if not gone:
+            print(f"  all {total} stored detections are in scope - nothing to do\n")
+            return 0
+
+        by_place = {}
+        for d in gone:
+            place = geo.describe_location(d["lat"], d["lon"])
+            e = by_place.setdefault(place, {"n": 0, "km": 0.0, "first": d["ts"], "last": d["ts"]})
+            e["n"] += 1
+            e["km"] = max(e["km"], geo.distance_to_boundary_km(d["lat"], d["lon"]))
+            e["first"] = min(e["first"], d["ts"])
+            e["last"] = max(e["last"], d["ts"])
+        print(f"  {len(gone)} of {total} detections fall outside it:\n")
+        for place, e in sorted(by_place.items(), key=lambda kv: -kv[1]["km"]):
+            print(f"    {e['km']:5.2f} km out  {e['n']:3} det  "
+                  f"{e['first'][:10]}..{e['last'][:10]}  {place}")
+
+        if not apply:
+            print("\n  dry run - re-run with --apply to delete them\n")
+            return 0
+
+        backup = DB_PATH.with_suffix(f".db.bak-{store.utcnow():%Y%m%dT%H%M%S}")
+        shutil.copy2(DB_PATH, backup)
+        n = store.delete_detections(con, [d["uid"] for d in gone])
+        print(f"\n  backup:  {backup}")
+        print(f"  deleted: {n} detections")
+        print("  events rebuild on the next cycle; run `poll` to do it now\n")
+        return 0
+    finally:
+        con.close()
+
+
 def main(argv: list[str]) -> int:
     cmd = (argv[0] if argv else "menubar").lower()
     if cmd in ("menubar", "app", "ui"):
@@ -344,6 +417,10 @@ def main(argv: list[str]) -> int:
         return cmd_unexpose()
     if cmd in ("expose-status", "exposestatus"):
         return cmd_expose_status()
+    if cmd == "reclip":
+        return cmd_reclip("--apply" in argv[1:])
+    if cmd == "buffer":
+        return cmd_buffer(float(argv[1]) if len(argv) > 1 else None)
     if cmd == "quota":
         return cmd_quota()
     if cmd == "history":
