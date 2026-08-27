@@ -90,6 +90,11 @@ one detection per sensor per overpass per hot pixel (45 for a single real fire),
 clustering is what makes an alert mean "something changed" rather than "a satellite
 looked again". Events carry a stable id derived from their earliest detection.
 
+The map opens in **Bosnian**. A reader's own choice wins — the EN/BS toggle writes
+`fw_lang` to `localStorage` and that is checked first — so switching to English is
+remembered per device. The old `navigator.language` sniff is gone: it existed to
+upgrade Balkan browsers to `bs`, which is pointless now that `bs` is the default.
+
 **Fetch window ≠ view window ≠ retention.** Each poll fetches only ~24 h of overlap;
 `window_hours` (8760) is how far back events are *built*; `retention_days` (400) is how
 long detections are *kept*. Retention must exceed the largest view range or the oldest

@@ -378,12 +378,15 @@ const I18N = {
 const COMPASS_BS = {N:"S",NNE:"SSI",NE:"SI",ENE:"ISI",E:"I",ESE:"IJI",SE:"JI",SSE:"JJI",
   S:"J",SSW:"JJZ",SW:"JZ",WSW:"ZJZ",W:"Z",WNW:"ZSZ",NW:"SZ",NNW:"SSZ"};
 
-let LANG = "en";
+// Bosnian by default: this map is for Grad Zavidovići, and the people who need it
+// in an emergency read Bosnian. English is one click away in the header.
+// A reader's own choice still wins - the toggle writes fw_lang and that is checked
+// first - so switching to English is remembered on that device.
+let LANG = "bs";
 try {
   const saved = localStorage.getItem("fw_lang");
   if(saved && I18N[saved]) LANG = saved;
-  else if(/^(bs|hr|sr)/i.test(navigator.language||"")) LANG = "bs";
-} catch(e) { /* file:// can block storage; fall back to English */ }
+} catch(e) { /* file:// and private windows can block storage; stay with the default */ }
 
 function plural(n){
   if(LANG !== "bs") return n === 1 ? 0 : 1;
