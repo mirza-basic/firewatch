@@ -1,0 +1,453 @@
+<title>Hosting FireWatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation and API reference so the three read as one set. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+  pre{font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.62;
+    background:var(--surface); color:var(--ink); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); border-radius:6px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 18px}
+  pre code{background:none; padding:0; font-size:inherit}
+  pre .c{color:var(--ink-3)}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  .src-mtg{color:var(--mtg); font-weight:600}
+  .src-firms{color:var(--firms); font-weight:600}
+  .src-s3{color:var(--s3); font-weight:600}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .pill{display:inline-block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:4px;
+    background:var(--surface-2); color:var(--ink-2); vertical-align:middle}
+  .pill.ok{background:var(--ok); color:#fff}
+  .pill.no{background:var(--surface-3); color:var(--ink-2)}
+  .pill.crit{background:var(--crit); color:#fff}
+
+  /* Install and relocation are genuine ordered sequences, so they are numbered.
+     The command and setting tables are lookups, and are not. */
+  ol.stages{list-style:none; counter-reset:st; margin:22px 0 8px; padding:0; max-width:none}
+  ol.stages > li{counter-increment:st; position:relative; padding:0 0 22px 52px; margin:0;
+    border-left:1px solid var(--rule); margin-left:15px}
+  ol.stages > li:last-child{border-left-color:transparent; padding-bottom:2px}
+  ol.stages > li::before{content:counter(st); position:absolute; left:-15px; top:0;
+    width:30px; height:30px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--rule); color:var(--accent);
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600;
+    display:grid; place-items:center}
+  ol.stages h3{margin:3px 0 5px}
+  ol.stages p{margin-bottom:9px}
+  ol.stages pre{margin-bottom:12px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">Hosting</div>
+  <ol>
+    <li><a href="#shape"><span class="n">01</span><span>What hosting means here</span></a></li>
+    <li><a href="#serve"><span class="n">02</span><span>Serving the map</span></a></li>
+    <li><a href="#tls"><span class="n">03</span><span>TLS and a real domain</span></a></li>
+    <li><a href="#health"><span class="n">04</span><span>Health checks</span></a></li>
+    <li><a href="#docker"><span class="n">05</span><span>Docker</span></a></li>
+    <li><a href="#secrets"><span class="n">06</span><span>Keys and recipients</span></a></li>
+    <li><a href="#where"><span class="n">07</span><span>Where to host it free</span></a></li>
+    <li><a href="#backup"><span class="n">08</span><span>Backups</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Production</div>
+  <h1>Hosting FireWatch</h1>
+  <p class="standfirst">Putting the fire map on a URL people can bookmark, and keeping
+  the thing behind it honest about whether it is still working.</p>
+  <dl class="facts">
+    <div><dt>Image size</dt><dd>376 MB</dd></div>
+    <div><dt>Disk / year</dt><dd>~2 MB</dd></div>
+    <div><dt>Default bind</dt><dd>127.0.0.1</dd></div>
+    <div><dt>Health endpoint</dt><dd>/health</dd></div>
+  </dl>
+</header>
+
+<div class="note">
+  <span class="lbl">Start with the base install</span>
+  <p>This guide assumes FireWatch already runs on the host. Get there with
+  <a href="https://claude.ai/code/artifact/1cbb1d5e-cfd7-4fa5-8214-3e100166f2b2"><strong>FireWatch on Linux</strong></a> first &mdash; dependencies, keys, systemd. Command
+  and setting reference is in the <a href="https://claude.ai/code/artifact/071b6277-3bc3-48c8-afa0-0cf938da923f"><strong>Field Manual</strong></a>.</p>
+</div>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="shape"><span class="num">01</span> What hosting means here</h2>
+<p class="lede">Two constraints shape every decision below, and they rule out most
+free application platforms.</p>
+<ol class="body">
+  <li><strong>It must never sleep.</strong> FireWatch polls every four minutes. A
+  platform that spins down on inactivity does not host a monitor, it hosts a website
+  that occasionally monitors.</li>
+  <li><strong>It needs a persistent disk.</strong> The SQLite history <em>is</em> the
+  long-range view. An ephemeral filesystem means every restart returns the year view to
+  blank until <code>backfill</code> runs again.</li>
+</ol>
+<p>Resource use is trivial &mdash; a 376 MB image, a couple of megabytes of database a
+year, and a process that is idle between polls. What you are shopping for is
+<em>always-on with a volume</em>, not capacity.</p>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="serve"><span class="num">02</span> Serving the map</h2>
+<p>The public directory holds the map and its data file, and nothing else.
+<code>serve</code> hands those out over HTTP, and polls while it does:</p>
+<pre><code>python3 -m firewatch serve                 <span class="c"># 127.0.0.1:8080, and polls</span>
+python3 -m firewatch serve 0.0.0.0:8080    <span class="c"># answer directly</span>
+python3 -m firewatch serve --no-poll       <span class="c"># serve only</span></code></pre>
+
+<p>It polls <em>and</em> serves in one process deliberately: a host that serves a stale
+map because the poller was a second unit that quietly died is worse than either failure
+on its own. One process, one systemd unit, one thing to watch.</p>
+
+<h3>What is reachable</h3>
+<p>Only the map and its data file. The database, log and snapshot live in a different
+directory, directory listings return 404, and a fresh host renders an empty
+&ldquo;no fires&rdquo; map immediately rather than showing nothing until the first poll
+lands. Verified: <code>/firewatch.db</code>, <code>/../firewatch.db</code>,
+<code>/..%2ffirewatch.db</code> and <code>/../../../../etc/passwd</code> all answer
+404.</p>
+
+<div class="note warn">
+  <span class="lbl">The default bind is loopback, on purpose</span>
+  <p>Putting the map on the public internet should be something you typed.
+  <code>serve</code> also does <strong>not</strong> terminate TLS &mdash; use
+  <code>0.0.0.0</code> only if this host is meant to answer directly, and put a proxy
+  in front otherwise.</p>
+</div>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="tls"><span class="num">03</span> TLS and a real domain</h2>
+<p><code>deploy/nginx.conf</code> is a working server block: it proxies loopback,
+terminates TLS, and keeps <code>/health</code> to your own networks. Caddy does the
+same with less configuration and gets certificates automatically.</p>
+<div class="note crit">
+  <span class="lbl">One rule a proxy must respect</span>
+  <p><code>fire-map-data.js</code> must <strong>never</strong> be cached. It is how the
+  page learns there is a new fire &mdash; the map refreshes in place every 60 seconds by
+  re-fetching that one file. FireWatch sends <code>Cache-Control: no-store</code> for
+  it; a proxy that overrides caching headers will freeze the map while appearing to
+  work perfectly.</p>
+</div>
+<pre><code>location = /fire-map-data.js {
+    proxy_pass http://127.0.0.1:8080;
+    add_header Cache-Control "no-store" always;
+}</code></pre>
+<p>Everything else on the page caches happily &mdash; nothing is user-specific.</p>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="health"><span class="num">04</span> Health checks</h2>
+<p class="lede">Serving and working are different questions. The static files stay
+perfectly readable long after polling has stopped, so a monitor that fetches
+<code>/</code> would report a healthy host indefinitely while the map quietly
+froze.</p>
+<pre><code>curl -fsS http://127.0.0.1:8080/health</code></pre>
+<div class="tw">
+<table>
+  <thead><tr><th class="mono">status</th><th class="mono">HTTP</th><th>Means</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">ok</td><td class="num">200</td>
+        <td>Snapshot younger than <code>health_max_age_s</code> (15 min)</td></tr>
+    <tr><td class="mono">starting</td><td class="num">503</td>
+        <td>No snapshot yet &mdash; the first cycle has not finished</td></tr>
+    <tr><td class="mono">stale</td><td class="num">503</td>
+        <td>Polling has stopped, or every cycle is failing</td></tr>
+    <tr><td class="mono">sources_down</td><td class="num">503</td>
+        <td>Fresh snapshot, but every configured feed failed in it</td></tr>
+  </tbody>
+</table>
+</div>
+<p>The body carries snapshot age, active fire count and per-feed status, and
+<strong>nothing else</strong> &mdash; no keys, no paths, no public URL. Anyone who can
+reach the map can reach it. A feed with no key is <em>excluded</em> rather than counted
+down, so an install deliberately running without FIRMS does not report 503 for ever;
+it appears under <code>unconfigured</code> instead.</p>
+<p><code>/healthz</code> is an alias.</p>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="docker"><span class="num">05</span> Docker</h2>
+<pre><code>docker build -f deploy/Dockerfile -t firewatch .
+docker run -d --name firewatch -p 8080:8080 \
+  -v firewatch-data:/var/lib/firewatch \
+  -e FIRMS_MAP_KEY=your_key_here \
+  -e HTTPSMS_API_KEY=your_sms_key \
+  -e HTTPSMS_FROM=+38761234567 \
+  firewatch</code></pre>
+
+<div class="note good">
+  <span class="lbl">This image is tested</span>
+  <p>Built and run on linux/arm64, 376 MB. All three satellite feeds polled from inside
+  it; <code>/health</code> reported <code>starting</code> (503) during the first cycle
+  then <code>ok</code> (200) once the snapshot landed; the Docker
+  <code>HEALTHCHECK</code> went healthy with a zero failing streak;
+  <code>docker stop</code> exited 0 in 0.3 s rather than being SIGKILLed after the
+  ten-second grace period; and a row written to the volume survived a restart while a
+  volume-less container started empty.</p>
+</div>
+
+<div class="note crit">
+  <span class="lbl">Without -v you lose history on every restart</span>
+  <p>Verified, not assumed: a container with no volume starts with an empty database,
+  so the long map ranges are blank until <code>backfill</code> runs again. Mount
+  <code>/var/lib/firewatch</code>.</p>
+</div>
+
+<p>The image carries only what a server needs: no desktop packages, and no menu bar
+app. Everything else &mdash; polling, clustering, alerting, map rendering, the SMS
+channel &mdash; is present and works.</p>
+
+<p>The <code>HEALTHCHECK</code> has a five-minute <code>start-period</code> so a booting
+container is not killed while it legitimately reports <code>starting</code>.</p>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="secrets"><span class="num">06</span> Keys and recipients</h2>
+<p>No credential is committed to the repository. On a host everything secret comes from
+the environment; a container or systemd unit needs no file for it.</p>
+<div class="tw">
+<table>
+  <thead><tr><th class="mono">Variable</th><th>Sets</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">FIRMS_MAP_KEY</td><td>The FIRMS key. Free, instant, per-key rate limit</td></tr>
+    <tr><td class="mono">HTTPSMS_API_KEY</td><td>The SMS gateway key</td></tr>
+    <tr><td class="mono">HTTPSMS_FROM</td><td>The gateway phone number alerts are sent from</td></tr>
+    <tr><td class="mono">FIREWATCH_DATA_DIR</td><td>Database, log, snapshot, rendered map</td></tr>
+    <tr><td class="mono">FIREWATCH_PUBLIC_DIR</td><td>The only directory ever served</td></tr>
+    <tr><td class="mono">FIREWATCH_CONFIG_DIR</td><td>Where <code>config.json</code> is looked for</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note good">
+  <span class="lbl">Recipients are live; the sender is not</span>
+  <p>The sender is fixed for a deployment, so it belongs in the environment. Recipients
+  change while the service runs, so they live in <code>config.json</code> and
+  <code>sms-add</code> applies to the <em>running</em> service &mdash; no restart:</p>
+  <pre><code>docker exec firewatch python3 -m firewatch sms-add +38761234567</code></pre>
+  <p>The list is re-read at send time rather than taken from the snapshot loaded at
+  start-up, and the config file is written atomically because two processes now touch
+  it.</p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">Keys in the URL path</span>
+  <p>The FIRMS key travels inside the request <em>path</em>, not a header, so any
+  connection error carries the whole query into its exception text. Every log line
+  passes through a redacting formatter and known credentials appear as
+  <code>&lt;redacted:57c5&gt;</code> &mdash; but if you paste logs from an older build
+  anywhere public, check them first.</p>
+</div>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="where"><span class="num">07</span> Where to host it free</h2>
+<p class="lede">The two constraints from section 01 disqualify most of the obvious
+candidates. Measured against them as of August 2026:</p>
+
+<div class="tw">
+<table>
+  <thead><tr><th>Platform</th><th>Always on</th><th>Persistent disk</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td>Google Cloud <code>e2-micro</code></td><td><span class="pill ok">yes</span></td>
+        <td><span class="pill ok">30 GB</span></td><td>Recommended</td></tr>
+    <tr><td>Oracle Cloud Always Free</td><td><span class="pill ok">yes</span></td>
+        <td><span class="pill ok">yes</span></td><td>Works, with a caveat</td></tr>
+    <tr><td>Render free</td><td><span class="pill crit">sleeps 15 min</span></td>
+        <td><span class="pill crit">none on free</span></td><td>Unusable</td></tr>
+    <tr><td>Fly.io</td><td>&mdash;</td><td>&mdash;</td>
+        <td><span class="pill no">no free tier since 2024</span></td></tr>
+    <tr><td>GitHub Actions + Pages</td><td><span class="pill no">cron only</span></td>
+        <td><span class="pill no">commit the DB</span></td><td>Degrades the point</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Google Cloud e2-micro &mdash; the recommendation</h3>
+<p>A real always-on VM with 30 GB of persistent disk and no expiry. The systemd unit
+drops straight onto it. Two things to know:</p>
+<ul>
+  <li>Free <strong>only</strong> in <code>us-west1</code>, <code>us-central1</code>,
+  <code>us-east1</code>. A European region bills normally. For a static map that is
+  about 120 ms of extra latency &mdash; irrelevant.</li>
+  <li>The free tier includes <strong>1 GB/month egress</strong>. The map is ~131 KB plus
+  a 27 KB refresh every 60 s, so roughly <strong>580 viewer-hours per GB</strong>
+  &mdash; ample normally, tight during an actual fire when people leave the page open.
+  Put Cloudflare's free proxy in front and cached bandwidth stops counting, which also
+  gives you TLS without certbot.</li>
+</ul>
+
+<h3>Oracle Always Free &mdash; and a trap specific to this app</h3>
+<p>Generous, and the ARM allowance (halved to 2 OCPU / 12 GB in June 2026) is far more
+than FireWatch needs. But Oracle reclaims instances averaging under about 20% CPU over
+seven days, and FireWatch is three HTTP calls every few minutes on an otherwise
+sleeping box. It is close to the definition of idle. Oracle warns before reclaiming,
+but you would be running something that structurally looks abandoned.</p>
+
+<h3>The no-VM option, and what it costs</h3>
+<p>GitHub Actions cron plus GitHub Pages needs no server at all. But Actions cron has a
+five-minute floor and is routinely delayed 10&ndash;30 minutes under load, and there is
+no disk. That drags Meteosat's ~25-minute latency out to something worse than FIRMS
+&mdash; discarding the one property that makes this near-live rather than a daily
+digest. Only worth it if &ldquo;a few times a day&rdquo; is genuinely enough.</p>
+
+<div class="note">
+  <span class="lbl">Honest counterpoint</span>
+  <p>A small VPS is around €4/month with none of these caveats &mdash; no region
+  restriction, no egress ceiling, no reclamation policy, and physically near your users.
+  For something that sends SMS alerts about fires, that may be the better trade than
+  engineering around a free tier.</p>
+</div>
+
+<!-- ==================== 08 ==================== -->
+<h2 id="backup"><span class="num">08</span> Backups</h2>
+<p>The database is a single SQLite file with four tables and no external state, so
+backing it up is a copy. Everything else regenerates: the map, the snapshot and the
+public directory are rewritten from the database every cycle.</p>
+<pre><code>docker cp firewatch:/var/lib/firewatch/firewatch.db ./firewatch-$(date +%F).db
+<span class="c"># or, on a plain host</span>
+cp ~/.local/share/firewatch/firewatch.db ~/backups/</code></pre>
+<p>What a lost database actually costs you: the long view ranges, until
+<code>backfill</code> runs again &mdash; and it can only reach as far back as the feeds
+still serve, which is roughly 40 days for the fast ones. Between 40 and 90 days ago
+FIRMS has nothing to give at all, so that window is gone for good.</p>
+<p><code>reclip --apply</code> makes its own timestamped copy before deleting anything,
+for the same reason.</p>
+
+<footer>
+  <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,
+  NASA FIRMS and Sentinel-3 SLSTR. Boundary and settlement data © OpenStreetMap
+  contributors, ODbL 1.0.</p>
+  <p>Free-tier figures were checked in August 2026 and go stale quickly &mdash;
+  re-check before committing to a platform. The Dockerfile is tested; the systemd unit
+  and nginx block are not.</p>
+</footer>
+</main>
+</div>

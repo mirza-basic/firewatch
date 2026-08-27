@@ -172,25 +172,23 @@
   <div class="brand-sub">Field manual</div>
   <ol>
     <li><a href="#before"><span class="n">01</span><span>Before you start</span></a></li>
-    <li><a href="#install"><span class="n">02</span><span>Install</span></a></li>
-    <li><a href="#cli"><span class="n">03</span><span>The command line</span></a></li>
-    <li><a href="#config"><span class="n">04</span><span>Configuration</span></a></li>
-    <li><a href="#alerts"><span class="n">05</span><span>Alerts</span></a></li>
-    <li><a href="#publish"><span class="n">06</span><span>Publishing the map</span></a></li>
-    <li><a href="#relocate"><span class="n">07</span><span>Watching somewhere else</span></a></li>
-    <li><a href="#hosting"><span class="n">08</span><span>Running it on a server</span></a></li>
-    <li><a href="#coverage"><span class="n">09</span><span>What works where</span></a></li>
-    <li><a href="#trouble"><span class="n">10</span><span>When it goes quiet</span></a></li>
-    <li><a href="#data"><span class="n">11</span><span>Data &amp; uninstall</span></a></li>
+    <li><a href="#cli"><span class="n">02</span><span>The command line</span></a></li>
+    <li><a href="#config"><span class="n">03</span><span>Configuration</span></a></li>
+    <li><a href="#alerts"><span class="n">04</span><span>Alerts</span></a></li>
+    <li><a href="#relocate"><span class="n">05</span><span>Watching somewhere else</span></a></li>
+    <li><a href="#coverage"><span class="n">06</span><span>What works where</span></a></li>
+    <li><a href="#trouble"><span class="n">07</span><span>When it goes quiet</span></a></li>
+    <li><a href="#data"><span class="n">08</span><span>Data &amp; uninstall</span></a></li>
   </ol>
 </nav>
 
 <main>
 <header class="mast">
-  <div class="eyebrow">Operator's guide</div>
+  <div class="eyebrow">Reference</div>
   <h1>FireWatch Field Manual</h1>
-  <p class="standfirst">Installing, running, configuring and relocating a near-live
-  wildfire monitor that polls three satellite feeds and lives in your menu bar.</p>
+  <p class="standfirst">Every command, every setting, and the things that go wrong
+  quietly. Installation lives in the platform guides; this is what you keep open
+  beside them.</p>
   <dl class="facts">
     <div><dt>Platform</dt><dd>macOS</dd></div>
     <div><dt>Runtime</dt><dd>Python 3.14</dd></div>
@@ -199,6 +197,15 @@
     <div><dt>Running cost</dt><dd>€0</dd></div>
   </dl>
 </header>
+
+<div class="note">
+  <span class="lbl">Looking for install steps?</span>
+  <p>They moved, so each platform reads cleanly on its own.
+  <a href="https://claude.ai/code/artifact/7ba30b6d-2e61-446b-8bf7-45a221bb5b27"><strong>FireWatch on macOS</strong></a> for the menu bar app,
+  <a href="https://claude.ai/code/artifact/1cbb1d5e-cfd7-4fa5-8214-3e100166f2b2"><strong>FireWatch on Linux</strong></a> for a headless box, and
+  <a href="https://claude.ai/code/artifact/09883c3e-dc41-4093-9db6-c2800a35bc30"><strong>Hosting FireWatch</strong></a> for a public map with TLS, Docker and health
+  checks. This page is the reference all three point back to.</p>
+</div>
 
 <!-- ==================== 01 ==================== -->
 <h2 id="before"><span class="num">01</span> Before you start</h2>
@@ -240,89 +247,8 @@ changes, and draws a live map. One process does all of it.</p>
   <a href="#coverage">Section 09</a> has the measured numbers and a one-command test.</p>
 </div>
 
-<!-- ==================== 02 ==================== -->
-<h2 id="install"><span class="num">02</span> Install</h2>
-
-<ol class="stages">
-  <li>
-    <h3>Install the dependencies</h3>
-    <p>Four packages, installed against the interpreter you intend to run:</p>
-    <pre><code>python3 -m pip install rumps pyobjc requests certifi</code></pre>
-    <p><code>rumps</code> and <code>pyobjc</code> build the menu bar item;
-    <code>requests</code> and <code>certifi</code> handle HTTPS.</p>
-    <div class="note crit">
-      <span class="lbl">Do not substitute urllib</span>
-      <p>Several Python builds ship no CA bundle, so anything using the standard
-      library's <code>urlopen</code> dies with <code>CERTIFICATE_VERIFY_FAILED</code>
-      while <code>requests</code> works fine through <code>certifi</code>. That is why
-      <code>certifi</code> is a hard dependency and why the launch agent pins
-      <code>SSL_CERT_FILE</code>.</p>
-    </div>
-  </li>
-  <li>
-    <h3>Get a FIRMS map key</h3>
-    <p>Request one at
-    <a href="https://firms.modaps.eosdis.nasa.gov/api/map_key/">firms.modaps.eosdis.nasa.gov/api/map_key/</a>.
-    It arrives by email in seconds. Put it in the environment, which overrides the
-    committed default:</p>
-    <pre><code>export FIRMS_MAP_KEY=your_key_here</code></pre>
-    <p><strong>No key is committed to the repository.</strong> FireWatch looks in
-    three places, in this order: the <code>FIRMS_MAP_KEY</code> environment variable,
-    the macOS Keychain (<code>python3 -m firewatch set-firms-key</code>), then
-    <code>firms_map_key</code> in your config file. Verify which one is in use:</p>
-    <pre><code>python3 -m firewatch quota
-<span class="c">FIRMS key: 48 / 5000 transactions per 10 minutes</span>
-<span class="c">  key ...57c5 from shared default</span></code></pre>
-    <div class="note">
-      <span class="lbl">Running without one is fine</span>
-      <p>A missing key is a supported state, not a failure. VIIRS/MODIS is skipped and
-      reported as <code>[----]</code> rather than <code>[FAIL]</code>, <code>/health</code>
-      excludes it instead of counting it down, and Meteosat and Sentinel-3 &mdash; which
-      need no credentials at all &mdash; carry the cycle. You lose sensitivity to small
-      fires, not the service.</p>
-    </div>
-  </li>
-  <li>
-    <h3>Take one poll for a test drive</h3>
-    <p>From the project directory, before installing anything into
-    <code>launchd</code>:</p>
-    <pre><code>python3 -m firewatch poll</code></pre>
-    <p>This runs one full cycle in the foreground and prints a report: which feeds
-    answered, how long each took, how many detections came back, and what fires are
-    currently tracked. Every source should say <code>[ok]</code>. Zero detections is a
-    normal, healthy result &mdash; most days nothing is burning.</p>
-  </li>
-  <li>
-    <h3>Install the login agent</h3>
-    <pre><code>./firewatch-ctl install</code></pre>
-    <p>This generates the <code>launchd</code> plist against <em>your</em> interpreter
-    path and CA bundle, copies it to <code>~/Library/LaunchAgents/</code>, and starts
-    it. Look for the 🌲 or 🔥 icon in the menu bar.</p>
-  </li>
-  <li>
-    <h3>Allow notifications</h3>
-    <p>Alerts go through <code>osascript</code>, which macOS attributes to
-    <em>Script Editor</em> &mdash; so that is what you allow in
-    <strong>System Settings &rsaquo; Notifications</strong>. Clicking such a
-    notification does nothing.</p>
-    <p>Install <code>terminal-notifier</code> instead and notifications become
-    clickable links straight to Google Maps at the fire's coordinates:</p>
-    <pre><code>brew install terminal-notifier</code></pre>
-    <p>FireWatch picks it up automatically. <code>python3 -m firewatch test-notify</code>
-    sends a sample, and <code>notify.backend()</code> reports which one is live.</p>
-  </li>
-  <li>
-    <h3>Fill in some history</h3>
-    <p>A fresh install knows nothing about the past, so the longer map ranges are
-    empty. One deep fetch fixes that:</p>
-    <pre><code>python3 -m firewatch backfill 30   <span class="c"># about 5 minutes</span></code></pre>
-    <p>Nothing re-fetches history on its own, so this is a deliberate, occasional
-    command rather than something that happens in the background.</p>
-  </li>
-</ol>
-
 <!-- ==================== 03 ==================== -->
-<h2 id="cli"><span class="num">03</span> The command line</h2>
+<h2 id="cli"><span class="num">02</span> The command line</h2>
 <p class="lede">Two front doors to the same code. <code>./firewatch-ctl</code> manages the
 background service; <code>python3 -m firewatch</code> runs everything directly and takes
 the arguments.</p>
@@ -370,7 +296,7 @@ the arguments.</p>
     <tr><td class="mono">quota</td><td>FIRMS transaction usage. Costs nothing to ask</td></tr>
     <tr><td class="mono">buffer [km]</td><td>Rebuild the "nearby" band drawn on the map</td></tr>
     <tr><td class="mono">reclip [--apply]</td><td>Drop stored history the current clip rejects</td></tr>
-    <tr><td class="mono">serve [host:port]</td><td>Poll and serve the map over HTTP. <a href="#hosting">Section 08</a></td></tr>
+    <tr><td class="mono">serve [host:port]</td><td>Poll and serve the map over HTTP. See <a href="https://claude.ai/code/artifact/09883c3e-dc41-4093-9db6-c2800a35bc30"><strong>Hosting FireWatch</strong></a></td></tr>
     <tr><td class="mono">expose / unexpose / expose-status</td><td>Public URL for the map</td></tr>
     <tr><td class="mono">sms-status / test-sms / set-sms-key</td><td>SMS plumbing</td></tr>
     <tr><td class="mono">set-firms-key</td><td>Store a FIRMS key in the Keychain, out of config.json</td></tr>
@@ -385,7 +311,7 @@ cost no API traffic &mdash; but they can only show what is stored, so the year v
 shallow until <code>backfill</code> has run.</p>
 
 <!-- ==================== 04 ==================== -->
-<h2 id="config"><span class="num">04</span> Configuration</h2>
+<h2 id="config"><span class="num">03</span> Configuration</h2>
 <p class="lede">Settings live in <code>~/.config/firewatch/config.json</code>. Anything
 absent falls back to the defaults in <code>firewatch/config.py</code>. Restart after
 editing.</p>
@@ -471,12 +397,12 @@ editing.</p>
 </div>
 
 <!-- ==================== 05 ==================== -->
-<h2 id="alerts"><span class="num">05</span> Alerts</h2>
+<h2 id="alerts"><span class="num">04</span> Alerts</h2>
 
 <h3>Desktop notifications</h3>
 <p>These work out of the box. The only decision is whether to install
 <code>terminal-notifier</code> for clickable alerts, covered in
-<a href="#install">section 02</a>.</p>
+the <a href="https://claude.ai/code/artifact/7ba30b6d-2e61-446b-8bf7-45a221bb5b27"><strong>FireWatch on macOS</strong></a> guide.</p>
 
 <h3>SMS, through your own phone</h3>
 <p>SMS goes through <a href="https://httpsms.com">httpSMS</a>, where an Android phone you
@@ -528,34 +454,8 @@ your carrier charges, with no third-party sending fees.</p>
 <em>either</em> succeeded, so a failing notification never silently suppresses the text
 message.</p>
 
-<!-- ==================== 06 ==================== -->
-<h2 id="publish"><span class="num">06</span> Publishing the map</h2>
-<p class="lede">The map is a local file. <code>expose</code> puts it behind a public ngrok
-URL so you can send it to someone, or leave it on a screen somewhere.</p>
-
-<pre><code>./firewatch-ctl expose      <span class="c"># prints the URL</span>
-./firewatch-ctl exposed     <span class="c"># publish state and every tunnel</span>
-./firewatch-ctl unexpose</code></pre>
-
-<p>Only two files are ever published &mdash; the map and its data file. The log, database
-and snapshot stay private, in a different directory entirely.</p>
-
-<div class="note warn">
-  <span class="lbl">Free-tier realities</span>
-  <ul>
-    <li>The URL is <strong>random and changes every time the ngrok agent restarts</strong>.
-    A restart silently drops every tunnel it was carrying, including a URL you have
-    already texted to people. FireWatch rebuilds the tunnel automatically each cycle
-    while <code>auto_expose</code> is on, but the address will be different.</li>
-    <li>The agent is <strong>shared with anything else on the machine</strong> that uses
-    ngrok, and a free account allows three endpoints per session.</li>
-    <li><code>unexpose</code> switches publishing off, but the URL keeps resolving until
-    the agent restarts &mdash; ngrok never actually closes a file tunnel.</li>
-  </ul>
-</div>
-
 <!-- ==================== 07 ==================== -->
-<h2 id="relocate"><span class="num">07</span> Watching somewhere else</h2>
+<h2 id="relocate"><span class="num">05</span> Watching somewhere else</h2>
 <p class="lede">Nothing about the pipeline is specific to Bosnia. Pointing FireWatch at a
 different municipality means replacing two data files and four constants &mdash; and the
 whole procedure below has been run end to end against a different municipality to confirm
@@ -679,158 +579,8 @@ python3 -m firewatch backfill 30</code></pre>
   accepted the town centre and rejected a point 30 km away, and a rendered map.</p>
 </div>
 
-<!-- ==================== 08 ==================== -->
-<h2 id="hosting"><span class="num">08</span> Running it on a server</h2>
-<p class="lede">The menu bar app is macOS-only. Everything else &mdash; fetching,
-clipping, clustering, alerting, map rendering &mdash; is portable Python, so FireWatch
-runs headless on a Linux host and serves the map itself.</p>
-
-<h3>What moves and what doesn't</h3>
-<div class="tw">
-<table>
-  <thead><tr><th>Piece</th><th>On a Linux host</th></tr></thead>
-  <tbody>
-    <tr><td>Polling, clustering, alerting, the map</td>
-        <td><span class="pill ok">unchanged</span> pure Python and <code>requests</code></td></tr>
-    <tr><td>SMS</td>
-        <td><span class="pill ok">unchanged</span> the key comes from
-        <code>HTTPSMS_API_KEY</code> instead of the Keychain</td></tr>
-    <tr><td>Desktop notifications</td>
-        <td><code>notify-send</code> where there is a desktop; on a headless host the
-        alert goes to the log and SMS carries it</td></tr>
-    <tr><td>Data locations</td>
-        <td>XDG &mdash; <code>~/.local/share/firewatch</code>,
-        <code>~/.cache/firewatch</code></td></tr>
-    <tr><td>The menu bar app</td>
-        <td><span class="pill crit">macOS only</span> run <code>serve</code> instead</td></tr>
-    <tr><td><code>./firewatch-ctl</code></td>
-        <td><span class="pill crit">macOS only</span> it wraps <code>launchctl</code>;
-        use the systemd unit</td></tr>
-  </tbody>
-</table>
-</div>
-
-<h3>Serving the map</h3>
-<p>On a laptop, <code>expose</code> goes through ngrok because there are no ports, DNS
-or certificates to arrange. A host with an address of its own wants the opposite &mdash;
-a URL that stays put &mdash; so <code>serve</code> runs a plain static server over the
-public directory:</p>
-
-<pre><code>python3 -m firewatch serve                 <span class="c"># 127.0.0.1:8080, and polls</span>
-python3 -m firewatch serve 0.0.0.0:8080    <span class="c"># answer directly</span>
-python3 -m firewatch serve --no-poll       <span class="c"># serve only, no polling</span></code></pre>
-
-<p>It polls <em>and</em> serves in one process deliberately: a host that serves a stale
-map because the poller was a second unit that quietly died is worse than either failure
-on its own. Only the map and its data file are reachable &mdash; the database, log and
-snapshot live in a different directory, directory listings return 404, and a fresh host
-renders an empty &ldquo;no fires&rdquo; map immediately instead of showing nothing until
-the first poll lands.</p>
-
-<div class="note warn">
-  <span class="lbl">It does not terminate TLS</span>
-  <p>The default bind is loopback on purpose: putting the map on the public internet
-  should be something you typed. For anything public, put nginx or Caddy in front
-  &mdash; <code>deploy/nginx.conf</code> is a working server block. The one rule a proxy
-  must respect is that <code>fire-map-data.js</code> is never cached; it is how the page
-  learns there is a new fire.</p>
-</div>
-
-<h3>Keeping keys out of the log</h3>
-<p>The FIRMS key travels inside the <em>URL path</em>, not a header. That means any
-connection error carries the whole query &mdash; key and all &mdash; in its exception
-text, and the line that reports a failed fetch wrote it straight into
-<code>firewatch.log</code>. Every log line now passes through a redacting formatter,
-so known credentials come out as <code>&lt;redacted:57c5&gt;</code> in messages and
-tracebacks alike.</p>
-<p>Worth knowing where keys are and are not: <strong>never</strong> in the
-repository, <code>config.json</code>, the snapshot, the map, the served directory or
-<code>/health</code>. Both keys live only in the environment or the Keychain, and
-<code>.gitignore</code> now keeps <code>__pycache__</code> out of git &mdash; a
-compiled <code>config.pyc</code> used to carry a copy of the key alongside the
-source.</p>
-
-<h3>Health checks</h3>
-<p>Serving and working are different questions. The static files stay perfectly
-readable long after polling has stopped, so a monitor that fetches <code>/</code>
-would report a healthy host indefinitely while the map quietly froze. <code>/health</code>
-answers the real question &mdash; how old is the data:</p>
-<pre><code>curl -fsS http://127.0.0.1:8080/health</code></pre>
-<div class="tw">
-<table>
-  <thead><tr><th class="mono">status</th><th class="mono">HTTP</th><th>Means</th></tr></thead>
-  <tbody>
-    <tr><td class="mono">ok</td><td class="num">200</td><td>Snapshot is younger than <code>health_max_age_s</code> (15 min)</td></tr>
-    <tr><td class="mono">starting</td><td class="num">503</td><td>No snapshot yet &mdash; the first cycle has not finished</td></tr>
-    <tr><td class="mono">stale</td><td class="num">503</td><td>Polling has stopped, or every cycle is failing</td></tr>
-    <tr><td class="mono">sources_down</td><td class="num">503</td><td>Fresh snapshot, but every feed failed in it</td></tr>
-  </tbody>
-</table>
-</div>
-<p>The body carries snapshot age, active fire count and per-feed status, and
-<strong>nothing else</strong> &mdash; no keys, no paths, no public URL. Anyone who can
-reach the map can reach it, so there is nothing in it worth hiding; the nginx config
-still keeps it to your own networks by default. <code>/healthz</code> is an alias, and
-the Dockerfile uses it as its <code>HEALTHCHECK</code> with a five-minute start period
-so a booting container is not killed while it reports <code>starting</code>.</p>
-
-<h3>Deployment files</h3>
-<p><code>deploy/</code> holds three, each commented:</p>
-<ul>
-  <li><code>firewatch.service</code> &mdash; a systemd user unit.
-  <code>systemctl --user enable --now firewatch</code>, plus
-  <code>loginctl enable-linger $USER</code> so it survives logout.</li>
-  <li><code>Dockerfile</code> &mdash; Python 3.14 slim, no macOS packages. Mount a volume
-  on <code>/var/lib/firewatch</code>, or every restart begins with an empty database and
-  the long ranges are blank until <code>backfill</code> runs again.</li>
-  <li><code>nginx.conf</code> &mdash; TLS termination and the caching rule above.</li>
-</ul>
-
-<p>Five environment variables cover everything a service or container needs to relocate:</p>
-<div class="tw">
-<table>
-  <thead><tr><th>Variable</th><th>Controls</th></tr></thead>
-  <tbody>
-    <tr><td class="mono">FIREWATCH_DATA_DIR</td><td>Database, log, snapshot, rendered map</td></tr>
-    <tr><td class="mono">FIREWATCH_PUBLIC_DIR</td><td>The only directory ever served</td></tr>
-    <tr><td class="mono">FIREWATCH_CONFIG_DIR</td><td><code>config.json</code></td></tr>
-    <tr><td class="mono">FIRMS_MAP_KEY</td><td>The FIRMS key &mdash; keep it out of config.json</td></tr>
-    <tr><td class="mono">HTTPSMS_API_KEY</td><td>The SMS key &mdash; likewise</td></tr>
-    <tr><td class="mono">HTTPSMS_FROM</td><td>The gateway phone number alerts are sent from</td></tr>
-  </tbody>
-</table>
-</div>
-<div class="tw">
-<table>
-  <thead><tr><th>Setting</th><th class="mono">Default</th><th>Controls</th></tr></thead>
-  <tbody>
-    <tr><td class="mono">health_max_age_s</td><td class="num">900</td>
-        <td>How stale the snapshot may get before <code>/health</code> reports 503</td></tr>
-  </tbody>
-</table>
-</div>
-
-<div class="note good">
-  <span class="lbl">The container is tested</span>
-  <p>Built and run on linux/arm64, 376&nbsp;MB. All three satellite feeds polled from
-  inside it, <code>/health</code> reported <code>starting</code> (503) during the first
-  cycle and <code>ok</code> (200) once the snapshot landed, <code>docker stop</code>
-  exited 0 in 0.3&nbsp;s rather than being killed after the 10-second grace period, and
-  a row written to the volume survived a restart while a volume-less container started
-  empty. The systemd unit and the nginx block have <em>not</em> been exercised.</p>
-</div>
-
-<pre><code>docker build -f deploy/Dockerfile -t firewatch .
-docker run -d --name firewatch -p 8080:8080 \
-  -v firewatch-data:/var/lib/firewatch \
-  -e FIRMS_MAP_KEY=your_key_here \
-  firewatch</code></pre>
-
-<p>Without <code>-v</code> the database starts empty on every restart and the long map
-ranges stay blank until <code>backfill</code> runs again &mdash; verified, not assumed.</p>
-
 <!-- ==================== 09 ==================== -->
-<h2 id="coverage"><span class="num">09</span> What works where</h2>
+<h2 id="coverage"><span class="num">06</span> What works where</h2>
 <p class="lede">The three feeds do not cover the same planet. This decides whether
 FireWatch is a near-live monitor or a three-hour-delayed one where you are.</p>
 
@@ -880,7 +630,7 @@ bounding box into the Meteosat query and see whether anything comes back over a 
 that is definitely burning.</p>
 
 <!-- ==================== 10 ==================== -->
-<h2 id="trouble"><span class="num">10</span> When it goes quiet</h2>
+<h2 id="trouble"><span class="num">07</span> When it goes quiet</h2>
 <p class="lede">Almost every failure mode here is silent. These are the ones that have
 actually cost time.</p>
 
@@ -925,32 +675,40 @@ failure is isolated and logged with the reason, and one failing feed never block
 others.</p>
 
 <!-- ==================== 11 ==================== -->
-<h2 id="data"><span class="num">11</span> Data &amp; uninstall</h2>
+<h2 id="data"><span class="num">08</span> Data &amp; uninstall</h2>
 
+<p>Locations are platform-aware, and any of the three can be pointed elsewhere with an
+environment variable &mdash; which is what containers and system services use.</p>
 <div class="tw">
 <table>
-  <thead><tr><th>Path</th><th>Contents</th></tr></thead>
+  <thead><tr><th>Contents</th><th class="mono">macOS</th><th class="mono">Linux</th><th class="mono">Override</th></tr></thead>
   <tbody>
-    <tr><td class="mono">~/Library/Application Support/FireWatch/</td>
-        <td><code>firewatch.db</code>, <code>snapshot.json</code>,
-        <code>fire-map.html</code>, logs</td></tr>
-    <tr><td class="mono">~/Library/Caches/FireWatch/public/</td>
-        <td>The only directory ever published. Rewritten every cycle</td></tr>
-    <tr><td class="mono">~/.config/firewatch/config.json</td>
-        <td>Your overrides</td></tr>
-    <tr><td class="mono">~/Library/LaunchAgents/</td>
-        <td><code>com.firewatch.zavidovici.plist</code></td></tr>
+    <tr><td>Database, snapshot, rendered map, logs</td>
+        <td class="mono">~/Library/Application Support/FireWatch</td>
+        <td class="mono">~/.local/share/firewatch</td>
+        <td class="mono">FIREWATCH_DATA_DIR</td></tr>
+    <tr><td>The only directory ever served</td>
+        <td class="mono">~/Library/Caches/FireWatch/public</td>
+        <td class="mono">~/.cache/firewatch/public</td>
+        <td class="mono">FIREWATCH_PUBLIC_DIR</td></tr>
+    <tr><td>Your overrides &mdash; never a credential</td>
+        <td class="mono">~/.config/firewatch</td>
+        <td class="mono">~/.config/firewatch</td>
+        <td class="mono">FIREWATCH_CONFIG_DIR</td></tr>
   </tbody>
 </table>
 </div>
+<p>Credentials live outside all of it: in the environment, or in the macOS Keychain
+(services <code>firewatch-firms</code> and <code>firewatch-httpsms</code>). The
+service definition itself is platform-specific &mdash; a <code>launchd</code> plist or a
+systemd unit &mdash; and each platform guide covers its own.</p>
 
 <p>The database is a single SQLite file with four tables and no external state, so backing
 it up is a copy. <code>reclip --apply</code> makes its own timestamped copy before deleting
 anything, since retention is finite and the feeds will not serve old history again.</p>
 
-<pre><code>./firewatch-ctl uninstall    <span class="c"># stops the agent, keeps your data</span></code></pre>
-
-<p>To remove everything, delete the three directories above as well.</p>
+<p>Uninstalling is covered by the platform guides, since only the service definition
+differs; removing the directories above removes everything else.</p>
 
 <footer>
   <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,

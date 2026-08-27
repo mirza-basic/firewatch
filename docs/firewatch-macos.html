@@ -1,0 +1,394 @@
+<title>FireWatch on macOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation and API reference so the three read as one set. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+  pre{font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.62;
+    background:var(--surface); color:var(--ink); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); border-radius:6px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 18px}
+  pre code{background:none; padding:0; font-size:inherit}
+  pre .c{color:var(--ink-3)}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  .src-mtg{color:var(--mtg); font-weight:600}
+  .src-firms{color:var(--firms); font-weight:600}
+  .src-s3{color:var(--s3); font-weight:600}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .pill{display:inline-block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:4px;
+    background:var(--surface-2); color:var(--ink-2); vertical-align:middle}
+  .pill.ok{background:var(--ok); color:#fff}
+  .pill.no{background:var(--surface-3); color:var(--ink-2)}
+  .pill.crit{background:var(--crit); color:#fff}
+
+  /* Install and relocation are genuine ordered sequences, so they are numbered.
+     The command and setting tables are lookups, and are not. */
+  ol.stages{list-style:none; counter-reset:st; margin:22px 0 8px; padding:0; max-width:none}
+  ol.stages > li{counter-increment:st; position:relative; padding:0 0 22px 52px; margin:0;
+    border-left:1px solid var(--rule); margin-left:15px}
+  ol.stages > li:last-child{border-left-color:transparent; padding-bottom:2px}
+  ol.stages > li::before{content:counter(st); position:absolute; left:-15px; top:0;
+    width:30px; height:30px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--rule); color:var(--accent);
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600;
+    display:grid; place-items:center}
+  ol.stages h3{margin:3px 0 5px}
+  ol.stages p{margin-bottom:9px}
+  ol.stages pre{margin-bottom:12px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">macOS</div>
+  <ol>
+    <li><a href="#need"><span class="n">01</span><span>What you need</span></a></li>
+    <li><a href="#install"><span class="n">02</span><span>Install</span></a></li>
+    <li><a href="#menubar"><span class="n">03</span><span>The menu bar</span></a></li>
+    <li><a href="#notify"><span class="n">04</span><span>Notifications</span></a></li>
+    <li><a href="#share"><span class="n">05</span><span>Sharing the map</span></a></li>
+    <li><a href="#ctl"><span class="n">06</span><span>firewatch-ctl</span></a></li>
+    <li><a href="#files"><span class="n">07</span><span>Files &amp; uninstall</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Desktop install</div>
+  <h1>FireWatch on macOS</h1>
+  <p class="standfirst">The menu bar app: a wildfire monitor that sits in the status
+  bar, notifies you when something changes, and keeps a live map one click away.</p>
+  <dl class="facts">
+    <div><dt>Runtime</dt><dd>Python 3.14</dd></div>
+    <div><dt>Dependencies</dt><dd>4</dd></div>
+    <div><dt>Install time</dt><dd>~5 min</dd></div>
+    <div><dt>Running cost</dt><dd>€0</dd></div>
+  </dl>
+</header>
+
+<div class="note">
+  <span class="lbl">This is one of three guides</span>
+  <p>macOS gives you the menu bar app, which no other platform does. For a headless
+  box see <a href="https://claude.ai/code/artifact/1cbb1d5e-cfd7-4fa5-8214-3e100166f2b2"><strong>FireWatch on Linux</strong></a>; to put the map on a public URL see
+  <a href="https://claude.ai/code/artifact/09883c3e-dc41-4093-9db6-c2800a35bc30"><strong>Hosting FireWatch</strong></a>. Command, setting and troubleshooting references
+  live in the <a href="https://claude.ai/code/artifact/071b6277-3bc3-48c8-afa0-0cf938da923f"><strong>Field Manual</strong></a>.</p>
+</div>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="need"><span class="num">01</span> What you need</h2>
+<ul>
+  <li><strong>A Mac that stays awake.</strong> The app is a menu bar item started by
+  <code>launchd</code> at login. There is no server component &mdash; if the Mac
+  sleeps, polling stops.</li>
+  <li><strong>Python 3.14</strong> from python.org. Homebrew's build works too, but the
+  launch agent pins whichever interpreter you install with, so pick one and stay
+  on it.</li>
+  <li><strong>A NASA FIRMS key</strong> &mdash; free, instant, no approval. Optional:
+  without one you lose VIIRS/MODIS and keep the other two feeds.</li>
+  <li><strong>Very little disk.</strong> Six months of a quiet municipality is a 184 KB
+  SQLite file.</li>
+</ul>
+
+<div class="note warn">
+  <span class="lbl">Check your longitude first</span>
+  <p>The fast feed is geostationary and only covers roughly <strong>60°W to
+  60°E</strong> &mdash; Europe, Africa, the Middle East, eastern South America. Outside
+  that, FireWatch works on a three-hour delay rather than twenty-five minutes. The
+  Field Manual has the measured numbers.</p>
+</div>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="install"><span class="num">02</span> Install</h2>
+
+<ol class="stages">
+  <li>
+    <h3>Install the dependencies</h3>
+    <pre><code>python3 -m pip install rumps pyobjc requests certifi</code></pre>
+    <p><code>rumps</code> and <code>pyobjc</code> build the menu bar item;
+    <code>requests</code> and <code>certifi</code> handle HTTPS.</p>
+    <div class="note crit">
+      <span class="lbl">Do not substitute urllib</span>
+      <p>Several Python builds ship no CA bundle, so anything using the standard
+      library's <code>urlopen</code> dies with <code>CERTIFICATE_VERIFY_FAILED</code>
+      while <code>requests</code> works through <code>certifi</code>. That is why
+      <code>certifi</code> is a hard dependency and why the launch agent pins
+      <code>SSL_CERT_FILE</code>.</p>
+    </div>
+  </li>
+  <li>
+    <h3>Store a FIRMS key</h3>
+    <p>Request one at
+    <a href="https://firms.modaps.eosdis.nasa.gov/api/map_key/">firms.modaps.eosdis.nasa.gov/api/map_key/</a>,
+    then put it in the Keychain rather than a file:</p>
+    <pre><code>./firewatch-ctl set-firms-key      <span class="c"># prompted, not echoed</span>
+python3 -m firewatch quota        <span class="c"># confirms which key is in use</span></code></pre>
+    <p>No key is committed to the repository. Resolution order is
+    <code>FIRMS_MAP_KEY</code> in the environment, then the Keychain, then
+    <code>firms_map_key</code> in your config file.</p>
+  </li>
+  <li>
+    <h3>Take one poll for a test drive</h3>
+    <pre><code>python3 -m firewatch poll</code></pre>
+    <p>One full cycle in the foreground, with a printed report: which feeds answered,
+    how long each took, what is currently burning. Every source should read
+    <code>[ok ]</code>. Zero detections is a normal, healthy result &mdash; most days
+    nothing is on fire.</p>
+  </li>
+  <li>
+    <h3>Install the login agent</h3>
+    <pre><code>./firewatch-ctl install</code></pre>
+    <p>Generates the <code>launchd</code> plist against <em>your</em> interpreter path
+    and CA bundle, installs it in <code>~/Library/LaunchAgents/</code>, and starts it.
+    Look for 🌲 in the menu bar.</p>
+  </li>
+  <li>
+    <h3>Fill in some history</h3>
+    <pre><code>python3 -m firewatch backfill 30   <span class="c"># about 5 minutes</span></code></pre>
+    <p>A fresh install knows nothing about the past, so the longer map ranges are
+    empty. Nothing re-fetches history on its own &mdash; this is a deliberate,
+    occasional command.</p>
+  </li>
+</ol>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="menubar"><span class="num">03</span> The menu bar</h2>
+<p>The icon is the status at a glance: <strong>🌲</strong> when nothing is burning,
+<strong>🔥</strong> when something is. Opening it lists the tracked fires with
+severity, location relative to the nearest settlement, radiative power and how long
+ago each was last seen &mdash; and gives you Google Maps links, copyable coordinates,
+and a one-click refresh.</p>
+<p>The app runs <code>rumps</code> on the main thread and owns the polling thread, so
+the menu, the notifications and the map all read the same published snapshot. They
+cannot disagree with each other.</p>
+
+<div class="note crit">
+  <span class="lbl">The landmine that costs the most time</span>
+  <p>The running agent holds its modules in memory and keeps overwriting the snapshot.
+  Edit code or config without <code>./firewatch-ctl restart</code> and your change
+  looks like a no-op while the stale output looks like a logic bug.</p>
+</div>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="notify"><span class="num">04</span> Notifications</h2>
+<p>Alerts go through <code>osascript</code>, which macOS attributes to <em>Script
+Editor</em> &mdash; so that is what you allow in <strong>System Settings &rsaquo;
+Notifications</strong>. Clicking such a notification does nothing.</p>
+<p>Install <code>terminal-notifier</code> and they become clickable links straight to
+Google Maps at the fire's coordinates:</p>
+<pre><code>brew install terminal-notifier
+python3 -m firewatch test-notify   <span class="c"># sends a sample</span></code></pre>
+<p>FireWatch picks it up automatically; <code>notify.backend()</code> reports which is
+live. SMS is a separate, independent channel &mdash; see the Field Manual, and note
+that a failed notification never suppresses the text message.</p>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="share"><span class="num">05</span> Sharing the map</h2>
+<p>On a laptop, <code>expose</code> publishes the map through ngrok, so there are no
+ports, DNS or certificates to arrange:</p>
+<pre><code>./firewatch-ctl expose      <span class="c"># prints the URL</span>
+./firewatch-ctl exposed     <span class="c"># publish state and every tunnel</span>
+./firewatch-ctl unexpose</code></pre>
+<p>Only the map and its data file are published. The log, database and snapshot stay
+in a different directory entirely.</p>
+<div class="note warn">
+  <span class="lbl">Free-tier realities</span>
+  <ul>
+    <li>The URL is <strong>random and changes every time the ngrok agent
+    restarts</strong> &mdash; including a URL you have already texted to people.
+    FireWatch rebuilds the tunnel each cycle while publishing is on, but the address
+    will be different.</li>
+    <li>The agent is <strong>shared with anything else on the machine</strong> that
+    uses ngrok, and a free account allows three endpoints per session.</li>
+    <li><code>unexpose</code> stops publishing, but the URL keeps resolving until the
+    agent restarts &mdash; ngrok never actually closes a file tunnel.</li>
+  </ul>
+</div>
+<p>If you want an address that stays put, that is a hosting job rather than a laptop
+one &mdash; see <a href="https://claude.ai/code/artifact/09883c3e-dc41-4093-9db6-c2800a35bc30"><strong>Hosting FireWatch</strong></a>.</p>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="ctl"><span class="num">06</span> firewatch-ctl</h2>
+<p>This wrapper drives <code>launchctl</code>, so it is macOS-only.</p>
+<div class="tw">
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">install</td><td>Generate the plist for this machine, install it, start at login</td></tr>
+    <tr><td class="mono">uninstall</td><td>Stop and remove the login item. Data is kept</td></tr>
+    <tr><td class="mono">start / stop</td><td>Load or unload the agent</td></tr>
+    <tr><td class="mono">restart</td><td><strong>Run after every code or config change</strong></td></tr>
+    <tr><td class="mono">status</td><td>Service state, plus the last published snapshot</td></tr>
+    <tr><td class="mono">logs</td><td>Tail the log</td></tr>
+    <tr><td class="mono">poll / map</td><td>One cycle; rebuild and open the map</td></tr>
+    <tr><td class="mono">expose / unexpose / exposed</td><td>Publish the map, stop, show status</td></tr>
+    <tr><td class="mono">sms / test-sms / set-sms-key</td><td>SMS settings, a test message, store the key</td></tr>
+    <tr><td class="mono">set-firms-key</td><td>Store the FIRMS key in the Keychain</td></tr>
+    <tr><td class="mono">sms-add / sms-remove &lt;number&gt;</td><td>Manage recipients &mdash; applies without a restart</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Everything else runs through <code>python3 -m firewatch &lt;command&gt;</code>,
+listed in full in the Field Manual.</p>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="files"><span class="num">07</span> Files &amp; uninstall</h2>
+<div class="tw">
+<table>
+  <thead><tr><th>Path</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">~/Library/Application Support/FireWatch/</td>
+        <td><code>firewatch.db</code>, <code>snapshot.json</code>,
+        <code>fire-map.html</code>, logs</td></tr>
+    <tr><td class="mono">~/Library/Caches/FireWatch/public/</td>
+        <td>The only directory ever published. Rewritten every cycle</td></tr>
+    <tr><td class="mono">~/.config/firewatch/config.json</td>
+        <td>Your overrides &mdash; never any credential</td></tr>
+    <tr><td class="mono">~/Library/LaunchAgents/</td>
+        <td><code>com.firewatch.zavidovici.plist</code></td></tr>
+  </tbody>
+</table>
+</div>
+<p>Keys live in the Keychain (services <code>firewatch-firms</code> and
+<code>firewatch-httpsms</code>), never in a file. The database is a single SQLite file
+with no external state, so backing it up is a copy.</p>
+<pre><code>./firewatch-ctl uninstall    <span class="c"># stops the agent, keeps your data</span></code></pre>
+<p>To remove everything, delete the directories above as well.</p>
+
+<footer>
+  <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,
+  NASA FIRMS and Sentinel-3 SLSTR. Boundary and settlement data © OpenStreetMap
+  contributors, ODbL 1.0.</p>
+  <p>Companion guides: <a href="https://claude.ai/code/artifact/1cbb1d5e-cfd7-4fa5-8214-3e100166f2b2"><strong>FireWatch on Linux</strong></a>, <strong>Hosting
+  FireWatch</strong>, and the <a href="https://claude.ai/code/artifact/071b6277-3bc3-48c8-afa0-0cf938da923f"><strong>Field Manual</strong></a> for command, setting and
+  troubleshooting reference.</p>
+</footer>
+</main>
+</div>
