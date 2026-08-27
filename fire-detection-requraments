@@ -1,5 +1,5 @@
 
-api_key = "REDACTED-ROTATE-THIS-KEY"
+api_key = "<from FIRMS_MAP_KEY - not committed>"
 
 firms_url = "https://firms.modaps.eosdis.nasa.gov"
 area_api = "/api/area/csv/[API_KEY]/"

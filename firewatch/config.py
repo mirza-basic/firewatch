@@ -1,20 +1,65 @@
 """Configuration and paths.
 
-User-overridable settings live in ~/.config/firewatch/config.json; anything absent
-falls back to the defaults below.
+User-overridable settings live in the config directory below; anything absent falls
+back to the defaults in this file.
+
+Locations are platform-aware so the same tree runs on a Mac and on a Linux host.
+macOS keeps exactly the paths it always had - moving them would strand an existing
+install's database - while Linux follows the XDG layout. Any of the three can be
+pointed somewhere else with an environment variable, which is what containers and
+system services need: FIREWATCH_DATA_DIR, FIREWATCH_PUBLIC_DIR, FIREWATCH_CONFIG_DIR.
 """
 from __future__ import annotations
 
 import json
+import logging
 import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 PKG_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = PKG_DIR.parent
 DATA_DIR = PROJECT_DIR / "data"
 
-SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "FireWatch"
-CONFIG_DIR = Path.home() / ".config" / "firewatch"
+MACOS = sys.platform == "darwin"
+
+
+def _env_path(name: str) -> Path | None:
+    v = os.environ.get(name)
+    return Path(v).expanduser() if v else None
+
+
+def _data_dir() -> Path:
+    override = _env_path("FIREWATCH_DATA_DIR")
+    if override:
+        return override
+    if MACOS:
+        return Path.home() / "Library" / "Application Support" / "FireWatch"
+    return (_env_path("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "firewatch"
+
+
+def _config_dir() -> Path:
+    override = _env_path("FIREWATCH_CONFIG_DIR")
+    if override:
+        return override
+    return (_env_path("XDG_CONFIG_HOME") or Path.home() / ".config") / "firewatch"
+
+
+def _public_dir() -> Path:
+    override = _env_path("FIREWATCH_PUBLIC_DIR")
+    if override:
+        return override
+    if MACOS:
+        # Not under Application Support - see the note further down; the space in
+        # that path breaks ngrok's file server.
+        return Path.home() / "Library" / "Caches" / "FireWatch" / "public"
+    return (_env_path("XDG_CACHE_HOME") or Path.home() / ".cache") / "firewatch" / "public"
+
+
+SUPPORT_DIR = _data_dir()
+CONFIG_DIR = _config_dir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
 DB_PATH = SUPPORT_DIR / "firewatch.db"
 LOG_PATH = SUPPORT_DIR / "firewatch.log"
@@ -32,7 +77,7 @@ MAP_PATH = SUPPORT_DIR / "fire-map.html"
 # as up. A literal space cannot be sent either; the agent API rejects the URL.
 # The only reliable fix is a path with no spaces in it. Caches is the right kind
 # of place for it too: every file here is rewritten from the snapshot each cycle.
-PUBLIC_DIR = Path.home() / "Library" / "Caches" / "FireWatch" / "public"
+PUBLIC_DIR = _public_dir()
 
 BOUNDARY_GEOJSON = DATA_DIR / "zavidovici.geojson"
 SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
@@ -41,9 +86,18 @@ SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
 # geo.build_buffer() - so the running app needs neither shapely nor pyproj.
 BUFFER_GEOJSON = DATA_DIR / "zavidovici-buffer.geojson"
 
+# No FIRMS key is committed to this repository, deliberately. One used to be, which
+# made a fresh clone work immediately at the cost of every clone sharing one key and
+# one 5000-per-10-minutes limit - and putting the key in git history for good. Supply
+# your own: `set-firms-key`, or FIRMS_MAP_KEY in the environment.
+FIRMS_KEYCHAIN_SERVICE = "firewatch-firms"
+FIRMS_SIGNUP_URL = "https://firms.modaps.eosdis.nasa.gov/api/map_key/"
+
 DEFAULTS = {
     # NASA FIRMS map key. Limit is 5000 transactions / 10 min; an area call costs 2.
-    "firms_map_key": "REDACTED-ROTATE-THIS-KEY",
+    # Empty on purpose - read through firms_key(), which prefers the environment and
+    # the Keychain over this. Setting it here puts a credential in a plain file.
+    "firms_map_key": "",
     # Only the near-real-time sensors are useful for alerting; the _SP (standard
     # processing) twins lag months and are used for history only, below. BA_* are
     # burned-area products, not hotspots, and are never fetched.
@@ -122,6 +176,16 @@ DEFAULTS = {
     # Changing this needs `python3 -m firewatch buffer` afterwards, or the band
     # drawn on the map goes stale and is silently omitted.
     "nearby_buffer_km": 2.0,
+    # Built-in map server (`python3 -m firewatch serve`). Loopback by default:
+    # putting the map on the public internet should be a decision someone typed.
+    # On a real host, front it with nginx or Caddy for TLS rather than binding
+    # 0.0.0.0 directly.
+    "serve_host": "127.0.0.1",
+    "serve_port": 8080,
+    # /health reports "stale" past this age. The snapshot is rewritten every cycle,
+    # and the fast loop runs every 4 minutes, so 15 covers a couple of missed
+    # cycles without crying wolf over one slow WFS response.
+    "health_max_age_s": 900,
     "http_timeout": 90,
     "user_agent": "firewatch-zavidovici/1.0 (+https://github.com/) contact: local",
 }
@@ -155,8 +219,116 @@ class Config(dict):
         is exactly what happened when window_hours was raised for the month view.
         """
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(
-            json.dumps(self.overrides(), indent=2, ensure_ascii=False))
+        # Atomic: the recipient list is now re-read at send time, so a poller can be
+        # reading this file at the moment `sms-add` rewrites it. A partial read would
+        # be a JSON error, and an alert would go nowhere.
+        tmp = CONFIG_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(self.overrides(), indent=2, ensure_ascii=False))
+        os.replace(tmp, CONFIG_FILE)
+
+
+def keychain_secret(service: str, account: str = "firewatch") -> str | None:
+    """One secret out of the macOS Keychain, or None.
+
+    None on any other platform, if the `security` tool is missing, or on any error -
+    callers all have a fallback, and a credential lookup that raises would take a
+    poll cycle down with it.
+    """
+    if not shutil.which("security"):
+        return None
+    try:
+        r = subprocess.run(
+            ["security", "find-generic-password", "-a", account, "-s", service, "-w"],
+            capture_output=True, text=True, timeout=15)
+    except Exception:
+        return None
+    if r.returncode != 0:
+        return None
+    return r.stdout.strip() or None
+
+
+_warned_no_key = False
+
+
+def firms_key() -> tuple[str | None, str]:
+    """(key, where it came from), or (None, "not set").
+
+    Environment first so a systemd unit or container can inject one without touching
+    any file, then the Keychain, then config.json. There is no fallback: a missing
+    key means FIRMS is skipped, which is a real and survivable state - Meteosat and
+    Sentinel-3 need no credentials and keep working.
+    """
+    global _warned_no_key
+    env = os.environ.get("FIRMS_MAP_KEY")
+    if env and env.strip():
+        return env.strip(), "environment"
+    kc = keychain_secret(FIRMS_KEYCHAIN_SERVICE)
+    if kc:
+        return kc, "keychain"
+    cfg = str(CFG.get("firms_map_key") or "").strip()
+    if cfg:
+        return cfg, "config.json"
+    if not _warned_no_key:
+        _warned_no_key = True
+        logging.getLogger("firewatch.config").warning(
+            "no FIRMS key, so VIIRS/MODIS is skipped - Meteosat and Sentinel-3 still "
+            "run. Get one free at %s, then `set-firms-key` or set FIRMS_MAP_KEY.",
+            FIRMS_SIGNUP_URL)
+    return None, "not set"
+
+
+def secrets() -> list[str]:
+    """Every credential this process knows, for redaction.
+
+    Resolved once and cached: the Keychain lookup shells out, and this is consulted
+    on every log record.
+    """
+    global _secrets_cache
+    if _secrets_cache is None:
+        vals = {v for v in (firms_key()[0],) if v}
+        for env in ("FIRMS_MAP_KEY", "HTTPSMS_API_KEY"):
+            v = os.environ.get(env)
+            if v and v.strip():
+                vals.add(v.strip())
+        for svc in (FIRMS_KEYCHAIN_SERVICE, "firewatch-httpsms"):
+            v = keychain_secret(svc)
+            if v:
+                vals.add(v)
+        # Short strings would redact half the log; a real key is never this small.
+        _secrets_cache = sorted((v for v in vals if len(v) >= 12), key=len, reverse=True)
+    return _secrets_cache
+
+
+_secrets_cache: list[str] | None = None
+
+
+def redact(text: str) -> str:
+    """Replace any known credential with a marker."""
+    for v in secrets():
+        if v in text:
+            text = text.replace(v, f"<redacted:{v[-4:]}>")
+    return text
+
+
+class RedactingFormatter(logging.Formatter):
+    """Scrub credentials out of every log line, message and traceback alike.
+
+    The FIRMS key travels *in the URL path*, so a connection error from requests
+    puts the whole query - key included - into its exception message, and
+    `log.warning("firms %s: %s", ds, exc)` writes it to disk. Redacting centrally
+    rather than at each call site covers the paths nobody anticipated, which is the
+    point: this leaked quietly for months.
+
+    A formatter and not a Filter, which is the obvious choice and the wrong one:
+    filters run *before* formatting, so on the first handler `record.exc_text` is
+    still empty and the traceback escapes unredacted - then the formatter caches the
+    raw text on the record, and only the *second* handler's filter sees it. With a
+    file handler first and a stream handler second, that redacts the console and
+    writes the key to disk: exactly backwards.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact(super().format(record))
 
 
 def ensure_dirs():

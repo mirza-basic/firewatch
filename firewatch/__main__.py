@@ -10,7 +10,9 @@
     python3 -m firewatch map         rebuild and open the fire map
     python3 -m firewatch buffer [km] rebuild the drawn "nearby" band (build-time)
     python3 -m firewatch reclip [--apply]  drop stored history the clip now rejects
-    python3 -m firewatch quota       FIRMS transaction usage
+    python3 -m firewatch serve [host:port] [--no-poll]   poll + serve the map over HTTP
+    python3 -m firewatch quota       FIRMS transaction usage + which key is in use
+    python3 -m firewatch set-firms-key  store a FIRMS key in the Keychain
     python3 -m firewatch expose      publish the map via ngrok, print the URL
     python3 -m firewatch unexpose    stop publishing (other tunnels untouched)
     python3 -m firewatch expose-status
@@ -58,7 +60,10 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
                 for k, v in counts.items() if k in ev_mod.RANGES]
         print(f"  All ranges → {'  |  '.join(bits)}")
     for name, st in snap.get("source_status", {}).items():
-        flag = "ok " if st.get("ok") else "FAIL"
+        # "not set up" and "broken" deserve different words; only one of them
+        # is something to go and fix in the code.
+        flag = "ok " if st.get("ok") else ("----" if not st.get("configured", True)
+                                           else "FAIL")
         print(f"  [{flag}] {name:6s} {st.get('detail', '')}")
     if not evs:
         print(f"\n  No fires · {label.lower()}. 🌲\n")
@@ -100,6 +105,7 @@ def cmd_poll(rng: str | None = None) -> int:
 
 def cmd_watch() -> int:
     poller.setup_logging()
+    _graceful_stop()
     p = poller.Poller()
     p.start()
     print("FireWatch running headless. Ctrl-C to stop.")
@@ -183,13 +189,57 @@ def cmd_expose_status() -> int:
 
 
 def cmd_quota() -> int:
+    from .config import firms_key
+    key, source = firms_key()
+    if not key:
+        from .config import FIRMS_SIGNUP_URL
+        print("\n  no FIRMS key set - VIIRS/MODIS is skipped, Meteosat and"
+              " Sentinel-3 still run.")
+        print(f"  get one free at {FIRMS_SIGNUP_URL}")
+        print("  then `set-firms-key`, or set FIRMS_MAP_KEY in the environment\n")
+        return 1
     q = sources.firms_quota()
     if not q:
-        print("could not read quota")
+        print(f"could not read quota (key from {source})")
         return 1
     print(f"FIRMS key: {q['current_transactions']} / {q['transaction_limit']}"
           f" transactions per {q['transaction_interval']}")
     print("  (an area query costs 2; a full 4-dataset sweep costs 8)")
+    # Never print the key itself - this output gets pasted into issues.
+    print(f"  key ...{key[-4:]} from {source}")
+    return 0
+
+
+def cmd_set_firms_key() -> int:
+    """Store a FIRMS map key in the Keychain.
+
+    Prompted rather than passed as an argument so it never lands in shell history
+    or a process listing. On a host without a Keychain, set FIRMS_MAP_KEY instead.
+    """
+    import getpass
+    import shutil
+    import subprocess
+
+    from .config import FIRMS_KEYCHAIN_SERVICE, firms_key
+    if not shutil.which("security"):
+        print("  no macOS Keychain here - set FIRMS_MAP_KEY in the environment"
+              " instead (systemd EnvironmentFile, or docker -e)")
+        return 1
+    key = getpass.getpass("  FIRMS map key (not echoed): ").strip()
+    if not key:
+        print("  nothing entered")
+        return 1
+    r = subprocess.run(["security", "add-generic-password", "-U",
+                        "-a", "firewatch", "-s", FIRMS_KEYCHAIN_SERVICE,
+                        "-w", key], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  keychain write failed: {r.stderr.strip()[:200]}")
+        return 1
+    _, source = firms_key()
+    print(f"  stored. now resolving from: {source}")
+    if source != "keychain":
+        print("  note: something earlier in the order still wins"
+              " (FIRMS_MAP_KEY in the environment)")
     return 0
 
 
@@ -277,7 +327,7 @@ def cmd_sms_add(number: str | None) -> int:
     rec.append(number)
     _save_recipients(rec)
     print(f"  added. recipients now: {', '.join(rec)}")
-    print("  run ./firewatch-ctl restart to apply to the running service")
+    print("  applies to the running service immediately - no restart needed")
     return 0
 
 
@@ -289,7 +339,7 @@ def cmd_sms_remove(number: str | None) -> int:
     rec.remove(number)
     _save_recipients(rec)
     print(f"  removed. recipients now: {', '.join(rec) or '(none)'}")
-    print("  run ./firewatch-ctl restart to apply to the running service")
+    print("  applies to the running service immediately - no restart needed")
     return 0
 
 
@@ -395,6 +445,82 @@ def cmd_reclip(apply: bool = False) -> int:
         con.close()
 
 
+def _graceful_stop() -> None:
+    """Make SIGTERM behave like Ctrl-C.
+
+    `systemctl stop` and `docker stop` both send SIGTERM, whose default action is to
+    kill the process outright - no clean shutdown, and an exit status that reads as a
+    crash. Raising KeyboardInterrupt reuses the Ctrl-C path that is already written.
+    """
+    import signal
+
+    def handler(signum, frame):
+        raise KeyboardInterrupt
+    try:
+        signal.signal(signal.SIGTERM, handler)
+    except ValueError:
+        pass            # not on the main thread; nothing to install
+
+
+def cmd_serve(argv: list[str]) -> int:
+    """Serve the map over HTTP, and poll unless told not to.
+
+    One process and one service unit is the whole point: a host that serves a stale
+    map because the poller is in a second unit that died is worse than either.
+    """
+    from . import serve as serve_mod
+    from .config import PUBLIC_DIR
+
+    host, port, poll = None, None, True
+    rest = list(argv)
+    while rest:
+        a = rest.pop(0)
+        if a == "--no-poll":
+            poll = False
+        elif a in ("--host", "-h") and rest:
+            host = rest.pop(0)
+        elif a in ("--port", "-p") and rest:
+            port = int(rest.pop(0))
+        elif ":" in a:                     # "0.0.0.0:8080"
+            h, _, pt = a.rpartition(":")
+            host, port = h or None, int(pt)
+        elif a.isdigit():
+            port = int(a)
+
+    poller.setup_logging()
+    _graceful_stop()
+    had = serve_mod.refresh_public()
+    print(f"\n  serving {PUBLIC_DIR}")
+    if not had:
+        print("  no snapshot yet - the map appears after the first poll")
+    try:
+        if poll:
+            httpd = serve_mod.serve_forever(host, port, background=True)
+            print(f"  http://{httpd.server_address[0]}:{httpd.server_address[1]}/")
+            print("  polling too. Ctrl-C to stop.\n")
+            p = poller.Poller()
+            p.start()
+            try:
+                while True:
+                    p._stop.wait(3600)
+            finally:
+                p.stop()
+        else:
+            httpd = serve_mod.make_server(host, port)
+            print(f"  http://{httpd.server_address[0]}:{httpd.server_address[1]}/")
+            print("  serving only, not polling. Ctrl-C to stop.\n")
+            httpd.serve_forever()
+    except OSError as exc:
+        # Overwhelmingly the first-run error on a host: something else has the port.
+        print(f"\n  cannot bind {host or CFG['serve_host']}:"
+              f"{port or CFG['serve_port']} - {exc.strerror or exc}")
+        print("  pick another with `serve <port>`, or stop whatever is using it\n")
+        return 1
+    except KeyboardInterrupt:
+        print("\n  stopped\n")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     cmd = (argv[0] if argv else "menubar").lower()
     if cmd in ("menubar", "app", "ui"):
@@ -419,8 +545,12 @@ def main(argv: list[str]) -> int:
         return cmd_expose_status()
     if cmd == "reclip":
         return cmd_reclip("--apply" in argv[1:])
+    if cmd == "serve":
+        return cmd_serve(argv[1:])
     if cmd == "buffer":
         return cmd_buffer(float(argv[1]) if len(argv) > 1 else None)
+    if cmd in ("set-firms-key", "setfirmskey"):
+        return cmd_set_firms_key()
     if cmd == "quota":
         return cmd_quota()
     if cmd == "history":

@@ -1,0 +1,10 @@
+# Byte-compiled files. These were tracked, which is how a copy of the FIRMS key
+# ended up inside config.cpython-314.pyc as well as in the source.
+__pycache__/
+*.py[cod]
+
+.DS_Store
+
+# Never commit a credential. Keys belong in the environment or the Keychain.
+.env
+*.key

@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 from . import geo
-from .config import CFG
+from .config import CFG, FIRMS_SIGNUP_URL, firms_key
 from .store import iso, parse_iso, utcnow
 
 log = logging.getLogger("firewatch.sources")
@@ -43,6 +43,15 @@ S3_LAYERS = ["copernicus:sentinel3a_slstr_level2_frp",
 
 class SourceError(RuntimeError):
     pass
+
+
+class NoCredentials(SourceError):
+    """A source needs a key that has not been supplied.
+
+    Distinct from SourceError so the poller can report "not configured" rather than
+    "failed" - a missing key is a setup step, not an outage, and the two want very
+    different words in the status line.
+    """
 
 
 def _session() -> requests.Session:
@@ -223,7 +232,14 @@ def fetch_firms(days: int = 1, start_date: str | None = None,
     the SP archive for windows the NRT feed no longer serves.
     """
     session = _session()
-    key = CFG["firms_map_key"]
+    key, key_source = firms_key()
+    if not key:
+        # Not an error: Meteosat and Sentinel-3 need no credentials and carry the
+        # cycle on their own. Raising here would mark the source failed and bury the
+        # one thing the operator needs to read.
+        raise NoCredentials(
+            "no FIRMS key - VIIRS/MODIS skipped. Get one free at "
+            f"{FIRMS_SIGNUP_URL} then run `set-firms-key`")
     w, s, e, n = geo.bbox_padded(CFG["nearby_buffer_km"])
     area = f"{w:.4f},{s:.4f},{e:.4f},{n:.4f}"
     start = start_date or utcnow().strftime("%Y-%m-%d")
@@ -303,7 +319,7 @@ def firms_quota() -> dict | None:
     try:
         r = _session().get(
             f"{FIRMS_BASE}/mapserver/mapkey_status/",
-            params={"MAP_KEY": CFG["firms_map_key"]}, timeout=30)
+            params={"MAP_KEY": firms_key()[0] or ""}, timeout=30)
         return r.json() if r.status_code == 200 else None
     except Exception:
         return None

@@ -12,12 +12,18 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+import sys
 
 from .config import CFG
 
 log = logging.getLogger("firewatch.notify")
 
 _TN = shutil.which("terminal-notifier")
+# Linux desktops ship notify-send (libnotify). On a headless server none of the
+# three exist, and backend() says so rather than naming one that is not installed -
+# a poll cycle then simply reports the alert to the log and carries on.
+_NS = None if sys.platform == "darwin" else shutil.which("notify-send")
+_OSA = shutil.which("osascript")
 
 ICONS = {
     "new": "🔥", "reignited": "🔥", "grew": "📈", "intensified": "📈",
@@ -49,12 +55,22 @@ def send(title: str, message: str, subtitle: str = "", sound: str | None = None,
             cmd += ["-open", url]
         return _run(cmd)
 
+    if _NS:
+        # notify-send has no subtitle and no sound; fold the subtitle into the body
+        # so the place name is not simply lost.
+        body = f"{subtitle} - {message}" if subtitle else message
+        return _run([_NS, "-a", "FireWatch", "-u", "critical", title, body])
+
+    if not _OSA:
+        log.info("no notification backend; would have sent: %s - %s", title, message)
+        return False
+
     script = f"display notification {_applescript_str(message)} with title {_applescript_str(title)}"
     if subtitle:
         script += f" subtitle {_applescript_str(subtitle)}"
     if sound:
         script += f" sound name {_applescript_str(sound)}"
-    return _run(["osascript", "-e", script])
+    return _run([_OSA, "-e", script])
 
 
 def _run(cmd: list[str]) -> bool:
@@ -103,4 +119,8 @@ def notify_alert(alert: dict) -> bool:
 
 
 def backend() -> str:
-    return "terminal-notifier" if _TN else "osascript"
+    if _TN:
+        return "terminal-notifier"
+    if _NS:
+        return "notify-send"
+    return "osascript" if _OSA else "none"

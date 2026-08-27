@@ -46,6 +46,17 @@ roughly 5 MW and up, so FIRMS still matters for catching small ones.
 Installs a `launchd` login agent, starts the menu bar app, and keeps it running.
 Look for 🌲 in the menu bar.
 
+**NASA FIRMS key.** No credential is committed to this repository. Get a free one at
+<https://firms.modaps.eosdis.nasa.gov/api/map_key/> — it arrives in seconds — then:
+
+    ./firewatch-ctl set-firms-key      # stores it in the Keychain
+
+or set `FIRMS_MAP_KEY` in the environment, which is what a server or container wants.
+Without a key FireWatch still runs: VIIRS/MODIS is skipped and reported as `[----]`
+rather than a failure, while Meteosat and Sentinel-3 need no credentials and carry the
+cycle. `python3 -m firewatch quota` shows which key is in use, by its last four
+characters only.
+
 **Notifications:** by default these go through `osascript`, so macOS attributes them
 to *Script Editor* — allow it once under System Settings → Notifications. For
 notifications you can click to open Google Maps directly:
@@ -265,6 +276,7 @@ Edit `~/.config/firewatch/config.json` (any subset of the defaults in
 
 - `interval_mtg`, `interval_mtg_active` — poll cadence
 - `mtg_min_confidence` (default 30) — raise to cut false positives
+- `serve_host` / `serve_port` (default `127.0.0.1:8080`) — the built-in map server
 - `nearby_buffer_km` (default 2) — how far outside the border to watch. Changing it
   needs `python3 -m firewatch buffer` afterwards, or the band vanishes from the map.
   Narrowing it only affects new fetches; `python3 -m firewatch reclip --apply` drops

@@ -178,9 +178,10 @@
     <li><a href="#alerts"><span class="n">05</span><span>Alerts</span></a></li>
     <li><a href="#publish"><span class="n">06</span><span>Publishing the map</span></a></li>
     <li><a href="#relocate"><span class="n">07</span><span>Watching somewhere else</span></a></li>
-    <li><a href="#coverage"><span class="n">08</span><span>What works where</span></a></li>
-    <li><a href="#trouble"><span class="n">09</span><span>When it goes quiet</span></a></li>
-    <li><a href="#data"><span class="n">10</span><span>Data &amp; uninstall</span></a></li>
+    <li><a href="#hosting"><span class="n">08</span><span>Running it on a server</span></a></li>
+    <li><a href="#coverage"><span class="n">09</span><span>What works where</span></a></li>
+    <li><a href="#trouble"><span class="n">10</span><span>When it goes quiet</span></a></li>
+    <li><a href="#data"><span class="n">11</span><span>Data &amp; uninstall</span></a></li>
   </ol>
 </nav>
 
@@ -236,7 +237,7 @@ changes, and draws a live map. One process does all of it.</p>
   geostationary, so it only sees one hemisphere. Roughly <strong>60°W to 60°E</strong>:
   Europe, Africa, the Middle East and eastern South America. Outside that footprint
   FireWatch still works, but on a three-hour delay instead of twenty-five minutes.
-  <a href="#coverage">Section 08</a> has the measured numbers and a one-command test.</p>
+  <a href="#coverage">Section 09</a> has the measured numbers and a one-command test.</p>
 </div>
 
 <!-- ==================== 02 ==================== -->
@@ -265,10 +266,21 @@ changes, and draws a live map. One process does all of it.</p>
     It arrives by email in seconds. Put it in the environment, which overrides the
     committed default:</p>
     <pre><code>export FIRMS_MAP_KEY=your_key_here</code></pre>
-    <p>Or set <code>firms_map_key</code> in your config file (<a href="#config">section
-    04</a>). Verify it works before going further:</p>
+    <p><strong>No key is committed to the repository.</strong> FireWatch looks in
+    three places, in this order: the <code>FIRMS_MAP_KEY</code> environment variable,
+    the macOS Keychain (<code>python3 -m firewatch set-firms-key</code>), then
+    <code>firms_map_key</code> in your config file. Verify which one is in use:</p>
     <pre><code>python3 -m firewatch quota
-<span class="c">FIRMS key: 0 / 5000 transactions per 10 minutes</span></code></pre>
+<span class="c">FIRMS key: 48 / 5000 transactions per 10 minutes</span>
+<span class="c">  key ...57c5 from shared default</span></code></pre>
+    <div class="note">
+      <span class="lbl">Running without one is fine</span>
+      <p>A missing key is a supported state, not a failure. VIIRS/MODIS is skipped and
+      reported as <code>[----]</code> rather than <code>[FAIL]</code>, <code>/health</code>
+      excludes it instead of counting it down, and Meteosat and Sentinel-3 &mdash; which
+      need no credentials at all &mdash; carry the cycle. You lose sensitivity to small
+      fires, not the service.</p>
+    </div>
   </li>
   <li>
     <h3>Take one poll for a test drive</h3>
@@ -358,8 +370,10 @@ the arguments.</p>
     <tr><td class="mono">quota</td><td>FIRMS transaction usage. Costs nothing to ask</td></tr>
     <tr><td class="mono">buffer [km]</td><td>Rebuild the "nearby" band drawn on the map</td></tr>
     <tr><td class="mono">reclip [--apply]</td><td>Drop stored history the current clip rejects</td></tr>
+    <tr><td class="mono">serve [host:port]</td><td>Poll and serve the map over HTTP. <a href="#hosting">Section 08</a></td></tr>
     <tr><td class="mono">expose / unexpose / expose-status</td><td>Public URL for the map</td></tr>
     <tr><td class="mono">sms-status / test-sms / set-sms-key</td><td>SMS plumbing</td></tr>
+    <tr><td class="mono">set-firms-key</td><td>Store a FIRMS key in the Keychain, out of config.json</td></tr>
     <tr><td class="mono">sms-add / sms-remove &lt;number&gt;</td><td>Manage recipients</td></tr>
     <tr><td class="mono">test-notify</td><td>Send a sample desktop notification</td></tr>
   </tbody>
@@ -428,6 +442,8 @@ editing.</p>
         <td>Gateway phone, and the recipient list</td></tr>
     <tr><td class="mono">sms_kinds</td><td class="mono">4 kinds</td>
         <td>Which alerts are worth a text message</td></tr>
+    <tr><td class="mono">serve_host / serve_port</td><td class="mono">127.0.0.1 / 8080</td>
+        <td>The built-in map server. Loopback until you say otherwise</td></tr>
     <tr><td class="mono">auto_expose</td><td class="mono">false</td>
         <td>Set by <code>expose</code>, cleared by <code>unexpose</code>. Never edit by hand</td></tr>
     <tr><td class="mono">firms_map_key</td><td class="mono">committed</td>
@@ -486,8 +502,18 @@ your carrier charges, with no third-party sending fees.</p>
 ./firewatch-ctl sms       <span class="c"># shows exactly what is missing, if anything</span>
 ./firewatch-ctl test-sms</code></pre>
     <p>Numbers must be E.164 &mdash; leading <code>+</code>, country code, no spaces.
-    <code>sms_to</code> is a list; one recipient is sent individually, two or more go out
-    as a single bulk call.</p>
+    One recipient is sent individually, two or more go out as a single bulk call.</p>
+    <div class="note good">
+      <span class="lbl">Recipients are live, the sender is not</span>
+      <p>The two halves are configured differently on purpose. The <strong>sender</strong>
+      is fixed for a deployment &mdash; it is the phone tied to your httpSMS account
+      &mdash; so it goes in the environment as <code>HTTPSMS_FROM</code>, next to the API
+      key. <strong>Recipients</strong> change while the service runs, so
+      <code>sms-add</code> and <code>sms-remove</code> write <code>config.json</code> and
+      the running poller picks the new list up on its next alert &mdash;
+      <em>no restart</em>. That works because the recipient list is re-read at send
+      time rather than taken from the snapshot loaded at start-up.</p>
+    </div>
   </li>
 </ol>
 
@@ -654,7 +680,157 @@ python3 -m firewatch backfill 30</code></pre>
 </div>
 
 <!-- ==================== 08 ==================== -->
-<h2 id="coverage"><span class="num">08</span> What works where</h2>
+<h2 id="hosting"><span class="num">08</span> Running it on a server</h2>
+<p class="lede">The menu bar app is macOS-only. Everything else &mdash; fetching,
+clipping, clustering, alerting, map rendering &mdash; is portable Python, so FireWatch
+runs headless on a Linux host and serves the map itself.</p>
+
+<h3>What moves and what doesn't</h3>
+<div class="tw">
+<table>
+  <thead><tr><th>Piece</th><th>On a Linux host</th></tr></thead>
+  <tbody>
+    <tr><td>Polling, clustering, alerting, the map</td>
+        <td><span class="pill ok">unchanged</span> pure Python and <code>requests</code></td></tr>
+    <tr><td>SMS</td>
+        <td><span class="pill ok">unchanged</span> the key comes from
+        <code>HTTPSMS_API_KEY</code> instead of the Keychain</td></tr>
+    <tr><td>Desktop notifications</td>
+        <td><code>notify-send</code> where there is a desktop; on a headless host the
+        alert goes to the log and SMS carries it</td></tr>
+    <tr><td>Data locations</td>
+        <td>XDG &mdash; <code>~/.local/share/firewatch</code>,
+        <code>~/.cache/firewatch</code></td></tr>
+    <tr><td>The menu bar app</td>
+        <td><span class="pill crit">macOS only</span> run <code>serve</code> instead</td></tr>
+    <tr><td><code>./firewatch-ctl</code></td>
+        <td><span class="pill crit">macOS only</span> it wraps <code>launchctl</code>;
+        use the systemd unit</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Serving the map</h3>
+<p>On a laptop, <code>expose</code> goes through ngrok because there are no ports, DNS
+or certificates to arrange. A host with an address of its own wants the opposite &mdash;
+a URL that stays put &mdash; so <code>serve</code> runs a plain static server over the
+public directory:</p>
+
+<pre><code>python3 -m firewatch serve                 <span class="c"># 127.0.0.1:8080, and polls</span>
+python3 -m firewatch serve 0.0.0.0:8080    <span class="c"># answer directly</span>
+python3 -m firewatch serve --no-poll       <span class="c"># serve only, no polling</span></code></pre>
+
+<p>It polls <em>and</em> serves in one process deliberately: a host that serves a stale
+map because the poller was a second unit that quietly died is worse than either failure
+on its own. Only the map and its data file are reachable &mdash; the database, log and
+snapshot live in a different directory, directory listings return 404, and a fresh host
+renders an empty &ldquo;no fires&rdquo; map immediately instead of showing nothing until
+the first poll lands.</p>
+
+<div class="note warn">
+  <span class="lbl">It does not terminate TLS</span>
+  <p>The default bind is loopback on purpose: putting the map on the public internet
+  should be something you typed. For anything public, put nginx or Caddy in front
+  &mdash; <code>deploy/nginx.conf</code> is a working server block. The one rule a proxy
+  must respect is that <code>fire-map-data.js</code> is never cached; it is how the page
+  learns there is a new fire.</p>
+</div>
+
+<h3>Keeping keys out of the log</h3>
+<p>The FIRMS key travels inside the <em>URL path</em>, not a header. That means any
+connection error carries the whole query &mdash; key and all &mdash; in its exception
+text, and the line that reports a failed fetch wrote it straight into
+<code>firewatch.log</code>. Every log line now passes through a redacting formatter,
+so known credentials come out as <code>&lt;redacted:57c5&gt;</code> in messages and
+tracebacks alike.</p>
+<p>Worth knowing where keys are and are not: <strong>never</strong> in the
+repository, <code>config.json</code>, the snapshot, the map, the served directory or
+<code>/health</code>. Both keys live only in the environment or the Keychain, and
+<code>.gitignore</code> now keeps <code>__pycache__</code> out of git &mdash; a
+compiled <code>config.pyc</code> used to carry a copy of the key alongside the
+source.</p>
+
+<h3>Health checks</h3>
+<p>Serving and working are different questions. The static files stay perfectly
+readable long after polling has stopped, so a monitor that fetches <code>/</code>
+would report a healthy host indefinitely while the map quietly froze. <code>/health</code>
+answers the real question &mdash; how old is the data:</p>
+<pre><code>curl -fsS http://127.0.0.1:8080/health</code></pre>
+<div class="tw">
+<table>
+  <thead><tr><th class="mono">status</th><th class="mono">HTTP</th><th>Means</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">ok</td><td class="num">200</td><td>Snapshot is younger than <code>health_max_age_s</code> (15 min)</td></tr>
+    <tr><td class="mono">starting</td><td class="num">503</td><td>No snapshot yet &mdash; the first cycle has not finished</td></tr>
+    <tr><td class="mono">stale</td><td class="num">503</td><td>Polling has stopped, or every cycle is failing</td></tr>
+    <tr><td class="mono">sources_down</td><td class="num">503</td><td>Fresh snapshot, but every feed failed in it</td></tr>
+  </tbody>
+</table>
+</div>
+<p>The body carries snapshot age, active fire count and per-feed status, and
+<strong>nothing else</strong> &mdash; no keys, no paths, no public URL. Anyone who can
+reach the map can reach it, so there is nothing in it worth hiding; the nginx config
+still keeps it to your own networks by default. <code>/healthz</code> is an alias, and
+the Dockerfile uses it as its <code>HEALTHCHECK</code> with a five-minute start period
+so a booting container is not killed while it reports <code>starting</code>.</p>
+
+<h3>Deployment files</h3>
+<p><code>deploy/</code> holds three, each commented:</p>
+<ul>
+  <li><code>firewatch.service</code> &mdash; a systemd user unit.
+  <code>systemctl --user enable --now firewatch</code>, plus
+  <code>loginctl enable-linger $USER</code> so it survives logout.</li>
+  <li><code>Dockerfile</code> &mdash; Python 3.14 slim, no macOS packages. Mount a volume
+  on <code>/var/lib/firewatch</code>, or every restart begins with an empty database and
+  the long ranges are blank until <code>backfill</code> runs again.</li>
+  <li><code>nginx.conf</code> &mdash; TLS termination and the caching rule above.</li>
+</ul>
+
+<p>Five environment variables cover everything a service or container needs to relocate:</p>
+<div class="tw">
+<table>
+  <thead><tr><th>Variable</th><th>Controls</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">FIREWATCH_DATA_DIR</td><td>Database, log, snapshot, rendered map</td></tr>
+    <tr><td class="mono">FIREWATCH_PUBLIC_DIR</td><td>The only directory ever served</td></tr>
+    <tr><td class="mono">FIREWATCH_CONFIG_DIR</td><td><code>config.json</code></td></tr>
+    <tr><td class="mono">FIRMS_MAP_KEY</td><td>The FIRMS key &mdash; keep it out of config.json</td></tr>
+    <tr><td class="mono">HTTPSMS_API_KEY</td><td>The SMS key &mdash; likewise</td></tr>
+    <tr><td class="mono">HTTPSMS_FROM</td><td>The gateway phone number alerts are sent from</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="tw">
+<table>
+  <thead><tr><th>Setting</th><th class="mono">Default</th><th>Controls</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">health_max_age_s</td><td class="num">900</td>
+        <td>How stale the snapshot may get before <code>/health</code> reports 503</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note good">
+  <span class="lbl">The container is tested</span>
+  <p>Built and run on linux/arm64, 376&nbsp;MB. All three satellite feeds polled from
+  inside it, <code>/health</code> reported <code>starting</code> (503) during the first
+  cycle and <code>ok</code> (200) once the snapshot landed, <code>docker stop</code>
+  exited 0 in 0.3&nbsp;s rather than being killed after the 10-second grace period, and
+  a row written to the volume survived a restart while a volume-less container started
+  empty. The systemd unit and the nginx block have <em>not</em> been exercised.</p>
+</div>
+
+<pre><code>docker build -f deploy/Dockerfile -t firewatch .
+docker run -d --name firewatch -p 8080:8080 \
+  -v firewatch-data:/var/lib/firewatch \
+  -e FIRMS_MAP_KEY=your_key_here \
+  firewatch</code></pre>
+
+<p>Without <code>-v</code> the database starts empty on every restart and the long map
+ranges stay blank until <code>backfill</code> runs again &mdash; verified, not assumed.</p>
+
+<!-- ==================== 09 ==================== -->
+<h2 id="coverage"><span class="num">09</span> What works where</h2>
 <p class="lede">The three feeds do not cover the same planet. This decides whether
 FireWatch is a near-live monitor or a three-hour-delayed one where you are.</p>
 
@@ -703,8 +879,8 @@ near-live alerting. Test your own location before committing to it &mdash; subst
 bounding box into the Meteosat query and see whether anything comes back over a region
 that is definitely burning.</p>
 
-<!-- ==================== 09 ==================== -->
-<h2 id="trouble"><span class="num">09</span> When it goes quiet</h2>
+<!-- ==================== 10 ==================== -->
+<h2 id="trouble"><span class="num">10</span> When it goes quiet</h2>
 <p class="lede">Almost every failure mode here is silent. These are the ones that have
 actually cost time.</p>
 
@@ -736,7 +912,7 @@ actually cost time.</p>
     <tr><td>The public URL stopped resolving</td>
         <td>The shared ngrok agent restarted. <code>./firewatch-ctl expose</code> for a new one</td></tr>
     <tr><td>Nothing detected, ever, and you are outside Europe or Africa</td>
-        <td>You are off the Meteosat disc. <a href="#coverage">Section 08</a></td></tr>
+        <td>You are off the Meteosat disc. <a href="#coverage">Section 09</a></td></tr>
     <tr><td>40&ndash;90 day old history is missing</td>
         <td>Not a bug. FIRMS near-real-time reaches back ~40 days and the archive lags
         ~3 months, so that window has neither until the archive catches up</td></tr>
@@ -748,8 +924,8 @@ actually cost time.</p>
 failure is isolated and logged with the reason, and one failing feed never blocks the
 others.</p>
 
-<!-- ==================== 10 ==================== -->
-<h2 id="data"><span class="num">10</span> Data &amp; uninstall</h2>
+<!-- ==================== 11 ==================== -->
+<h2 id="data"><span class="num">11</span> Data &amp; uninstall</h2>
 
 <div class="tw">
 <table>
@@ -780,7 +956,7 @@ anything, since retention is finite and the feeds will not serve old history aga
   <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,
   NASA FIRMS and Sentinel-3 SLSTR. Boundary and settlement data © OpenStreetMap
   contributors, ODbL 1.0. Fire detections courtesy of NASA FIRMS and EUMETSAT.</p>
-  <p>Coverage figures in section 08 and the Overpass behaviour in section 07 were measured
+  <p>Coverage figures in section 09 and the Overpass behaviour in section 07 were measured
   on 26 August 2026, not quoted from documentation. Re-measure before relying on them.</p>
 </footer>
 </main>

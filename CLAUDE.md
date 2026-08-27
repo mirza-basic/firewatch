@@ -27,6 +27,7 @@ python3 -m firewatch status [range]   # last published state
 python3 -m firewatch map              # rebuild + open the HTML map
 python3 -m firewatch buffer [km]      # rebuild the drawn "nearby" band
 python3 -m firewatch reclip [--apply] # drop stored history the clip now rejects
+python3 -m firewatch serve [host:port] [--no-poll]   # poll + serve the map over HTTP
 python3 -m firewatch backfill [days]  # deep history fetch (default 30, ~5 min)
 python3 -m firewatch history [n]      # raw detections from SQLite
 python3 -m firewatch quota            # FIRMS transaction usage (free call)
@@ -46,6 +47,15 @@ no way to select a single test by name. It builds synthetic detections via a loc
 one case, comment out the others or copy the case into a scratch file. It writes to
 the real SQLite database only for the notification-cooldown case, which it cleans up
 after itself.
+
+**The map's JavaScript has no automated tests, by decision.** `mapgen.py` emits ~1,900
+lines of JS that Python cannot reach. Testing it means jsdom + Leaflet under npm, and
+this project deliberately has no package manager — that trade was considered and
+declined, so do not add one. Verify map changes by rendering (`python3 -m firewatch
+map`) and looking, and treat anything in the generated page as unguarded: a jsdom
+harness built during development caught `L.Polygon.getCenter()` throwing before its
+layer is on a map, which would have broken every area measurement, and that class of
+bug will not be caught here again.
 
 ## Architecture
 
@@ -214,6 +224,53 @@ These all cost real debugging time. Most are silent failures.
     endpoints per agent session — a fourth is refused with `ERR_NGROK_324`, and the
     session is shared with anything else on the machine that uses ngrok.
 
+## Running on a Linux host
+
+`menubar.py` is the only macOS-specific module - `rumps`/`pyobjc`, `launchctl`,
+`pbcopy`, `open` - and `__main__` imports it lazily, so every other command runs
+headless on Linux with `requests` and `certifi` alone. Three things make that work:
+
+- **Paths are platform-aware** (`config._data_dir` and friends). macOS keeps exactly
+  the paths it always had, because moving them would strand an existing install's
+  database; Linux follows XDG. `FIREWATCH_DATA_DIR`, `FIREWATCH_PUBLIC_DIR` and
+  `FIREWATCH_CONFIG_DIR` override all of it, which is what containers need.
+- **`notify.py` has three backends** - `terminal-notifier`, `notify-send`,
+  `osascript` - and `backend()` returns `"none"` when none is present rather than
+  naming one that is not installed. A missing backend logs the alert and returns
+  False; it never breaks a cycle.
+- **The Keychain lookup already degrades**: no `security` binary means the httpSMS
+  key comes from `HTTPSMS_API_KEY`.
+
+`serve.py` is the hosting counterpart to `expose.py`. ngrok suits a laptop; a host
+with its own address wants a plain static server over `PUBLIC_DIR`, behind nginx or
+Caddy for TLS. `serve` polls *and* serves in one process on purpose - a host serving
+a stale map because the poller was a second unit that died is worse than either.
+
+Two things it must keep doing, both learned the hard way:
+
+1. **`refresh_public()` renders an empty snapshot when there is none.** Otherwise a
+   fresh container has an empty `PUBLIC_DIR` and `SimpleHTTPRequestHandler` answers
+   `/` with a *directory listing*.
+2. **`list_directory` is overridden to 404.** Belt and braces for the same thing.
+
+`/health` (alias `/healthz`) answers 200 only while `snapshot.json` is younger than
+`health_max_age_s` (900). That distinction is the whole point: the static files stay
+perfectly serveable long after polling has died, so a monitor that only fetches `/`
+would never notice. It reports `starting` (no snapshot yet), `stale` (too old) and
+`sources_down` (a fresh snapshot in which every feed failed), all as 503. It
+deliberately exposes no keys, paths or the public URL - anyone who can reach the map
+can reach it.
+
+`deploy/` holds a Dockerfile, a systemd unit and an nginx server block. The
+Dockerfile **has been built and run** (linux/arm64, 376 MB): all three feeds polled
+from inside the container, `/health` went 503 `starting` then 200 `ok`, `docker stop`
+exited 0 in 0.3 s, and a marker row written to the volume survived a restart. The
+systemd unit and the nginx block are still unexercised.
+
+`.dockerignore` deliberately does **not** exclude `menubar.py`. Dropping a module out
+of a package would mean a future import of it breaks only inside the image - a bug
+that cannot reproduce locally. It is 15 KB and `__main__` imports it lazily.
+
 ## SMS alerts
 
 `sms.py` posts to httpSMS (`POST https://api.httpsms.com/v1/messages/send`, header
@@ -228,6 +285,14 @@ succeeded, so a failed notification never suppresses the SMS.
   segment from 160 characters to 70. `segments()` reports the real cost.
 - The map link is resolved at send time via `expose.find_tunnel()` — the free
   ngrok URL changes on every agent restart, so it must not be cached.
+- **The sender is deploy config; the recipients are live state.** `sms.sender()`
+  reads `HTTPSMS_FROM` then `sms_from` - it belongs to the same httpSMS account as
+  the key, is fixed for the life of a deployment, and so belongs in the environment.
+  `sms.recipients()` deliberately does **not** use the import-time `CFG` snapshot: it
+  re-reads `config.json` on every call, because numbers get added while the service
+  is running and a long-lived poller would otherwise keep texting the old list until
+  somebody restarted it. `Config.save()` is atomic (`os.replace`) for the same
+  reason - two processes now touch that file, and a partial read would drop an alert.
 - `sms_to` is a **list**. `recipients()` also accepts a plain or
   comma-separated string for backward compatibility. One recipient uses
   `/messages/send`; two or more use `/messages/bulk-send` with `to` as an
@@ -262,8 +327,29 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   under Application Support, for the reason in landmine 12.
 - `~/.config/firewatch/config.json` — user overrides only; anything absent falls back
   to `DEFAULTS` in `config.py`. Restart after editing.
-- The FIRMS map key is committed in `config.py` DEFAULTS (and in the legacy shell
-  scripts). `FIRMS_MAP_KEY` in the environment overrides it.
+- **No credential is committed to this repo.** The FIRMS map key resolves through
+  `config.firms_key()`, which returns `(key, source)` or `(None, "not set")` and
+  tries, in order: `FIRMS_MAP_KEY` in the environment, the macOS Keychain (service
+  `firewatch-firms`, set by `set-firms-key`), then `firms_map_key` in `config.json`.
+  There is no fallback. A key used to be committed, which made a fresh clone poll
+  immediately at the cost of one shared key, one shared rate limit, and a credential
+  in git history for good.
+- **No key is a supported state, not a failure.** `fetch_firms` raises
+  `sources.NoCredentials`, the poller records `configured: False` and logs at *info*,
+  the CLI prints `[----]` rather than `[FAIL]`, and `/health` excludes the source
+  instead of counting it down - otherwise an install deliberately running without
+  FIRMS would report 503 for ever. Meteosat and Sentinel-3 need no credentials, so
+  two of three feeds keep working.
+- `quota` prints the last four characters and the source, never the key.
+  `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` uses it too.
+- **The FIRMS key travels in the URL *path***, so any `requests` exception carries the
+  whole query - key included - and `log.warning("firms %s: %s", ds, exc)` wrote it
+  straight to `firewatch.log`. `config.RedactingFormatter` now scrubs every known
+  credential out of every log line. It is a **formatter, not a `logging.Filter`** -
+  filters run before formatting, so the first handler emits the traceback while
+  `record.exc_text` is still empty, then caches the raw text for the second handler
+  to redact. With the file handler first, that redacts the console and writes the key
+  to disk: exactly backwards.
 
 Notifications go through `osascript` (attributed to *Script Editor*, click does
 nothing) unless `terminal-notifier` is installed, in which case notifications become

@@ -1,0 +1,60 @@
+# systemd unit for a Linux host. Install as a user service:
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/firewatch.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now firewatch
+#   systemctl --user status firewatch
+#   journalctl --user -u firewatch -f
+#
+# `loginctl enable-linger $USER` keeps it running when you are not logged in.
+# For a system-wide install put it in /etc/systemd/system/, set User= and Group=,
+# and point FIREWATCH_DATA_DIR somewhere the service account can write.
+
+[Unit]
+Description=FireWatch wildfire monitor
+Documentation=https://github.com/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/fire-detection
+Environment=PYTHONUNBUFFERED=1
+# The FIRMS key and the SMS key belong here or in an EnvironmentFile, never in
+# config.json. Keep the file mode 600 if you use one.
+#EnvironmentFile=%h/.config/firewatch/env
+#Environment=FIRMS_MAP_KEY=...
+# ^ get one at https://firms.modaps.eosdis.nasa.gov/api/map_key/ - the key in
+#   config.py is shared with everyone who has the repo. `firewatch quota` says
+#   which key is actually in use.
+#Environment=HTTPSMS_API_KEY=...
+#Environment=HTTPSMS_FROM=+38761234567
+# ^ the gateway phone. Recipients are NOT set here - they live in config.json and
+#   are managed at runtime with `firewatch sms-add` / `sms-remove`, which the
+#   running service picks up without a restart.
+
+# One process polls and serves. Bind loopback and let a reverse proxy terminate
+# TLS; use 0.0.0.0:8080 only if this host is meant to answer directly.
+ExecStart=/usr/bin/python3 -m firewatch serve 127.0.0.1:8080
+
+Restart=on-failure
+RestartSec=30
+
+# It needs the network, its own data directory and nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/firewatch %h/.cache/firewatch
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+# Liveness, if you want it:
+#   curl -fsS http://127.0.0.1:8080/health
+# 200 only while the snapshot is fresh - it catches polling having stopped, which
+# serving static files happily survives.
+
+[Install]
+WantedBy=default.target

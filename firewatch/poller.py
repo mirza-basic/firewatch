@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
+import logging.handlers
 import threading
 import time
 from datetime import timedelta
 
 from . import enrich, events, expose, mapgen, notify, sms, sources, store
-from .config import CFG, LOG_PATH, SNAPSHOT_PATH, ensure_dirs
+from .config import CFG, LOG_PATH, SNAPSHOT_PATH, RedactingFormatter, ensure_dirs
 from .store import iso, utcnow
 
 log = logging.getLogger("firewatch.poller")
@@ -32,12 +33,23 @@ SOURCE_SPECS = {
 
 
 def setup_logging(verbose: bool = False) -> None:
+    """File plus stdout.
+
+    The file rotates because a host runs this for months, not an afternoon, and an
+    unbounded log on a small VPS is a slow leak. stdout is what journald and
+    `docker logs` capture, so in a container the file is the redundant one.
+    """
     ensure_dirs()
-    handlers = [logging.FileHandler(LOG_PATH), logging.StreamHandler()]
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s %(levelname)-7s %(name)-19s %(message)s",
-        handlers=handlers, force=True)
+    handlers = [
+        logging.handlers.RotatingFileHandler(
+            LOG_PATH, maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
+        logging.StreamHandler(),
+    ]
+    fmt = RedactingFormatter("%(asctime)s %(levelname)-7s %(name)-19s %(message)s")
+    for h in handlers:
+        h.setFormatter(fmt)
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
+                        handlers=handlers, force=True)
 
 
 class Poller:
@@ -105,6 +117,14 @@ class Poller:
                 self.source_status[name] = {
                     "ok": True, "n": len(dets), "at": iso(utcnow()),
                     "detail": f"{len(dets)} detections in {time.time()-t0:.1f}s"}
+            except sources.NoCredentials as exc:
+                # A setup step, not an outage. Logged at info and shown as
+                # "not configured" so it never reads as a feed that broke, and
+                # never triggers the retry-and-alarm path an outage would.
+                log.info("source %s: %s", name, exc)
+                self.source_status[name] = {
+                    "ok": False, "n": 0, "at": iso(utcnow()),
+                    "configured": False, "detail": str(exc)[:160]}
             except Exception as exc:
                 log.warning("source %s failed: %s", name, exc)
                 self.source_status[name] = {

@@ -29,7 +29,7 @@ import subprocess
 
 import requests
 
-from .config import CFG
+from .config import CFG, keychain_secret
 
 log = logging.getLogger("firewatch.sms")
 
@@ -70,22 +70,46 @@ def api_key() -> str | None:
     env = os.environ.get("HTTPSMS_API_KEY")
     if env:
         return env.strip()
-    if not shutil.which("security"):
-        return None
+    return keychain_secret(KEYCHAIN_SERVICE)
+
+
+def sender() -> str:
+    """The gateway number alerts are sent *from*.
+
+    Environment first, like the API key: it belongs to the same httpSMS account and
+    is fixed for the life of a deployment, so a systemd unit or `docker run -e` is
+    the right place for it. Falls back to `sms_from` in config.json.
+    """
+    env = os.environ.get("HTTPSMS_FROM")
+    if env and env.strip():
+        return env.strip()
+    return str(_live("sms_from") or CFG.get("sms_from") or "").strip()
+
+
+def _live(key):
+    """Read one setting from config.json *now*, not from the import-time snapshot.
+
+    Recipients change while the service is running - that is the whole point of
+    `sms-add` - and CFG is loaded once at import, so a long-lived poller would keep
+    texting the old list until someone restarted it. Only the SMS settings are read
+    this way: they are tiny, and only consulted when an alert is actually going out.
+    """
+    from .config import CONFIG_FILE
     try:
-        r = subprocess.run(
-            ["security", "find-generic-password", "-a", "firewatch",
-             "-s", KEYCHAIN_SERVICE, "-w"],
-            capture_output=True, text=True, timeout=15)
-        return r.stdout.strip() or None if r.returncode == 0 else None
-    except Exception:
-        return None
+        return json.loads(CONFIG_FILE.read_text()).get(key)
+    except (OSError, ValueError, AttributeError):
+        return None                      # missing or half-written: caller falls back
 
 
 def recipients() -> list[str]:
-    """sms_to as a list. Accepts a single string, a list, or a comma-separated
-    string, so existing single-recipient configs keep working."""
-    raw = CFG.get("sms_to") or []
+    """Where alerts go, read fresh so additions apply without a restart.
+
+    Accepts a list, a single string, or a comma-separated string, so older
+    single-recipient configs keep working.
+    """
+    raw = _live("sms_to")
+    if raw is None:
+        raw = CFG.get("sms_to") or []
     if isinstance(raw, str):
         raw = raw.replace(";", ",").split(",")
     return [n.strip() for n in raw if n and n.strip()]
@@ -97,8 +121,8 @@ def ready() -> tuple[bool, str]:
         return False, "sms_enabled is false"
     if not api_key():
         return False, "no API key (HTTPSMS_API_KEY or Keychain)"
-    if not CFG.get("sms_from"):
-        return False, "sms_from not set (your Android phone's number, E.164)"
+    if not sender():
+        return False, "no sender number (HTTPSMS_FROM or sms_from)"
     if not recipients():
         return False, "sms_to not set (where alerts go, E.164)"
     bad = [n for n in recipients() if not n.startswith("+") or not n[1:].isdigit()]
@@ -196,7 +220,7 @@ def send(text: str, to: list[str] | None = None) -> bool:
     if not nums:
         return False
     bulk = len(nums) > 1
-    body = {"from": CFG["sms_from"], "content": text,
+    body = {"from": sender(), "content": text,
             "to": nums if bulk else nums[0]}
     try:
         r = requests.post(BULK_URL if bulk else API_URL, json=body, timeout=45,

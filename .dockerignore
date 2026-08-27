@@ -1,0 +1,24 @@
+# Byte-compiled files from the host: a macOS __pycache__ has no business in a
+# Linux image, and it is tracked in this repo, so it would otherwise be copied.
+__pycache__/
+*.pyc
+
+# The macOS side of the project. None of it runs in a container.
+#
+# menubar.py is deliberately NOT excluded: dropping a module out of a package would
+# mean a future import of it breaks only inside the image, which is exactly the kind
+# of bug that does not reproduce locally. It is 15 KB, __main__ imports it lazily,
+# and it costs nothing to carry.
+firewatch-ctl
+*.plist
+
+# Everything that is not the application.
+.git/
+.DS_Store
+docs/
+deploy/
+*.sh
+*.sh.bak
+fire-detection-*
+zavidovici-granica.gpx
+tests_events.py

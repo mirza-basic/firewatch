@@ -1,6 +1,8 @@
 #!/bin/bash
 
-api_key="REDACTED-ROTATE-THIS-KEY"
+# Supply the key from the environment - it is not committed.
+#   export FIRMS_MAP_KEY=... (free: https://firms.modaps.eosdis.nasa.gov/api/map_key/)
+api_key="${FIRMS_MAP_KEY:?set FIRMS_MAP_KEY first}"
 firms_url="https://firms.modaps.eosdis.nasa.gov"
 area_api="/api/area/csv/$api_key/"
 country_api="/api/country/csv/$api_key/"
