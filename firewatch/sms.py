@@ -36,6 +36,10 @@ log = logging.getLogger("firewatch.sms")
 API_URL = "https://api.httpsms.com/v1/messages/send"
 BULK_URL = "https://api.httpsms.com/v1/messages/bulk-send"
 KEYCHAIN_SERVICE = "firewatch-httpsms"
+# Recipients from the environment, for deployments with no writable config file
+# (containers, CI runners) and for public repositories, where a phone number in
+# a committed file would be published.
+SMS_TO_ENV = "FIREWATCH_SMS_TO"
 
 # Characters that would force UCS-2 encoding, and their GSM-7 equivalents.
 TRANSLIT = {
@@ -101,15 +105,33 @@ def _live(key):
         return None                      # missing or half-written: caller falls back
 
 
-def recipients() -> list[str]:
-    """Where alerts go, read fresh so additions apply without a restart.
+def recipients_source() -> str:
+    """Where the recipient list is coming from, so status output can say."""
+    return "environment" if (os.environ.get(SMS_TO_ENV) or "").strip() else "config.json"
 
-    Accepts a list, a single string, or a comma-separated string, so older
-    single-recipient configs keep working.
+
+def recipients() -> list[str]:
+    """Where alerts go.
+
+    `FIREWATCH_SMS_TO` wins when set - a container or a CI runner has no config file
+    to edit, and phone numbers must not sit in a repository. Otherwise the list is
+    read fresh from config.json on every call, so `sms-add` applies to a running
+    service without a restart.
+
+    Note the two are different in kind, and the trade is deliberate: the environment
+    is fixed for the life of the process, so where it is used the list stops being
+    editable at runtime. `sms-add` says so rather than appearing to succeed.
+
+    Accepts a list, a single string, or a comma- or semicolon-separated string, so
+    older single-recipient configs keep working.
     """
-    raw = _live("sms_to")
-    if raw is None:
-        raw = CFG.get("sms_to") or []
+    env = (os.environ.get(SMS_TO_ENV) or "").strip()
+    if env:
+        raw = env
+    else:
+        raw = _live("sms_to")
+        if raw is None:
+            raw = CFG.get("sms_to") or []
     if isinstance(raw, str):
         raw = raw.replace(";", ",").split(",")
     return [n.strip() for n in raw if n and n.strip()]
@@ -124,7 +146,7 @@ def ready() -> tuple[bool, str]:
     if not sender():
         return False, "no sender number (HTTPSMS_FROM or sms_from)"
     if not recipients():
-        return False, "sms_to not set (where alerts go, E.164)"
+        return False, f"no recipients ({SMS_TO_ENV} or sms_to in config.json)"
     bad = [n for n in recipients() if not n.startswith("+") or not n[1:].isdigit()]
     if bad:
         return False, f"not E.164: {', '.join(bad)}"

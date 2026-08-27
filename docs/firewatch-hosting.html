@@ -340,6 +340,7 @@ the environment; a container or systemd unit needs no file for it.</p>
     <tr><td class="mono">FIRMS_MAP_KEY</td><td>The FIRMS key. Free, instant, per-key rate limit</td></tr>
     <tr><td class="mono">HTTPSMS_API_KEY</td><td>The SMS gateway key</td></tr>
     <tr><td class="mono">HTTPSMS_FROM</td><td>The gateway phone number alerts are sent from</td></tr>
+    <tr><td class="mono">FIREWATCH_SMS_TO</td><td>Recipients, comma-separated. Optional &mdash; overrides <code>config.json</code></td></tr>
     <tr><td class="mono">FIREWATCH_DATA_DIR</td><td>Database, log, snapshot, rendered map</td></tr>
     <tr><td class="mono">FIREWATCH_PUBLIC_DIR</td><td>The only directory ever served</td></tr>
     <tr><td class="mono">FIREWATCH_CONFIG_DIR</td><td>Where <code>config.json</code> is looked for</td></tr>
@@ -356,6 +357,11 @@ the environment; a container or systemd unit needs no file for it.</p>
   <p>The list is re-read at send time rather than taken from the snapshot loaded at
   start-up, and the config file is written atomically because two processes now touch
   it.</p>
+  <p>If there is no writable config file &mdash; or the repository is public, so a
+  committed number would be published &mdash; set <code>FIREWATCH_SMS_TO</code>
+  instead. It wins over the file, and the trade is that the list becomes fixed for the
+  life of the process: <code>sms-add</code> then refuses instead of appearing to
+  succeed.</p>
 </div>
 
 <div class="note warn">

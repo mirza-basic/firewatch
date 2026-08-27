@@ -273,9 +273,12 @@ def cmd_sms_status() -> int:
     ok, why = sms_mod.ready()
     print(f"\n  usable       : {ok}  ({why})")
     print(f"  enabled      : {CFG['sms_enabled']}")
-    print(f"  from         : {CFG['sms_from'] or '(unset)'}")
+    # sender() and recipients() resolve through the environment; CFG alone would
+    # miss HTTPSMS_FROM and FIREWATCH_SMS_TO and report the wrong thing.
+    print(f"  from         : {sms_mod.sender() or '(unset)'}")
     rec = sms_mod.recipients()
     print(f"  to           : {', '.join(rec) if rec else '(none)'}  [{len(rec)}]")
+    print(f"  to from      : {sms_mod.recipients_source()}")
     print(f"  api key      : {'found' if sms_mod.api_key() else 'not found'}")
     print(f"  alert kinds  : {', '.join(CFG['sms_kinds'])}")
     print(f"  max chars    : {CFG['sms_max_chars']}")
@@ -310,6 +313,16 @@ def cmd_set_sms_key() -> int:
     return 0
 
 
+def _env_overrides_recipients() -> bool:
+    """True when FIREWATCH_SMS_TO is set, so editing config.json would do nothing.
+
+    Without this, `sms-add` writes the file, prints "added", and changes nothing that
+    the running service reads - the worst kind of success.
+    """
+    import os
+    return bool((os.environ.get(sms_mod.SMS_TO_ENV) or "").strip())
+
+
 def _save_recipients(nums: list[str]) -> None:
     from .config import CFG
     CFG["sms_to"] = nums
@@ -319,6 +332,11 @@ def _save_recipients(nums: list[str]) -> None:
 def cmd_sms_add(number: str | None) -> int:
     if not number or not number.startswith("+"):
         print("  give a number in E.164 form, e.g. sms-add +38761234567")
+        return 1
+    if _env_overrides_recipients():
+        print(f"  {sms_mod.SMS_TO_ENV} is set, so it decides the recipients and this"
+              " would change nothing.")
+        print(f"  edit that variable instead (currently: {', '.join(sms_mod.recipients())})")
         return 1
     rec = sms_mod.recipients()
     if number in rec:
@@ -332,6 +350,11 @@ def cmd_sms_add(number: str | None) -> int:
 
 
 def cmd_sms_remove(number: str | None) -> int:
+    if _env_overrides_recipients():
+        print(f"  {sms_mod.SMS_TO_ENV} is set, so it decides the recipients and this"
+              " would change nothing.")
+        print(f"  edit that variable instead (currently: {', '.join(sms_mod.recipients())})")
+        return 1
     rec = sms_mod.recipients()
     if not number or number not in rec:
         print(f"  not a recipient. current: {', '.join(rec) or '(none)'}")

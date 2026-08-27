@@ -30,6 +30,9 @@ Environment=PYTHONUNBUFFERED=1
 #   which key is actually in use.
 #Environment=HTTPSMS_API_KEY=...
 #Environment=HTTPSMS_FROM=+38761234567
+#Environment=FIREWATCH_SMS_TO=+38761234567,+38762345678
+# ^ optional. Set it and the recipient list is fixed here; leave it unset and the
+#   list lives in config.json, where `sms-add` changes it without a restart.
 # ^ the gateway phone. Recipients are NOT set here - they live in config.json and
 #   are managed at runtime with `firewatch sms-add` / `sms-remove`, which the
 #   running service picks up without a restart.

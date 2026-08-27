@@ -439,6 +439,11 @@ your carrier charges, with no third-party sending fees.</p>
       the running poller picks the new list up on its next alert &mdash;
       <em>no restart</em>. That works because the recipient list is re-read at send
       time rather than taken from the snapshot loaded at start-up.</p>
+      <p>Where there is no writable config file, or a public repository makes a
+      committed phone number a bad idea, <code>FIREWATCH_SMS_TO</code> supplies the
+      list from the environment and wins over the file &mdash; at the cost of no longer
+      being editable at runtime, which <code>sms-add</code> tells you rather than
+      silently ignoring.</p>
     </div>
   </li>
 </ol>

@@ -291,13 +291,19 @@ succeeded, so a failed notification never suppresses the SMS.
   `sms.recipients()` deliberately does **not** use the import-time `CFG` snapshot: it
   re-reads `config.json` on every call, because numbers get added while the service
   is running and a long-lived poller would otherwise keep texting the old list until
-  somebody restarted it. `Config.save()` is atomic (`os.replace`) for the same
+  somebody restarted it. `FIREWATCH_SMS_TO` (comma- or semicolon-separated) overrides
+  that entirely, for deployments with no writable config file and for public repos,
+  where a committed phone number would be published. The trade is one-way: with it set
+  the list is fixed for the life of the process, so `sms-add`/`sms-remove` **refuse**
+  rather than write a file nothing reads - `_env_overrides_recipients()` in `__main__`
+  is that guard, and `sms-status` prints which source is live.
+  `Config.save()` is atomic (`os.replace`) for the same
   reason - two processes now touch that file, and a partial read would drop an alert.
 - `sms_to` is a **list**. `recipients()` also accepts a plain or
   comma-separated string for backward compatibility. One recipient uses
   `/messages/send`; two or more use `/messages/bulk-send` with `to` as an
   array — one call for the fan-out.
-- Inert until `sms_from`, `sms_to` and the key are all present; `sms.ready()`
+- Inert until a sender, a recipient list and the key are all present; `sms.ready()`
   returns the specific reason it is not usable, including non-E.164 numbers.
 
 ## Publishing the map
@@ -364,9 +370,10 @@ clickable links to Google Maps. `notify.backend()` reports which is active.
 
 ## Repo conventions
 
-- `firewatch/` is the current system. `fire-detection-zavidovici.sh`,
-  `fire-detection-bih.sh` and `.bak` are the superseded originals — they still run
-  standalone; leave them alone rather than extending them.
+- `firewatch/` is the current system. `fire-detection-zavidovici.sh` and
+  `fire-detection-bih.sh` are the superseded originals — they still run standalone;
+  leave them alone rather than extending them. The `.bak` copy and the two 2024
+  `fire-detection-result-*.json` outputs were deleted as dead weight.
   `fire-detection-requraments` is the original hand-written spec.
 - `docs/*.html` are self-contained documentation pages, also published as Claude
   artifacts. Update them when behaviour changes — particularly the "field notes" and

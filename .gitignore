@@ -8,3 +8,6 @@ __pycache__/
 # Never commit a credential. Keys belong in the environment or the Keychain.
 .env
 *.key
+
+# Generated per-machine by `firewatch-ctl install` — contains local paths.
+com.firewatch.zavidovici.plist

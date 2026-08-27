@@ -35,7 +35,9 @@ sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=8).s
 
 # Secrets and the SMS sender come in as environment variables:
 #   -e FIRMS_MAP_KEY=...  -e HTTPSMS_API_KEY=...  -e HTTPSMS_FROM=+387...
-# Recipients are runtime state, not deploy config: mount /etc/firewatch and manage
-# them with `docker exec <container> python3 -m firewatch sms-add +387...`, which the
-# running poller picks up on its next alert without a restart.
+# Recipients: either mount /etc/firewatch and manage them at runtime with
+#   docker exec <container> python3 -m firewatch sms-add +387...
+# which the running poller picks up without a restart - or fix them at deploy time
+#   -e FIREWATCH_SMS_TO=+38761111111,+38762222222
+# which wins over the file. With that set, sms-add refuses instead of pretending.
 CMD ["python3", "-m", "firewatch", "serve", "0.0.0.0:8080"]

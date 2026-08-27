@@ -368,10 +368,13 @@ Android phone you own is the gateway &mdash; messages come from your own number.
   <li><strong>The sender is deploy config.</strong> <code>HTTPSMS_FROM</code> plus
   <code>HTTPSMS_API_KEY</code>, both in the environment. Fixed for the life of the
   deployment.</li>
-  <li><strong>The recipients are live state.</strong> They live in
+  <li><strong>The recipients can be either.</strong> Left alone they live in
   <code>config.json</code>, and <code>sms-add</code> / <code>sms-remove</code> apply to
   the <em>running</em> service without a restart &mdash; the list is re-read at send
-  time, not taken from the snapshot loaded at start-up.</li>
+  time, not taken from the snapshot loaded at start-up. Set
+  <code>FIREWATCH_SMS_TO</code> instead and it wins: the list is then fixed for the
+  life of the process, and <code>sms-add</code> refuses rather than writing a file
+  nothing reads.</li>
 </ul>
 <pre><code>python3 -m firewatch sms-add +38761234567
 python3 -m firewatch sms-status     <span class="c"># says exactly what is missing, if anything</span>
