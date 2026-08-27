@@ -213,8 +213,8 @@
   on it.</li>
   <li><strong>A NASA FIRMS key</strong> &mdash; free, instant, no approval. Optional:
   without one you lose VIIRS/MODIS and keep the other two feeds.</li>
-  <li><strong>Very little disk.</strong> Six months of a quiet municipality is a 184 KB
-  SQLite file.</li>
+  <li><strong>Very little disk.</strong> A detection costs about a kilobyte, so even a
+  busy year is a couple of megabytes. Storage is not a consideration here.</li>
 </ul>
 
 <div class="note warn">
@@ -253,6 +253,21 @@ python3 -m firewatch quota        <span class="c"># confirms which key is in use
     <p>No key is committed to the repository. Resolution order is
     <code>FIRMS_MAP_KEY</code> in the environment, then the Keychain, then
     <code>firms_map_key</code> in your config file.</p>
+    <div class="note crit">
+      <span class="lbl">Do not use a shell export on a Mac</span>
+      <p><code>launchd</code> starts the menu bar app and does <strong>not</strong> read
+      your shell profile, so an <code>export FIRMS_MAP_KEY=&hellip;</code> in
+      <code>~/.zshrc</code> reaches your terminal and nothing else. The failure is
+      silent and misleading: <code>firewatch poll</code> by hand shows all three feeds
+      <code>[ok&nbsp;]</code>, while the background agent resolves to <em>not set</em>,
+      skips VIIRS/MODIS as <code>[----]</code>, and leaves SMS inert &mdash; the key
+      lookup is the same for both. You would be testing the working path while the
+      thing that actually alerts you runs degraded.</p>
+      <p>The Keychain is the one store a <code>launchd</code> agent can reach without
+      putting a secret in a plain file, which is why it is in the order at all. Use
+      environment variables on Linux and on a server, where the service manager passes
+      them in deliberately.</p>
+    </div>
   </li>
   <li>
     <h3>Take one poll for a test drive</h3>

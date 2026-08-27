@@ -26,6 +26,7 @@ FireWatch Zavidovići
   ./firewatch-ctl sms         SMS backend + settings
   ./firewatch-ctl test-sms    send a sample alert SMS
   ./firewatch-ctl set-sms-key store the httpSMS API key
+  ./firewatch-ctl set-firms-key  store the NASA FIRMS map key
   ./firewatch-ctl sms-add <number> | sms-remove <number>
 USAGE
 }
@@ -59,8 +60,32 @@ print("generated", dst)
 PYGEN
     cp "$PLIST_SRC" "$PLIST_DST"
     launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true
-    launchctl bootstrap "gui/$UID_NUM" "$PLIST_DST"
+    # bootout is asynchronous. Bootstrapping straight afterwards fails with
+    # "Bootstrap failed: 5: Input/output error" because the domain still holds the
+    # old job - and with `set -e` that aborted the script *after* the bootout, so a
+    # reinstall over a running agent left no agent at all. Wait for it to go, then
+    # retry, then verify.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        launchctl print "gui/$UID_NUM/$LABEL" >/dev/null 2>&1 || break
+        sleep 0.5
+    done
+    bootstrapped=0
+    for _ in 1 2 3; do
+        if launchctl bootstrap "gui/$UID_NUM" "$PLIST_DST" 2>/dev/null; then
+            bootstrapped=1; break
+        fi
+        sleep 1
+    done
+    if [ "$bootstrapped" -ne 1 ]; then
+        echo "bootstrap failed - the agent is NOT running." >&2
+        echo "try: ./firewatch-ctl start   (or check: launchctl print gui/$UID_NUM/$LABEL)" >&2
+        exit 1
+    fi
     launchctl enable "gui/$UID_NUM/$LABEL"
+    if ! launchctl print "gui/$UID_NUM/$LABEL" >/dev/null 2>&1; then
+        echo "installed, but the agent is not loaded. try: ./firewatch-ctl start" >&2
+        exit 1
+    fi
     echo "installed. Look for the 🌲 / 🔥 icon in the menu bar."
     echo "If notifications do not appear, allow them for Script Editor in"
     echo "System Settings > Notifications (or: brew install terminal-notifier)."
@@ -70,7 +95,14 @@ uninstall)
     rm -f "$PLIST_DST"
     echo "uninstalled (data kept in $SUPPORT)"
     ;;
-start)   launchctl bootstrap "gui/$UID_NUM" "$PLIST_DST"; echo started ;;
+start)
+    for _ in 1 2 3; do
+        launchctl bootstrap "gui/$UID_NUM" "$PLIST_DST" 2>/dev/null && break
+        sleep 1
+    done
+    launchctl print "gui/$UID_NUM/$LABEL" >/dev/null 2>&1 \
+        && echo started || { echo "could not start" >&2; exit 1; }
+    ;;
 stop)    launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null || true; echo stopped ;;
 restart) launchctl kickstart -k "gui/$UID_NUM/$LABEL"; echo restarted ;;
 status)
@@ -90,6 +122,7 @@ exposed)  cd "$PROJ" && python3 -m firewatch expose-status ;;
 sms)         cd "$PROJ" && python3 -m firewatch sms-status ;;
 test-sms)    cd "$PROJ" && python3 -m firewatch test-sms ;;
 set-sms-key) cd "$PROJ" && python3 -m firewatch set-sms-key ;;
+set-firms-key) cd "$PROJ" && python3 -m firewatch set-firms-key ;;
 sms-add)     cd "$PROJ" && python3 -m firewatch sms-add "${2:-}" ;;
 sms-remove)  cd "$PROJ" && python3 -m firewatch sms-remove "${2:-}" ;;
 *)      usage; exit 2 ;;

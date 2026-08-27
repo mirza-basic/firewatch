@@ -342,6 +342,13 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   two of three feeds keep working.
 - `quota` prints the last four characters and the source, never the key.
   `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` uses it too.
+- **On macOS the key belongs in the Keychain, not the environment.** `launchd` does not
+  read a shell profile, and the generated plist injects only `SSL_CERT_FILE`,
+  `REQUESTS_CA_BUNDLE` and `PYTHONUNBUFFERED` - so an `export FIRMS_MAP_KEY` in
+  `~/.zshrc` is visible to a terminal `poll` and invisible to the running agent. Both
+  keys resolve the same way, so the agent silently loses FIRMS *and* SMS while a
+  hand-run poll looks perfect. Environment variables are for Linux and hosts, where a
+  service manager passes them in on purpose.
 - **The FIRMS key travels in the URL *path***, so any `requests` exception carries the
   whole query - key included - and `log.warning("firms %s: %s", ds, exc)` wrote it
   straight to `firewatch.log`. `config.RedactingFormatter` now scrubs every known
