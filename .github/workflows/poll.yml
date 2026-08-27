@@ -120,7 +120,21 @@ jobs:
             echo "nothing to commit"
           else
             git commit -q -m "state: $COUNT detections @ $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
+            # Retry around a rebase. A plain push fails if anything else landed on
+            # main meanwhile - a hand push, or an overlapping run - and a failed push
+            # here does more than redden the run: the notified rows and the new
+            # detections are lost with the workspace, so the next cycle re-fetches
+            # the same fire and texts about it a second time.
+            pushed=0
+            for attempt in 1 2 3; do
+              if git push 2>/dev/null; then pushed=1; break; fi
+              echo "push rejected (attempt $attempt), rebasing onto origin/main"
+              git pull --rebase --autostash -q origin main || break
+            done
+            if [ "$pushed" -ne 1 ]; then
+              echo "::error::could not push state - the next run may re-alert on the same fire"
+              exit 1
+            fi
           fi
 
       - uses: actions/upload-pages-artifact@v3
