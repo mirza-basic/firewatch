@@ -41,6 +41,19 @@ concurrency:
 jobs:
   poll:
     runs-on: ubuntu-latest
+    # Job level, not step level: the commit step below needs FIREWATCH_DATA_DIR too,
+    # and a step's `env` block is visible only to that step. Secrets stay scoped to
+    # the one step that needs them - the commit step runs `git push` and has no
+    # business seeing an API key.
+    env:
+      FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+      FIREWATCH_PUBLIC_DIR: ${{ github.workspace }}/public
+      FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+      # GitHub's runners have no IPv6 egress, and FIRMS is the one host we talk to
+      # that publishes an AAAA record - so requests picked IPv6 and every FIRMS fetch
+      # died with "[Errno 101] Network is unreachable" after ~90s of retries, while
+      # Meteosat and Sentinel-3 (A records only) worked fine.
+      FIREWATCH_FORCE_IPV4: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -58,16 +71,6 @@ jobs:
           HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
           HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
-          # The runner is ephemeral, so state has to live in the checkout to
-          # survive - that is what gets committed back below.
-          FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
-          FIREWATCH_PUBLIC_DIR: ${{ github.workspace }}/public
-          FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
-          # GitHub's runners have no IPv6 egress, and FIRMS is the one host we talk
-          # to that publishes an AAAA record - so requests picked IPv6 and every
-          # FIRMS fetch died with "[Errno 101] Network is unreachable" after ~90s of
-          # retries, while Meteosat and Sentinel-3 (A records only) worked fine.
-          FIREWATCH_FORCE_IPV4: "1"
         run: |
           mkdir -p state/config public
           # auto_expose must stay off: there is no ngrok agent here, and leaving it
