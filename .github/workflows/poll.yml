@@ -100,9 +100,19 @@ jobs:
           # A quiet winter could otherwise switch the monitor off silently.
           date -u +%Y-%m-%d > state/.heartbeat
 
-          if [ "$COUNT" != "$PREV" ]; then echo "$COUNT" > state/.detections; fi
-
-          git add -A state
+          # Stage the database ONLY when the count moved. meta.last_cycle is
+          # rewritten every cycle, so the file's bytes change on every run even when
+          # nothing was detected - `git add -A state` therefore committed a fresh
+          # 188 KB blob every 15 minutes, about half a gigabyte of objects a month
+          # carrying no new information. The earlier gate guarded only the marker
+          # file, which achieved nothing.
+          if [ "$COUNT" != "$PREV" ]; then
+            echo "$COUNT" > state/.detections
+            git add state/firewatch.db state/.detections
+          fi
+          # Markers are tiny text. The heartbeat changes once a day, which is the
+          # one commit a quiet week needs to keep the schedule from being disabled.
+          git add state/.heartbeat state/config
           if git diff --cached --quiet; then
             echo "nothing to commit"
           else
