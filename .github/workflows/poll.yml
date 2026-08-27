@@ -63,6 +63,11 @@ jobs:
           FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
           FIREWATCH_PUBLIC_DIR: ${{ github.workspace }}/public
           FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+          # GitHub's runners have no IPv6 egress, and FIRMS is the one host we talk
+          # to that publishes an AAAA record - so requests picked IPv6 and every
+          # FIRMS fetch died with "[Errno 101] Network is unreachable" after ~90s of
+          # retries, while Meteosat and Sentinel-3 (A records only) worked fine.
+          FIREWATCH_FORCE_IPV4: "1"
         run: |
           mkdir -p state/config public
           # auto_expose must stay off: there is no ngrok agent here, and leaving it

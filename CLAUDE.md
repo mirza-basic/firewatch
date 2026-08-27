@@ -224,6 +224,19 @@ These all cost real debugging time. Most are silent failures.
     endpoints per agent session — a fourth is refused with `ERR_NGROK_324`, and the
     session is shared with anything else on the machine that uses ngrok.
 
+## Landmine: IPv6 without a route
+
+`FIREWATCH_FORCE_IPV4=1` makes urllib3 resolve A records only. Of the four hosts
+this talks to, **only `firms.modaps.eosdis.nasa.gov` publishes an AAAA record** -
+`view.eumetsat.int` (MTG and Sentinel-3) and `api.open-meteo.com` are IPv4-only. So
+on a network with no IPv6 egress, FIRMS is the *only* feed that breaks, with
+`[Errno 101] Network is unreachable` after ~90 s of retries per dataset, while
+everything else looks healthy. GitHub Actions runners are exactly that network.
+
+It is opt-in on purpose: a working dual-stack network handles the fallback itself,
+and forcing IPv4 would break an IPv6-only host. The failure is easy to misread as a
+FIRMS outage or a bad key, so check `dig AAAA` before believing either.
+
 ## Running on a Linux host
 
 `menubar.py` is the only macOS-specific module - `rumps`/`pyobjc`, `launchctl`,
