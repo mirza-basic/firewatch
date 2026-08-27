@@ -21,7 +21,10 @@ on:
     # Every 15 minutes. Five is the floor but pointless here: MTG publishes a new
     # slice every 10 minutes with ~25 minutes of latency, so polling faster only
     # burns runs. Delays under load make the effective interval longer anyway.
-    - cron: "*/15 * * * *"
+    # Offset, not "*/15". */15 fires at :00 :15 :30 :45 - the four most contended
+    # minutes on GitHub's shared scheduler, where the queue is longest and runs are
+    # most likely to be delayed or dropped outright. Same cadence, quieter minutes.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}          # so you can force a run from the Actions tab
 
 # The workflow commits the database back, which needs write access. It also keeps
