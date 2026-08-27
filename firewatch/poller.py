@@ -14,7 +14,8 @@ import time
 from datetime import timedelta
 
 from . import enrich, events, expose, mapgen, notify, sms, sources, store
-from .config import CFG, LOG_PATH, SNAPSHOT_PATH, RedactingFormatter, ensure_dirs
+from .config import (CFG, LOG_PATH, SNAPSHOT_PATH, RedactingFormatter,
+                     ensure_dirs, public_url as config_public_url)
 from .store import iso, utcnow
 
 log = logging.getLogger("firewatch.poller")
@@ -180,11 +181,15 @@ class Poller:
             # Before the snapshot is written, not after: the menu bar and the map
             # read the URL from it, and a tunnel that died since the last cycle
             # would otherwise be advertised for another four minutes.
-            try:
-                public_url = expose.ensure()
-            except Exception:
-                log.exception("public map check failed")
-                public_url = None
+            # A configured address short-circuits the ngrok work entirely: there is
+            # no agent to ask on a host, and asking costs a failed call per cycle.
+            public_url = config_public_url()
+            if not public_url:
+                try:
+                    public_url = expose.ensure()
+                except Exception:
+                    log.exception("public map check failed")
+                    public_url = None
 
             snap = {
                 "generated_at": iso(utcnow()),

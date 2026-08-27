@@ -54,6 +54,10 @@ jobs:
       # died with "[Errno 101] Network is unreachable" after ~90s of retries, while
       # Meteosat and Sentinel-3 (A records only) worked fine.
       FIREWATCH_FORCE_IPV4: "1"
+      # The address an SMS should point at. Without this, map_url() asks the local
+      # ngrok agent - which does not exist here - and the alert loses its map link,
+      # the one line you most want when a fire notification arrives.
+      FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
     steps:
       - uses: actions/checkout@v4
 

@@ -296,8 +296,12 @@ succeeded, so a failed notification never suppresses the SMS.
 - **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
   because one non-GSM character switches the whole message to UCS-2, dropping a
   segment from 160 characters to 70. `segments()` reports the real cost.
-- The map link is resolved at send time via `expose.find_tunnel()` — the free
-  ngrok URL changes on every agent restart, so it must not be cached.
+- The map link is resolved at send time. `FIREWATCH_PUBLIC_URL` wins if set;
+  otherwise `expose.find_tunnel()` asks the local ngrok agent — the free URL changes
+  on every agent restart, so it must not be cached. On a host there is no agent, so
+  without the variable a hosted alert silently loses its map link, which is the line
+  that matters most in a fire SMS. Setting it also stops the poller calling
+  `expose.ensure()` at all.
 - **The sender is deploy config; the recipients are live state.** `sms.sender()`
   reads `HTTPSMS_FROM` then `sms_from` - it belongs to the same httpSMS account as
   the key, is fixed for the life of a deployment, and so belongs in the environment.

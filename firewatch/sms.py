@@ -156,6 +156,15 @@ def ready() -> tuple[bool, str]:
 # ---------------------------------------------------------------------- content
 
 def map_url() -> str | None:
+    """The link put in an alert.
+
+    A configured address wins over the ngrok lookup: on a host the tunnel does not
+    exist, and the free ngrok URL changes on every agent restart anyway.
+    """
+    from .config import public_url
+    fixed = public_url()
+    if fixed:
+        return fixed
     try:
         from . import expose
         t = expose.find_tunnel()

@@ -227,6 +227,30 @@ class Config(dict):
         os.replace(tmp, CONFIG_FILE)
 
 
+PUBLIC_URL_ENV = "FIREWATCH_PUBLIC_URL"
+
+
+def public_url() -> str | None:
+    """A fixed public address for the map, or None.
+
+    `expose.find_tunnel()` answers the same question by asking the local ngrok agent,
+    which is right on a laptop and useless anywhere else: a host serves the map at an
+    address of its own that ngrok knows nothing about. Without this, an SMS from a
+    hosted instance simply dropped its map link - the one line you most want when a
+    fire alert arrives.
+
+    Set it and it wins, which also means the poller stops asking ngrok at all.
+    """
+    v = (os.environ.get(PUBLIC_URL_ENV) or "").strip().rstrip("/")
+    if not v:
+        return None
+    if not v.startswith(("http://", "https://")):
+        logging.getLogger("firewatch.config").warning(
+            "%s is not a URL (%r) - ignoring it", PUBLIC_URL_ENV, v[:40])
+        return None
+    return v
+
+
 def keychain_secret(service: str, account: str = "firewatch") -> str | None:
     """One secret out of the macOS Keychain, or None.
 
