@@ -1,0 +1,113 @@
+# Poll the satellite feeds, keep the database in the repo, publish the map to Pages.
+#
+# This is the free, no-card deployment: Actions is unlimited on public repositories
+# and Pages hosts the map. The trade is latency - cron has a five-minute floor and
+# GitHub does not guarantee timing, so 5-30 minutes of drift is normal. Meteosat is
+# already ~25 minutes behind the flame front, so expect 40-55 minutes to an alert
+# rather than the 25-35 a always-on host gives you.
+#
+# Secrets to set under Settings > Secrets and variables > Actions:
+#   FIRMS_MAP_KEY     required for VIIRS/MODIS; without it that feed is skipped and
+#                     Meteosat + Sentinel-3 still run
+#   HTTPSMS_API_KEY   optional, for SMS alerts
+#   HTTPSMS_FROM      optional, the gateway phone number
+#   FIREWATCH_SMS_TO  optional, comma-separated recipients. This is why it exists:
+#                     a phone number must not be committed to a public repository.
+
+name: poll
+
+on:
+  schedule:
+    # Every 15 minutes. Five is the floor but pointless here: MTG publishes a new
+    # slice every 10 minutes with ~25 minutes of latency, so polling faster only
+    # burns runs. Delays under load make the effective interval longer anyway.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}          # so you can force a run from the Actions tab
+
+# The workflow commits the database back, which needs write access. It also keeps
+# the workflow alive: scheduled workflows on public repos are disabled after 60 days
+# with no commits, and only commits reset that timer.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# A run that overlaps another would fight over the database and the push. Queue
+# instead: the poller is idempotent, so a skipped-then-later run loses nothing.
+concurrency:
+  group: poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # Two dependencies, not four: rumps and pyobjc are the macOS menu bar and
+      # nothing here imports them.
+      - run: python3 -m pip install --quiet requests certifi
+
+      - name: Poll
+        env:
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
+          HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
+          FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+          # The runner is ephemeral, so state has to live in the checkout to
+          # survive - that is what gets committed back below.
+          FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+          FIREWATCH_PUBLIC_DIR: ${{ github.workspace }}/public
+          FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+        run: |
+          mkdir -p state/config public
+          # auto_expose must stay off: there is no ngrok agent here, and leaving it
+          # on makes every run waste time failing to build a tunnel.
+          echo '{"auto_expose": false}' > state/config/config.json
+          python3 -m firewatch poll
+
+      - name: Commit the database back, but only when something actually changed
+        run: |
+          git config user.name  "firewatch[bot]"
+          git config user.email "firewatch@users.noreply.github.com"
+
+          # Committing on every run would be 2,880 commits a month, each storing a
+          # fresh copy of the database - the repo would balloon for no information.
+          # snapshot.json and the meta table change every cycle by design, so bytes
+          # are the wrong test. Detection count is the semantic one.
+          COUNT=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; print(sqlite3.connect(d).execute('SELECT COUNT(*) FROM detections').fetchone()[0] if d.exists() else 0)")
+          PREV=$(cat state/.detections 2>/dev/null || echo -1)
+          echo "detections: $PREV -> $COUNT"
+
+          # A heartbeat once a day, because scheduled workflows on public repos are
+          # disabled after 60 days without commits and only commits reset that timer.
+          # A quiet winter could otherwise switch the monitor off silently.
+          date -u +%Y-%m-%d > state/.heartbeat
+
+          if [ "$COUNT" != "$PREV" ]; then echo "$COUNT" > state/.detections; fi
+
+          git add -A state
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -q -m "state: $COUNT detections @ $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  publish:
+    needs: poll
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

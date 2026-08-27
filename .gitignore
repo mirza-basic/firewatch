@@ -11,3 +11,10 @@ __pycache__/
 
 # Generated per-machine by `firewatch-ctl install` — contains local paths.
 com.firewatch.zavidovici.plist
+
+# Rebuilt from the database every cycle; Pages serves it from the workflow artifact.
+public/
+state/fire-map*.js
+state/fire-map*.html
+state/snapshot.json
+state/firewatch.log
