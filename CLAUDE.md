@@ -224,6 +224,28 @@ These all cost real debugging time. Most are silent failures.
     endpoints per agent session — a fourth is refused with `ERR_NGROK_324`, and the
     session is shared with anything else on the machine that uses ngrok.
 
+## Landmine: FIRMS from a CI runner
+
+Two distinct failures, both seen on GitHub Actions, both looking like "FIRMS is
+down" and neither being that:
+
+1. `[Errno 101] Network is unreachable`, instantly. IPv6 with no route - see below.
+2. `ConnectTimeoutError ... connect timeout=90`, after 90 s per dataset. The
+   handshake is dropped. Intermittent from GitHub's IPs: one run succeeds, the next
+   times out, while the same request answers in 0.5 s from a laptop. Most likely
+   datacenter-IP throttling on NASA's side; nothing to fix locally.
+
+`connect_timeout` (10) is separate from `http_timeout` (90) because they answer
+different questions: a reachable host completes a TCP handshake in well under a
+second, while a 48 h WFS chunk legitimately takes ~21 s to read. Applying 90 s to
+both meant six minutes to discover FIRMS was unreachable - and `fetch_firms` now
+`break`s out of the dataset loop on a connect failure, because the other three
+cannot succeed if the first could not connect.
+
+None of this breaks a cycle: source failures are isolated, Meteosat and Sentinel-3
+carry it, and the run still publishes a map. The cost of getting it wrong is a slow
+cycle, not a dead one.
+
 ## Landmine: IPv6 without a route
 
 `FIREWATCH_FORCE_IPV4=1` makes urllib3 resolve A records only. Of the four hosts

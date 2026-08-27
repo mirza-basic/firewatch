@@ -186,7 +186,14 @@ DEFAULTS = {
     # and the fast loop runs every 4 minutes, so 15 covers a couple of missed
     # cycles without crying wolf over one slow WFS response.
     "health_max_age_s": 900,
+    # Read timeout. WFS chunks legitimately take ~5 s for 24 h and ~21 s for 48 h,
+    # so this has to be generous.
     "http_timeout": 90,
+    # Connect timeout, which is a different question: a reachable host answers a
+    # TCP handshake in well under a second. Applying 90 s to both meant a runner
+    # whose packets were being dropped stalled 90 s per dataset - six minutes to
+    # discover FIRMS was unreachable.
+    "connect_timeout": 10,
     "user_agent": "firewatch-zavidovici/1.0 (+https://github.com/) contact: local",
 }
 

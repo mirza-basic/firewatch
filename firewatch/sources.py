@@ -79,6 +79,11 @@ def _force_ipv4() -> None:
         log.warning("could not force IPv4: %s", exc)
 
 
+def _timeout() -> tuple[float, float]:
+    """(connect, read). requests takes a tuple; a single value applies to both."""
+    return float(CFG["connect_timeout"]), float(CFG["http_timeout"])
+
+
 def _session() -> requests.Session:
     _force_ipv4()
     s = requests.Session()
@@ -127,7 +132,7 @@ def _wfs_features(session: requests.Session, layer: str, since: datetime,
     last = ""
     for attempt in range(3):
         try:
-            r = session.get(WFS_URL, params=params, timeout=CFG["http_timeout"])
+            r = session.get(WFS_URL, params=params, timeout=_timeout())
         except requests.RequestException as exc:
             last = f"{type(exc).__name__}"
         else:
@@ -274,7 +279,15 @@ def fetch_firms(days: int = 1, start_date: str | None = None,
     for ds in datasets or CFG["firms_datasets"]:
         url = f"{FIRMS_BASE}/api/area/csv/{key}/{ds}/{area}/{days}/{start}"
         try:
-            r = session.get(url, timeout=CFG["http_timeout"])
+            r = session.get(url, timeout=_timeout())
+        except (requests.ConnectTimeout, requests.ConnectionError) as exc:
+            # The host is unreachable from here, not this dataset. Trying the other
+            # three costs one connect timeout each and cannot succeed - FIRMS from a
+            # CI runner is intermittently blocked, and a cycle that spends six
+            # minutes proving it is a cycle that has not published a map.
+            log.warning("firms %s: cannot reach the host, skipping the rest of this"
+                        " cycle: %s", ds, exc)
+            break
         except requests.RequestException as exc:
             log.warning("firms %s: %s", ds, exc)
             continue
