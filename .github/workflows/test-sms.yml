@@ -1,0 +1,78 @@
+# Manually send (or just preview) a test SMS, to check delivery end to end.
+#
+# Defaults to PREVIEW. Clicking "Run workflow" without thinking prints the message
+# and its segment cost and sends nothing - a test SMS goes to real phones and costs
+# a real segment, so the safe option is the default one.
+
+name: test-sms
+
+on:
+  workflow_dispatch:
+    inputs:
+      send:
+        description: "Actually send it (leave unchecked to preview only)"
+        type: boolean
+        default: false
+
+# Read-only: this workflow publishes nothing and commits nothing.
+permissions:
+  contents: read
+
+jobs:
+  test-sms:
+    runs-on: ubuntu-latest
+    env:
+      # The database is here so the test message is built from a real event -
+      # exercising the real formatting, the ASCII transliteration of Bosnian
+      # place names, and the true segment count.
+      FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+      FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+      # api.httpsms.com resolves through ghs.googlehosted.com, which publishes AAAA
+      # records - and these runners have no IPv6 route. Without this the send fails
+      # with "[Errno 101] Network is unreachable", exactly as FIRMS did.
+      FIREWATCH_FORCE_IPV4: "1"
+      FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - run: python3 -m pip install --quiet requests certifi
+
+      - name: Preview
+        env:
+          HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
+          HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
+          FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+        run: |
+          mkdir -p state/config
+          python3 - <<'PY'
+          from firewatch import sms
+          ok, why = sms.ready()
+          text = sms.test_text()
+          # Count only, never the numbers: GitHub masks an exact secret value, not
+          # the individual numbers inside a comma-separated one, and this log is
+          # public.
+          print(f"usable      : {ok} ({why})")
+          print(f"recipients  : {len(sms.recipients())}")
+          print(f"sender set  : {bool(sms.sender())}")
+          print(f"map link    : {sms.map_url()}")
+          print(f"cost        : {len(text)} chars, {sms.segments(text)} segment(s)")
+          print("---- message ----")
+          print(text)
+          print("-----------------")
+          PY
+
+      - name: Send
+        if: ${{ inputs.send }}
+        env:
+          HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
+          HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
+          FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+        run: python3 -m firewatch test-sms
+
+      - name: Note
+        if: ${{ !inputs.send }}
+        run: echo "Preview only — nothing was sent. Re-run with 'send' ticked to deliver it."
