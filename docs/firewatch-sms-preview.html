@@ -1,0 +1,215 @@
+<title>FireWatch Alert SMS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* FireWatch house palette, shared with the field manual and platform guides. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --screen:#e9eef0; --bubble:#ffffff;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --screen:#0b1013; --bubble:#1c262d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --screen:#0b1013; --bubble:#1c262d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Source Serif 4",Georgia,serif;font-size:16px;line-height:1.6;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:40px 22px 80px}
+  .eyebrow{font-family:Archivo,sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  h1{font-family:Archivo,sans-serif;font-weight:700;font-size:clamp(27px,4vw,37px);
+    letter-spacing:-.025em;line-height:1.08;margin:9px 0 12px;text-wrap:balance}
+  .stand{color:var(--ink-2);font-size:18px;margin:0 0 6px;max-width:62ch;text-wrap:pretty}
+  h2{font-family:Archivo,sans-serif;font-weight:700;font-size:19px;letter-spacing:-.015em;
+    margin:46px 0 4px;padding-top:20px;border-top:1px solid var(--rule)}
+  h2 + p{color:var(--ink-2);margin:0 0 20px;max-width:62ch;font-size:15px}
+
+  .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+    margin-top:24px}
+  .msg{margin:0;background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+    padding:14px 15px 13px;display:flex;flex-direction:column;gap:11px}
+  figcaption{display:flex;flex-direction:column;gap:2px}
+  .name{font-family:Archivo,sans-serif;font-weight:600;font-size:14px}
+  .note{color:var(--ink-3);font-size:12.5px;line-height:1.45}
+
+  /* the message as it lands: a left-aligned bubble on a phone-ish ground */
+  .phone{background:var(--screen);border-radius:9px;padding:12px 11px}
+  .bubble{background:var(--bubble);border:1px solid var(--rule);border-radius:13px;
+    border-bottom-left-radius:4px;padding:9px 12px;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;line-height:1.62;
+    color:var(--ink);word-break:break-word;max-width:31ch}
+
+  .meter{display:flex;flex-direction:column;gap:5px}
+  .bar{height:5px;background:var(--surface-3);border-radius:3px;overflow:hidden}
+  .bar span{display:block;height:100%;border-radius:3px}
+  .bar .roomy{background:var(--ok)}
+  .bar .ok{background:var(--warn)}
+  .bar .tight{background:var(--crit)}
+  .nums{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);
+    font-variant-numeric:tabular-nums}
+  .nums b{color:var(--ink);font-weight:600}
+
+  .tw{overflow-x:auto;border:1px solid var(--rule);border-radius:9px;background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;font-family:Archivo,sans-serif}
+  th,td{padding:7px 13px;text-align:left;border-bottom:1px solid var(--rule)}
+  thead th{font-size:10.5px;font-weight:600;letter-spacing:.075em;text-transform:uppercase;
+    color:var(--ink-3);background:var(--surface-2)}
+  tbody tr:last-child td{border-bottom:0}
+  .mono{font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+  .hd{color:var(--accent);font-weight:600}
+
+  .note-box{border:1px solid var(--rule);border-left:3px solid var(--ink-3);
+    background:var(--surface);border-radius:7px;padding:13px 15px;font-size:15px;
+    max-width:66ch;margin-top:18px}
+  .note-box.warn{border-left-color:var(--warn)}
+  .note-box .lbl{display:block;font-family:Archivo,sans-serif;font-size:10.5px;
+    font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+    margin-bottom:4px}
+  .note-box p{margin:0}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--surface-2);
+    padding:.1em .34em;border-radius:3px}
+  footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--rule);
+    font-family:Archivo,sans-serif;font-size:12.5px;color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">For review — not yet committed</div>
+  <h1>FireWatch Alert SMS</h1>
+  <p class="stand">Every alert now carries the map link and still fits one 160-character
+  segment. These are rendered from your real event data, not mocked up.</p>
+
+  <h2>What lands on the phone</h2>
+  <p>Four lines, or five once an active fire has weather attached. The bar under each
+  message is the character budget against the 160-character segment limit.</p>
+  <div class="grid">
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Aktivni požar</span>
+    <span class="note">the usual case — an active fire carries wind and risk</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">NOVI POZAR: 5.6 km I od Kamenice<br>VISOK 1.9/1.9MW<br>44.329,18.278<br>Vjetar 14km/h SI vlaga 38% rizik povisen<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="143 of 160 characters used">
+    <div class="bar"><span style="width:89%" class="ok"></span></div>
+    <div class="nums"><b>143</b>/160 &middot; 17 left &middot; 1 segment</div>
+  </div>
+</figure>
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Ozbiljan požar</span>
+    <span class="note">132 MW, 41 km/h wind, 17% humidity</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">SIRI SE: 5.6 km I od Kamenice<br>EKSTREMAN 132.4/118.9MW<br>44.329,18.278<br>Vjetar 41km/h JJZ vlaga 17% rizik ekstreman<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="151 of 160 characters used">
+    <div class="bar"><span style="width:94%" class="tight"></span></div>
+    <div class="nums"><b>151</b>/160 &middot; 9 left &middot; 1 segment</div>
+  </div>
+</figure>
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Ponovo gori</span>
+    <span class="note">a fire that had gone quiet starts again</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">PONOVO GORI: 5.6 km I od Kamenice<br>VISOK 1.9/1.9MW<br>44.329,18.278<br>Vjetar 14km/h SI vlaga 38% rizik povisen<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="144 of 160 characters used">
+    <div class="bar"><span style="width:90%" class="ok"></span></div>
+    <div class="nums"><b>144</b>/160 &middot; 16 left &middot; 1 segment</div>
+  </div>
+</figure>
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Bez vremena</span>
+    <span class="note">weather not attached yet — the shortest an alert gets</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">NOVI POZAR: 5.6 km I od Kamenice<br>NIZAK 1.9/1.9MW<br>44.329,18.278<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="102 of 160 characters used">
+    <div class="bar"><span style="width:64%" class="roomy"></span></div>
+    <div class="nums"><b>102</b>/160 &middot; 58 left &middot; 1 segment</div>
+  </div>
+</figure>
+  </div>
+
+  <h2>The test message</h2>
+  <p>Sent by the <code>test-sms</code> workflow. Same body as a real alert so it exercises
+  the same wording and segment cost — but it leads with TEST, because a drill that reads
+  like a fire on someone's phone at 3am is worse than no drill.</p>
+  <div class="grid">
+<figure class="msg test">
+  <figcaption>
+    <span class="name">Test SMS</span>
+    <span class="note">what the test-sms workflow sends</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">FIREWATCH TEST - nema pozara, provjera dostave SMS-a<br>Primjer: 5.6 km I od Kamenice<br>NIZAK 1.9/1.9MW<br>44.329,18.278<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="152 of 160 characters used">
+    <div class="bar"><span style="width:95%" class="tight"></span></div>
+    <div class="nums"><b>152</b>/160 &middot; 8 left &middot; 1 segment</div>
+  </div>
+</figure>
+<figure class="msg en">
+  <figcaption>
+    <span class="name">English</span>
+    <span class="note">sms_language: en</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">FIRE NEW: 5.6 km E of Kamenica<br>HIGH 1.9/1.9MW<br>44.329,18.278<br>Wind 14km/h NE RH 38% risk elevated<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="135 of 160 characters used">
+    <div class="bar"><span style="width:84%" class="ok"></span></div>
+    <div class="nums"><b>135</b>/160 &middot; 25 left &middot; 1 segment</div>
+  </div>
+</figure>
+  </div>
+
+  <h2>First line, by what changed</h2>
+  <p>Only the first four send an SMS. <code>UGASEN</code> and <code>POTVRDJEN</code> are
+  informational and would cost a segment to say a fire cooled off.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>alert</th><th>first line</th></tr></thead>
+      <tbody><tr><td class="mono">new</td><td class="mono hd">NOVI POZAR</td></tr><tr><td class="mono">reignited</td><td class="mono hd">PONOVO GORI</td></tr><tr><td class="mono">intensified</td><td class="mono hd">POJACAVA SE</td></tr><tr><td class="mono">grew</td><td class="mono hd">SIRI SE</td></tr><tr><td class="mono">extinguished</td><td class="mono hd">UGASEN</td></tr><tr><td class="mono">corroborated</td><td class="mono hd">POTVRDJEN</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>When a place name will not fit</h2>
+  <p>One settlement in your data is called <em>Ekološko izletište „Ontario”</em>. Rather
+  than spill into a second segment, the message drops the distance and bearing, then trims
+  the name at a word boundary.</p>
+  <div class="grid">
+<figure class="msg guard">
+  <figcaption>
+    <span class="name">Fit guard</span>
+    <span class="note">a place name too long to fit — the distance is dropped, then the name trimmed at a word boundary</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">NOVI POZAR: Ekolosko izletiste<br>EKSTREMAN 132.4/118.9MW<br>44.329,18.278<br>Vjetar 41km/h JJZ vlaga 17% rizik ekstreman<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="meter" role="img" aria-label="152 of 160 characters used">
+    <div class="bar"><span style="width:95%" class="tight"></span></div>
+    <div class="nums"><b>152</b>/160 &middot; 8 left &middot; 1 segment</div>
+  </div>
+</figure>
+  </div>
+
+  <div class="note-box warn">
+    <span class="lbl">Two judgement calls worth your eye</span>
+    <p><code>1.9/1.9MW</code> means peak first, current second — ten characters cheaper
+    than <code>1.9MW maks/1.9 sada</code>, but not self-evident on a first read.
+    And <code>IZVAN OPĆINE</code> is gone, so a fire in the 2 km band now reads exactly
+    like one inside the municipality.</p>
+  </div>
+
+  <footer>Rendered from the current working copy of <code>firewatch/sms.py</code> against
+  live event data. Nothing committed or pushed.</footer>
+</div>
