@@ -325,6 +325,14 @@ succeeded, so a failed notification never suppresses the SMS.
   the location from `place_parts` rather than reusing the English `place` string —
   the genitive after "od" is why ("Kamenica" → "od Kamenice"), the same rule the map
   applies client-side.
+- **An alert is four lines and one segment.** The detection count with its source
+  list, the distance from town, the `IZVAN OPĆINE` marker and the map link were all
+  dropped: an active fire always carries weather, and with those lines every such
+  alert cost two segments. What survives is what you act on — what changed, where,
+  how hot, and coordinates that work with no signal. Verified across every stored
+  event × every sending kind × the longest settlement name × absurd values
+  (1234.5 MW, 99.9 km, 100% RH): max 153 characters, always one segment. Adding a
+  line back will break that, so measure before you do.
 - **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
   because one non-GSM character switches the whole message to UCS-2, dropping a
   segment from 160 characters to 70. `segments()` reports the real cost. `Đ` is the

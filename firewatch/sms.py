@@ -47,6 +47,10 @@ TRANSLIT = {
     "ć": "c", "Ć": "C", "č": "c", "Č": "C", "ž": "z", "Ž": "Z",
     "š": "s", "Š": "S", "đ": "dj", "Đ": "Dj", "ǆ": "dz",
     "→": "->", "·": "-", "—": "-", "–": "-", "°": "deg", "∝": "~",
+    # Typographic quotes reach us through OSM place names - one settlement is
+    # literally 'Ekološko izletište „Ontario”'. Unmapped they become "?", which
+    # reads like corruption in an alert.
+    "„": '"', "”": '"', "“": '"', "‚": "'", "’": "'", "‘": "'", "…": "...",
     " ": " ", "🔥": "", "✅": "",
 }
 
@@ -248,15 +252,17 @@ def alert_text(alert: dict) -> str:
     latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
     kind = T["kind"].get(alert["kind"], f"FIRE {alert['kind'].upper()}")
     sev = T["sev"].get(ev["severity"], ev["severity"].upper())
+    # Four lines, deliberately. The detection count with its source list, the
+    # distance from town, the outside-the-municipality marker and the map link were
+    # all dropped to keep a weather-bearing alert inside one 160-character segment -
+    # an active fire always carries weather, so with them it was always two.
+    # What survives is what you act on: what changed, where, how hot, and
+    # coordinates that work with no signal.
     lines = [
         f"{kind}: {_place(ev, code)}",
         f"{sev} {peak}MW {T['peak']}/{latest} {T['now']}",
-        f"{ev['n_det']} {T['det']} ({','.join(ev.get('sources', []))}) "
-        f"{ev['dist_town_km']}km {_dir(ev['dir_town'], code)} {T['of_town']}",
         f"{ev['lat']:.4f},{ev['lon']:.4f}",
     ]
-    if not ev.get("inside"):
-        lines.append(T["outside"])
     w = ev.get("weather")
     if w:
         risk = T["risk"].get(ev.get("risk"), ev.get("risk"))
@@ -267,9 +273,6 @@ def alert_text(alert: dict) -> str:
                      f"{_dir(w.get('from', '?'), code)}"
                      f" {T['rh']}{gap}{w.get('humidity','?')}%"
                      + (f" {T['risk_word']} {risk}" if ev.get("risk") else ""))
-    url = map_url()
-    if url:
-        lines.append(f"{T['map']}: {url}")
     text = ascii_only("\n".join(lines))
     cap = int(CFG.get("sms_max_chars", 320))
     if len(text) > cap:
