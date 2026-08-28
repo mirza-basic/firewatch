@@ -195,14 +195,14 @@ SMS_TEXT = {
         "risk": {"elevated": "povišen", "high": "visok", "extreme": "ekstreman",
                  "moderate": "umjeren", "unknown": "nepoznat"},
         "peak": "maks", "now": "sada", "det": "det", "of_town": "od grada",
-        "outside": "IZVAN OPĆINE", "wind": "Vjetar", "rh": "vlaga",
+        "outside": "IZVAN OPĆINE", "wind": "Vjetar", "rh": "vlaga ",
         "risk_word": "rizik", "map": "Karta", "sample": "Primjer",
         "test": "FIREWATCH TEST - nema požara, provjera dostave SMS-a",
     },
     "en": {
         "kind": {}, "sev": {}, "risk": {},
         "peak": "peak", "now": "now", "det": "det", "of_town": "of town",
-        "outside": "OUTSIDE municipality", "wind": "Wind", "rh": "RH",
+        "outside": "OUTSIDE municipality", "wind": "Wind", "rh": "RH ",
         "risk_word": "risk", "map": "Map", "sample": "Sample",
         "test": "FIREWATCH TEST - no fire, checking SMS delivery",
     },
@@ -244,39 +244,68 @@ def _place(ev: dict, code: str) -> str:
     return f"{p['km']} km {_dir(p.get('dir', ''), code)} od {gen}"
 
 
+# One GSM-7 segment. Past this a message costs two, and every alert carries weather
+# because an active fire is always enriched - so "usually one segment" would have
+# meant "always two" in practice.
+ONE_SEGMENT = 160
+
+
+def _compose(ev, code, T, kind, sev, peak, latest, place, url) -> str:
+    """The message body, for a given rendering of the place phrase."""
+    lines = [
+        f"{kind}: {place}",
+        # "10.8/1.2MW" rather than "10.8MW maks/1.2 sada": peak first, current
+        # second. Ten characters of labelling is the difference between one segment
+        # and two once the map link is present.
+        f"{sev} {peak}/{latest}MW",
+        # Three decimals is ~110 m, finer than any of these sensors resolves.
+        f"{ev['lat']:.3f},{ev['lon']:.3f}",
+    ]
+    w = ev.get("weather")
+    if w:
+        risk = T["risk"].get(ev.get("risk"), ev.get("risk"))
+        lines.append(f"{T['wind']} {w.get('speed', 0):.0f}km/h "
+                     f"{_dir(w.get('from', '?'), code)} {T['rh']}{w.get('humidity','?')}%"
+                     + (f" {T['risk_word']} {risk}" if ev.get("risk") else ""))
+    if url:
+        lines.append(url)                 # bare: a label costs 7 characters
+    return ascii_only("\n".join(lines))
+
+
 def alert_text(alert: dict) -> str:
-    """Compact but complete: what, where, how bad, conditions, link."""
+    """What changed, where, how hot, the conditions, and the map - in one segment.
+
+    Every field the operator asked for is here, so the fitting is done by degrading
+    the *place phrase*, which is the only part with slack: "99.9 km SSZ od Ekolosko
+    izletiste" carries far less than the settlement name alone. Real fires never
+    reach that - the longest measured is 155 characters - but a relocation to a
+    municipality with longer names would, and a silent second segment is exactly the
+    kind of thing nobody notices until the bill.
+    """
     ev = alert["event"]
     code, T = _lang()
     peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
     latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
     kind = T["kind"].get(alert["kind"], f"FIRE {alert['kind'].upper()}")
     sev = T["sev"].get(ev["severity"], ev["severity"].upper())
-    # Four lines, deliberately. The detection count with its source list, the
-    # distance from town, the outside-the-municipality marker and the map link were
-    # all dropped to keep a weather-bearing alert inside one 160-character segment -
-    # an active fire always carries weather, so with them it was always two.
-    # What survives is what you act on: what changed, where, how hot, and
-    # coordinates that work with no signal.
-    lines = [
-        f"{kind}: {_place(ev, code)}",
-        f"{sev} {peak}MW {T['peak']}/{latest} {T['now']}",
-        f"{ev['lat']:.4f},{ev['lon']:.4f}",
-    ]
-    w = ev.get("weather")
-    if w:
-        risk = T["risk"].get(ev.get("risk"), ev.get("risk"))
-        # "RH34%" in English, "vlaga 34%" in Bosnian - the label needs a space in
-        # one and not the other.
-        gap = " " if code == "bs" else ""
-        lines.append(f"{T['wind']} {w.get('speed', 0):.0f}km/h "
-                     f"{_dir(w.get('from', '?'), code)}"
-                     f" {T['rh']}{gap}{w.get('humidity','?')}%"
-                     + (f" {T['risk_word']} {risk}" if ev.get("risk") else ""))
-    text = ascii_only("\n".join(lines))
-    cap = int(CFG.get("sms_max_chars", 320))
-    if len(text) > cap:
-        text = text[:cap - 1].rstrip() + "…".encode("ascii", "replace").decode()
+    url = map_url() or ""
+
+    text = _compose(ev, code, T, kind, sev, peak, latest, _place(ev, code), url)
+    if len(text) > ONE_SEGMENT:
+        # Drop the distance and bearing, keep the settlement.
+        name = (ev.get("place_parts") or {}).get("name") or _place(ev, code)
+        text = _compose(ev, code, T, kind, sev, peak, latest, ascii_only(name), url)
+    if len(text) > ONE_SEGMENT:
+        # Last resort: trim the name itself rather than spill into a second segment.
+        # Cut at a word boundary - a hard slice leaves things like 'izletiste "Ontari',
+        # which reads as corruption rather than as an abbreviation.
+        over = len(text) - ONE_SEGMENT
+        name = ascii_only((ev.get("place_parts") or {}).get("name") or "")
+        cut = name[:max(3, len(name) - over)]
+        if " " in cut and not name[len(cut):len(cut) + 1].isspace():
+            cut = cut.rsplit(" ", 1)[0]
+        text = _compose(ev, code, T, kind, sev, peak, latest,
+                        cut.rstrip(' ,-"\'') or name[:3], url)
     return text
 
 
@@ -309,10 +338,20 @@ def test_text() -> str:
         # someone's phone at 3am is worse than no test at all.
         lines += [
             f"{T['sample']}: {_place(ev, code)}",
-            f"{sev} {peak}MW {T['peak']}/{latest} {T['now']}",
-            f"{ev['lat']:.4f},{ev['lon']:.4f}",
+            f"{sev} {peak}/{latest}MW",
+            f"{ev['lat']:.3f},{ev['lon']:.3f}",
         ]
-    return ascii_only("\n".join(lines))
+    url = map_url()
+    if url:
+        lines.append(url)
+    text = ascii_only("\n".join(lines))
+    if len(text) > ONE_SEGMENT and evs:
+        # Same degradation as an alert, and it bites sooner here: the TEST line is
+        # 52 characters that a real alert does not carry.
+        name = (evs[0].get("place_parts") or {}).get("name") or ""
+        lines[1] = f"{T['sample']}: {ascii_only(name)}"
+        text = ascii_only("\n".join(lines))
+    return text
 
 
 def _latest_events() -> list[dict]:
