@@ -196,14 +196,14 @@ SMS_TEXT = {
                  "moderate": "umjeren", "unknown": "nepoznat"},
         "peak": "maks", "now": "sada", "det": "det", "of_town": "od grada",
         "outside": "IZVAN OPĆINE", "wind": "Vjetar", "rh": "vlaga",
-        "risk_word": "rizik", "map": "Karta",
+        "risk_word": "rizik", "map": "Karta", "sample": "Primjer",
         "test": "FIREWATCH TEST - nema požara, provjera dostave SMS-a",
     },
     "en": {
         "kind": {}, "sev": {}, "risk": {},
         "peak": "peak", "now": "now", "det": "det", "of_town": "of town",
         "outside": "OUTSIDE municipality", "wind": "Wind", "rh": "RH",
-        "risk_word": "risk", "map": "Map",
+        "risk_word": "risk", "map": "Map", "sample": "Sample",
         "test": "FIREWATCH TEST - no fire, checking SMS delivery",
     },
 }
@@ -283,23 +283,35 @@ def alert_text(alert: dict) -> str:
 def test_text() -> str:
     """A test message that cannot be mistaken for a real alert.
 
-    It is built from the newest event when there is one, so the formatting, the
-    transliteration and the segment count are exercised on real data - but it
-    leads with TEST and says outright that nothing is burning. A test that reads
-    like "FIRE NEW: ..." on a recipient's phone is worse than no test at all,
-    and the menu bar puts this one click away from anyone.
+    The body is the real alert's, line for line and in the same language, so this
+    exercises the wording, the genitive, the bearing translation and the true
+    segment cost rather than an approximation. Only the leading TEST line differs,
+    and it has to: a test that reads like "NOVI POZAR: ..." on someone's phone at
+    3am is worse than no test at all, and the menu bar puts this one click away.
+
+    Headroom is thin. With the longest settlement name currently in data/ and
+    absurd numbers, the Bosnian version lands at 156 characters - four short of a
+    second segment. Relocating to a municipality with longer place names could tip
+    it over; the alert itself has far more room, because it carries no TEST line.
     """
-    _, T = _lang()
+    code, T = _lang()
     lines = [T["test"]]
     evs = _latest_events()
     if evs:
         ev = evs[0]
         peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
-        lines.append(f"Sample: {ev.get('place', '?')} {peak}MW "
-                     f"{ev.get('severity', '?')}")
-    url = map_url()
-    if url:
-        lines.append(f"Map: {url}")
+        latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
+        sev = T["sev"].get(ev.get("severity"), str(ev.get("severity", "?")).upper())
+        # The same body a real alert has, in the same order and the same language,
+        # so this exercises the wording, the genitive, the bearing translation and
+        # the true segment cost - not an approximation of them. Only the leading
+        # TEST line differs, and it has to: a test that reads like an alert on
+        # someone's phone at 3am is worse than no test at all.
+        lines += [
+            f"{T['sample']}: {_place(ev, code)}",
+            f"{sev} {peak}MW {T['peak']}/{latest} {T['now']}",
+            f"{ev['lat']:.4f},{ev['lon']:.4f}",
+        ]
     return ascii_only("\n".join(lines))
 
 
