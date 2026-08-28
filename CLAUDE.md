@@ -320,9 +320,16 @@ succeeded, so a failed notification never suppresses the SMS.
 
 - The API key comes from `HTTPSMS_API_KEY` or the macOS Keychain (service
   `firewatch-httpsms`), never `config.json`.
+- **Alerts are written in Bosnian** (`sms_language`, "bs" or "en"). `SMS_TEXT`
+  holds both wordings, `COMPASS_BS` translates the bearing, and `_place()` rebuilds
+  the location from `place_parts` rather than reusing the English `place` string —
+  the genitive after "od" is why ("Kamenica" → "od Kamenice"), the same rule the map
+  applies client-side.
 - **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
   because one non-GSM character switches the whole message to UCS-2, dropping a
-  segment from 160 characters to 70. `segments()` reports the real cost.
+  segment from 160 characters to 70. `segments()` reports the real cost. `Đ` is the
+  awkward one: it needs `DJ` inside an uppercase word and `Dj` otherwise, so a flat
+  mapping produced `POTVRDjEN` and would mangle any place name written in caps.
 - The map link is resolved at send time. `FIREWATCH_PUBLIC_URL` wins if set;
   otherwise `expose.find_tunnel()` asks the local ngrok agent — the free URL changes
   on every agent restart, so it must not be cached. On a host there is no agent, so

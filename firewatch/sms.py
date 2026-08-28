@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 
@@ -52,6 +53,10 @@ TRANSLIT = {
 
 def ascii_only(text: str) -> str:
     """Fold to GSM-7-safe ASCII so one segment stays 160 chars, not 70."""
+    # Đ is the one letter whose folding depends on its neighbours: "POTVRĐEN" wants
+    # DJ and "Đurđevik" wants Dj. A flat mapping produces "POTVRDjEN", and the same
+    # applies to any place name written in caps.
+    text = re.sub(r"Đ(?=[A-ZČĆŽŠĐ])", "DJ", text)
     for k, v in TRANSLIT.items():
         text = text.replace(k, v)
     return text.encode("ascii", "replace").decode("ascii")
@@ -173,28 +178,98 @@ def map_url() -> str | None:
         return None
 
 
+# Alert wording, per language. Written with diacritics and folded to ASCII on the
+# way out by ascii_only(), so the source stays readable while the message stays on
+# GSM-7 - one non-GSM character would cut a segment from 160 characters to 70.
+SMS_TEXT = {
+    "bs": {
+        "kind": {"new": "NOVI POŽAR", "reignited": "PONOVO GORI",
+                 "intensified": "POJAČAVA SE", "grew": "ŠIRI SE",
+                 "extinguished": "UGAŠEN", "corroborated": "POTVRĐEN"},
+        "sev": {"low": "NIZAK", "moderate": "UMJEREN", "high": "VISOK",
+                "severe": "EKSTREMAN", "unknown": "NEPOZNAT"},
+        "risk": {"elevated": "povišen", "high": "visok", "extreme": "ekstreman",
+                 "moderate": "umjeren", "unknown": "nepoznat"},
+        "peak": "maks", "now": "sada", "det": "det", "of_town": "od grada",
+        "outside": "IZVAN OPĆINE", "wind": "Vjetar", "rh": "vlaga",
+        "risk_word": "rizik", "map": "Karta",
+        "test": "FIREWATCH TEST - nema požara, provjera dostave SMS-a",
+    },
+    "en": {
+        "kind": {}, "sev": {}, "risk": {},
+        "peak": "peak", "now": "now", "det": "det", "of_town": "of town",
+        "outside": "OUTSIDE municipality", "wind": "Wind", "rh": "RH",
+        "risk_word": "risk", "map": "Map",
+        "test": "FIREWATCH TEST - no fire, checking SMS delivery",
+    },
+}
+
+# The map translates these client-side; SMS has to do it here.
+COMPASS_BS = {"N": "S", "NNE": "SSI", "NE": "SI", "ENE": "ISI", "E": "I",
+              "ESE": "IJI", "SE": "JI", "SSE": "JJI", "S": "J", "SSW": "JJZ",
+              "SW": "JZ", "WSW": "ZJZ", "W": "Z", "WNW": "ZSZ", "NW": "SZ",
+              "NNW": "SSZ"}
+
+
+def _lang() -> tuple[str, dict]:
+    code = str(CFG.get("sms_language") or "bs").lower()
+    return code, SMS_TEXT.get(code, SMS_TEXT["en"])
+
+
+def _dir(d: str, code: str) -> str:
+    return COMPASS_BS.get(d, d) if code == "bs" else d
+
+
+def _place(ev: dict, code: str) -> str:
+    """"7.5 km IJI od Kamenice" rather than the stored English phrase.
+
+    `place` is built server-side in English, so Bosnian has to be composed from
+    `place_parts`. Names ending in -a take the genitive -e after "od", which covers
+    most settlements here (Kamenica -> Kamenice); anything else is left alone rather
+    than guessed at, exactly as the map does it.
+    """
+    if code != "bs":
+        return ev.get("place", "")
+    p = ev.get("place_parts") or {}
+    name = p.get("name")
+    if not name:
+        return ev.get("place", "")
+    if p.get("km") is None:
+        return name                       # sitting on the settlement itself
+    gen = name[:-1] + "e" if name.endswith("a") else name
+    return f"{p['km']} km {_dir(p.get('dir', ''), code)} od {gen}"
+
+
 def alert_text(alert: dict) -> str:
     """Compact but complete: what, where, how bad, conditions, link."""
     ev = alert["event"]
+    code, T = _lang()
     peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
     latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
+    kind = T["kind"].get(alert["kind"], f"FIRE {alert['kind'].upper()}")
+    sev = T["sev"].get(ev["severity"], ev["severity"].upper())
     lines = [
-        f"FIRE {alert['kind'].upper()}: {ev.get('place','')}",
-        f"{ev['severity'].upper()} {peak}MW peak/{latest} now",
-        f"{ev['n_det']} det ({','.join(ev.get('sources', []))}) "
-        f"{ev['dist_town_km']}km {ev['dir_town']} of town",
+        f"{kind}: {_place(ev, code)}",
+        f"{sev} {peak}MW {T['peak']}/{latest} {T['now']}",
+        f"{ev['n_det']} {T['det']} ({','.join(ev.get('sources', []))}) "
+        f"{ev['dist_town_km']}km {_dir(ev['dir_town'], code)} {T['of_town']}",
         f"{ev['lat']:.4f},{ev['lon']:.4f}",
     ]
     if not ev.get("inside"):
-        lines.append("OUTSIDE municipality")
+        lines.append(T["outside"])
     w = ev.get("weather")
     if w:
-        lines.append(f"Wind {w.get('speed', 0):.0f}km/h {w.get('from','?')}"
-                     f" RH{w.get('humidity','?')}%"
-                     + (f" {ev['risk']} risk" if ev.get("risk") else ""))
+        risk = T["risk"].get(ev.get("risk"), ev.get("risk"))
+        # "RH34%" in English, "vlaga 34%" in Bosnian - the label needs a space in
+        # one and not the other.
+        gap = " " if code == "bs" else ""
+        lines.append(f"{T['wind']} {w.get('speed', 0):.0f}km/h "
+                     f"{_dir(w.get('from', '?'), code)}"
+                     f" {T['rh']}{gap}{w.get('humidity','?')}%"
+                     + (f" {T['risk_word']} {risk}" if ev.get("risk") else ""))
     url = map_url()
     if url:
-        lines.append(f"Map: {url}")
+        lines.append(f"{T['map']}: {url}")
     text = ascii_only("\n".join(lines))
     cap = int(CFG.get("sms_max_chars", 320))
     if len(text) > cap:
@@ -211,7 +286,8 @@ def test_text() -> str:
     like "FIRE NEW: ..." on a recipient's phone is worse than no test at all,
     and the menu bar puts this one click away from anyone.
     """
-    lines = ["FIREWATCH TEST - no fire, checking SMS delivery"]
+    _, T = _lang()
+    lines = [T["test"]]
     evs = _latest_events()
     if evs:
         ev = evs[0]
