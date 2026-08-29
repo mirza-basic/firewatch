@@ -90,9 +90,9 @@
 </style>
 
 <div class="wrap">
-  <div class="eyebrow">For review — not yet committed</div>
+  <div class="eyebrow">Alert SMS reference</div>
   <h1>FireWatch Alert SMS</h1>
-  <p class="stand">Every alert now carries the map link and still fits one 160-character
+  <p class="stand">Every alert carries the map link and fits one 160-character
   segment. These are rendered from your real event data, not mocked up.</p>
 
   <h2>What lands on the phone</h2>
@@ -206,10 +206,10 @@
     <span class="lbl">Two judgement calls worth your eye</span>
     <p><code>1.9/1.9MW</code> means peak first, current second — ten characters cheaper
     than <code>1.9MW maks/1.9 sada</code>, but not self-evident on a first read.
-    And <code>IZVAN OPĆINE</code> is gone, so a fire in the 2 km band now reads exactly
-    like one inside the municipality.</p>
+    And there is no <code>IZVAN OPĆINE</code> marker, so a fire in the 2 km band reads
+    exactly like one inside the municipality.</p>
   </div>
 
-  <footer>Rendered from the current working copy of <code>firewatch/sms.py</code> against
-  live event data. Nothing committed or pushed.</footer>
+  <footer>Rendered from <code>firewatch/sms.py</code> against live event data;
+  <code>./firewatch-ctl test-sms</code> exercises the delivery half.</footer>
 </div>

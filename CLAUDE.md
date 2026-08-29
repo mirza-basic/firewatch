@@ -52,10 +52,9 @@ after itself.
 lines of JS that Python cannot reach. Testing it means jsdom + Leaflet under npm, and
 this project deliberately has no package manager — that trade was considered and
 declined, so do not add one. Verify map changes by rendering (`python3 -m firewatch
-map`) and looking, and treat anything in the generated page as unguarded: a jsdom
-harness built during development caught `L.Polygon.getCenter()` throwing before its
-layer is on a map, which would have broken every area measurement, and that class of
-bug will not be caught here again.
+map`) and looking, and treat anything in the generated page as unguarded — a
+mistake of the `L.Polygon.getCenter()` kind (landmine 14) reaches the reader with
+nothing in between.
 
 ## Architecture
 
@@ -90,10 +89,10 @@ one detection per sensor per overpass per hot pixel (45 for a single real fire),
 clustering is what makes an alert mean "something changed" rather than "a satellite
 looked again". Events carry a stable id derived from their earliest detection.
 
-The map opens in **Bosnian**. A reader's own choice wins — the EN/BS toggle writes
-`fw_lang` to `localStorage` and that is checked first — so switching to English is
-remembered per device. The old `navigator.language` sniff is gone: it existed to
-upgrade Balkan browsers to `bs`, which is pointless now that `bs` is the default.
+The map opens in **Bosnian**, unconditionally — there is no `navigator.language`
+sniff. A reader's own choice wins: the EN/BS toggle writes `fw_lang` to
+`localStorage` and that is checked first, so switching to English is remembered per
+device.
 
 **Fetch window ≠ view window ≠ retention.** Each poll fetches only ~24 h of overlap;
 `window_hours` (8760) is how far back events are *built*; `retention_days` (400) is how
@@ -173,12 +172,12 @@ These all cost real debugging time. Most are silent failures.
 
    **A FIRMS dataset name is not a sensor identity either.** `VIIRS_SNPP_NRT` and
    `VIIRS_SNPP_SP` are the same instrument on the same overpass, processed twice, so
-   putting the dataset name in the `uid` stored one pixel as two detections — which
-   inflates `n_det`, footprints and "grew" alerts wherever the live feed and the
-   archive overlap. `_firms_sensor()` strips the suffix for both `uid` and `sensor`,
-   the original stays in `raw.dataset`, and `store.UID_SCHEME` migrates rows written
-   under the old scheme. Note `VIIRS_NOAA21` has no SP twin — HTTP 400 "Invalid
-   source" — so the archive list is one satellite shorter.
+   a `uid` carrying the dataset name stores one pixel as two detections — inflating
+   `n_det`, footprints and "grew" alerts wherever the live feed and the archive
+   overlap. `_firms_sensor()` strips the suffix for both `uid` and `sensor`; the full
+   name stays in `raw.dataset`, and `store.UID_SCHEME` rewrites rows whose uid was
+   built under a different scheme. Note `VIIRS_NOAA21` has no SP twin — HTTP 400
+   "Invalid source" — so the archive list is one satellite shorter.
 7. **`Config.save()` must write overrides only.** Writing the resolved dict freezes
    every default to disk, after which changing a default in code has no effect on an
    existing install.
@@ -286,7 +285,7 @@ with its own address wants a plain static server over `PUBLIC_DIR`, behind nginx
 Caddy for TLS. `serve` polls *and* serves in one process on purpose - a host serving
 a stale map because the poller was a second unit that died is worse than either.
 
-Two things it must keep doing, both learned the hard way:
+Two things it must keep doing:
 
 1. **`refresh_public()` renders an empty snapshot when there is none.** Otherwise a
    fresh container has an empty `PUBLIC_DIR` and `SimpleHTTPRequestHandler` answers
@@ -356,12 +355,11 @@ succeeded, so a failed notification never suppresses the SMS.
   the list is fixed for the life of the process, so `sms-add`/`sms-remove` **refuse**
   rather than write a file nothing reads - `_env_overrides_recipients()` in `__main__`
   is that guard, and `sms-status` prints which source is live.
-  `Config.save()` is atomic (`os.replace`) for the same
-  reason - two processes now touch that file, and a partial read would drop an alert.
-- `sms_to` is a **list**. `recipients()` also accepts a plain or
-  comma-separated string for backward compatibility. One recipient uses
-  `/messages/send`; two or more use `/messages/bulk-send` with `to` as an
-  array — one call for the fan-out.
+  `Config.save()` is atomic (`os.replace`) for the same reason - two processes touch
+  that file, and a partial read would drop an alert.
+- `sms_to` is a **list**; `recipients()` also accepts a plain or comma-separated
+  string. One recipient uses `/messages/send`; two or more use
+  `/messages/bulk-send` with `to` as an array — one call for the fan-out.
 - Inert until a sender, a recipient list and the key are all present; `sms.ready()`
   returns the specific reason it is not usable, including non-E.164 numbers.
 
@@ -396,9 +394,9 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   `config.firms_key()`, which returns `(key, source)` or `(None, "not set")` and
   tries, in order: `FIRMS_MAP_KEY` in the environment, the macOS Keychain (service
   `firewatch-firms`, set by `set-firms-key`), then `firms_map_key` in `config.json`.
-  There is no fallback. A key used to be committed, which made a fresh clone poll
-  immediately at the cost of one shared key, one shared rate limit, and a credential
-  in git history for good.
+  There is no fallback, and no key ships with the repo: one shared key would mean
+  one shared 5000-per-10-minutes limit for every clone, and a credential in git
+  history for good.
 - **No key is a supported state, not a failure.** `fetch_firms` raises
   `sources.NoCredentials`, the poller records `configured: False` and logs at *info*,
   the CLI prints `[----]` rather than `[FAIL]`, and `/health` excludes the source
@@ -415,13 +413,13 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   hand-run poll looks perfect. Environment variables are for Linux and hosts, where a
   service manager passes them in on purpose.
 - **The FIRMS key travels in the URL *path***, so any `requests` exception carries the
-  whole query - key included - and `log.warning("firms %s: %s", ds, exc)` wrote it
-  straight to `firewatch.log`. `config.RedactingFormatter` now scrubs every known
-  credential out of every log line. It is a **formatter, not a `logging.Filter`** -
-  filters run before formatting, so the first handler emits the traceback while
-  `record.exc_text` is still empty, then caches the raw text for the second handler
-  to redact. With the file handler first, that redacts the console and writes the key
-  to disk: exactly backwards.
+  whole query - key included - and a bare `log.warning("firms %s: %s", ds, exc)`
+  writes it straight to `firewatch.log`. `config.RedactingFormatter` scrubs every
+  known credential out of every log line. It is a **formatter, not a
+  `logging.Filter`** - filters run before formatting, so the first handler emits the
+  traceback while `record.exc_text` is still empty, then caches the raw text for the
+  second handler to redact. With the file handler first, that redacts the console and
+  writes the key to disk: exactly backwards.
 
 Notifications go through `osascript` (attributed to *Script Editor*, click does
 nothing) unless `terminal-notifier` is installed, in which case notifications become
@@ -429,16 +427,17 @@ clickable links to Google Maps. `notify.backend()` reports which is active.
 
 ## Repo conventions
 
-- `firewatch/` is the current system. `fire-detection-zavidovici.sh` and
-  `fire-detection-bih.sh` are the superseded originals — they still run standalone;
-  leave them alone rather than extending them. The `.bak` copy and the two 2024
-  `fire-detection-result-*.json` outputs were deleted as dead weight.
-  `fire-detection-requraments` is the original hand-written spec.
+- `firewatch/` is the system. `fire-detection-zavidovici.sh` and
+  `fire-detection-bih.sh` are standalone shell leftovers and
+  `fire-detection-requraments` the hand-written spec — read them for context, leave
+  them alone rather than extending them.
 - `docs/*.html` are self-contained documentation pages, also published as Claude
   artifacts. Update them when behaviour changes — particularly the "field notes" and
   "landmines" content, which is the part that goes stale invisibly.
 - Code style follows the existing modules: `from __future__ import annotations`,
   module-level docstring explaining *why*, comments reserved for non-obvious
   decisions and measured facts rather than restating the code.
-- There is no `.gitignore`, and `firewatch/__pycache__/*.pyc` is currently tracked,
-  so `git status` is noisy after any run. Consider ignoring them before committing.
+- `.gitignore` covers `__pycache__/`, the generated plist, and everything under
+  `state/` that a cycle rewrites, so `git status` stays quiet after a run. Keep
+  `__pycache__` out in particular: a byte-compiled module bakes in whatever default
+  was in the source, credentials included.

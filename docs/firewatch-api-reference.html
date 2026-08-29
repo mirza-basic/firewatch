@@ -777,10 +777,10 @@ if r.status_code != 200 or not body or "," not in body.split("\n")[0]:
   <span class="lbl">Isolation guarantee</span>
   <p>Each source is fetched inside its own <code>try</code>, and a failure records
   <code>{"ok": false, "detail": …}</code> in the snapshot rather than aborting the
-  cycle. A real Sentinel-3 <code>HTTP 503</code> during development proved it: the
-  other two feeds completed, the map showed <code>s3 fail</code>, and the previously
-  stored S3 detections still contributed to the fire because history lives in
-  SQLite rather than in the response.</p>
+  cycle. A real Sentinel-3 <code>HTTP 503</code> shows what that looks like: the
+  other two feeds complete, the map shows <code>s3 fail</code>, and already-stored
+  S3 detections still contribute to the fire, because history lives in SQLite
+  rather than in the response.</p>
 </div>
 
 <!-- ============ chunking ============ -->
@@ -858,7 +858,7 @@ after each call.</p>
     <tr><td class="mono">api/area/csv/…</td><td class="mono">2</td>
       <td>Flat — independent of how many rows return, or whether zero do</td></tr>
     <tr><td class="mono">api/data_availability/…/ALL</td><td class="mono">5</td>
-      <td>The old shell script called this every run; we no longer do</td></tr>
+      <td>Not called — the single-dataset form answers the same question for 1</td></tr>
     <tr><td class="mono">api/data_availability/…/&lt;one&gt;</td><td class="mono">1</td><td></td></tr>
     <tr><td class="mono">mapserver/mapkey_status</td><td class="mono">0</td>
       <td>Free — safe to poll</td></tr>

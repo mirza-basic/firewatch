@@ -7,6 +7,14 @@
 > - [`docs/firewatch-api-reference.html`](docs/firewatch-api-reference.html) — how we
 >   call the APIs: every endpoint, exact parameters, real captured request/response
 >   traffic, error modes, chunking and quota costs.
+> - [`docs/firewatch-macos.html`](docs/firewatch-macos.html) — install and run it on a Mac.
+> - [`docs/firewatch-linux.html`](docs/firewatch-linux.html) — the same headless, on Linux.
+> - [`docs/firewatch-hosting.html`](docs/firewatch-hosting.html) — serving the map from a
+>   host: TLS, health checks, Docker, where to run it.
+> - [`docs/firewatch-field-manual.html`](docs/firewatch-field-manual.html) — day-to-day
+>   operation, configuration, and moving it to another municipality.
+> - [`docs/firewatch-sms-preview.html`](docs/firewatch-sms-preview.html) — every alert
+>   SMS, rendered, with its character budget.
 
 Near-live wildfire monitoring for **Grad (opština) Zavidovići**, as a macOS menu bar
 app with notifications and a live map.
@@ -14,15 +22,15 @@ app with notifications and a live map.
     🌲              nothing burning
     🔥 1! · 11MW    one active fire, moderate, 11 MW peak radiative power
 
-## Why this is faster than the old script
+## Why three sources
 
-`fire-detection-zavidovici.sh` polled only NASA FIRMS. FIRMS is sensitive but slow:
-polar-orbiting satellites see Zavidovići **4–7 times a day** and publish about
-**3 hours** after observation, leaving 7–10 hour blind gaps overnight and mid-morning.
+NASA FIRMS is sensitive but slow: polar-orbiting satellites see Zavidovići **4–7
+times a day** and publish about **3 hours** after observation, leaving 7–10 hour
+blind gaps overnight and mid-morning.
 
-This adds a geostationary source. **Meteosat Third Generation** stares at the same
-hemisphere continuously and publishes a new Fire Radiative Power field every
-**10 minutes**, with roughly **25 minutes** of latency:
+A geostationary source closes those gaps. **Meteosat Third Generation** stares at
+the same hemisphere continuously and publishes a new Fire Radiative Power field
+every **10 minutes**, with roughly **25 minutes** of latency:
 
 | Source | Resolution | Cadence | Latency | Role |
 |---|---|---|---|---|
@@ -30,10 +38,11 @@ hemisphere continuously and publishes a new Fire Radiative Power field every
 | VIIRS + MODIS (FIRMS NRT) | 375 m / 1 km | 4–7 / day | ~3 h | sensitivity, small/new fires |
 | Sentinel-3 SLSTR FRP | 1 km | ~2 / day | ~1–3 h | extra overpasses, corroboration |
 
-All three are keyless and public. On the fire burning while this was built, MTG
-produced 18 detections between 10:50Z and 16:30Z with a visible FRP decline
-(10.5 → 6.9 MW), where FIRMS gave 7 scattered samples and Sentinel-3 caught the
-earliest sign of it at 19:47Z the previous evening.
+Meteosat and Sentinel-3 need no credentials; FIRMS needs a free key (below). On a
+real fire — 20 August 2026, in forest 18 km south-east of town — MTG produced 18
+detections between 10:50Z and 16:30Z with a visible FRP decline (10.5 → 6.9 MW),
+where FIRMS gave 7 scattered samples and Sentinel-3 caught the earliest sign of it
+at 19:47Z the previous evening.
 
 Honest limit: nothing here is truly real-time. The floor is roughly
 **25–35 minutes** behind the flame front, and MTG's coarse pixels only see fires of
@@ -97,8 +106,10 @@ Three things to set, once:
 
 `sms_to` holds a list. One recipient goes through `/v1/messages/send`; several go
 through `/v1/messages/bulk-send`, which takes `to` as an array — so a fan-out is a
-single API call, not one per number. A plain string or a comma-separated string
-still works, so older configs keep running.
+single API call, not one per number. A plain or comma-separated string is accepted
+too. `FIREWATCH_SMS_TO` overrides the list entirely, for deployments with no
+writable config file; with it set, `sms-add` and `sms-remove` refuse rather than
+write a file nothing reads.
 
 Each recipient consumes one message from the phone's own throughput budget
 (`messages_per_minute`, default 10, max 29 in the httpSMS app), so a handful of
@@ -109,8 +120,10 @@ The key lives in the macOS Keychain (service `firewatch-httpsms`), never in
 
 **Message text is transliterated to ASCII** — "Zavidovici", not "Zavidovići". One
 non-GSM character switches the whole SMS to UCS-2 encoding, which cuts a segment
-from 160 characters to 70; folding the diacritics keeps a typical alert to a single
-segment. A real alert measures ~136 characters including the map link.
+from 160 characters to 70; folding the diacritics keeps every alert to a single
+segment. An alert is four lines — what changed and where, intensity, coordinates,
+weather — plus the map link, measured at **at most 153 characters** across every
+stored event, every alert kind and the longest settlement name.
 
 Which alerts are texted is `sms_kinds` — by default `new`, `reignited`,
 `intensified`, `grew`. `extinguished` is excluded so a fire merely cooling off does
@@ -140,28 +153,27 @@ do nothing until it is restarted.
 
 ## Time ranges
 
-**Last 24h · Last 3 days · Last 7 days · Last month**, available in all three places:
+**Last 24h · Last 3 days · Last 7 days · Last month · Last year**, available in all
+three places:
 
 - **Map** — a segmented control at the top of the panel. Each button carries its own
   event count, so a quiet "Last 24h" still shows the week had four fires. Switching
   refilters the fires, the detection dots and the timeline animation together.
 - **Menu bar** — a *Show:* submenu with counts and a checkmark. The choice persists to
   config and the map reopens on the same range.
-- **CLI** — `python3 -m firewatch status 30d`, which also prints all four counts.
+- **CLI** — `python3 -m firewatch status 30d`, which also prints every range's count.
 
-A retired range key still resolves rather than erroring — an older saved
-`default_range` of `today` maps forward to `24h`.
-
-All four are **rolling windows** measured back from now — 24 h / 72 h / 168 h / 720 h.
+All five are **rolling windows** measured back from now — 24 h / 72 h / 168 h /
+720 h / 8760 h.
 Nothing drops out of the shortest range just because the clock passed midnight, and
 "Last month" means a rolling 30 days rather than the previous calendar month.
 An event belongs to a range if it was *last active* inside it, so a fire that started
 six days ago but was burning an hour ago still appears under "Last 24h"; its detection
 series is trimmed to the range so the sparkline and timeline stay consistent.
 
-The ranges cost no extra API traffic. The database keeps 60 days (`retention_days`,
-deliberately more than the longest 30-day range) and each poll only fetches ~24 h of
-overlap, so filtering is a pure read over history already on disk.
+The ranges cost no extra API traffic. The database keeps 400 days (`retention_days`,
+deliberately more than the longest, one-year range) and each poll only fetches ~24 h
+of overlap, so filtering is a pure read over history already on disk.
 
 **A fresh install has no history**, which makes a 7-day filter misleading rather than
 useful. Fix it once with:
@@ -181,10 +193,21 @@ chunked rather than fetched in one shot:
 Backfilled fires that are already out do **not** raise notifications — a `new` alert
 means newly burning, not newly discovered.
 
-**Archive depth differs by source.** Sentinel-3 goes back over a year and the FIRMS NRT
-feeds cover several months, but the **MTG FRP layer only holds about 4 weeks**
-(currently from 2026-07-23). So the far edge of "Last month" is covered by
-VIIRS/MODIS and Sentinel-3 alone, without the 10-minute geostationary detail.
+**Archive depth differs by source**, measured over a 600 km box so that an empty
+answer means an empty archive rather than a quiet sky:
+
+| Feed | Depth |
+|---|---|
+| Sentinel-3 SLSTR | over a year, sparse but real throughout |
+| MTG FRP | ~40 days, thinning from about day 30 |
+| FIRMS `*_NRT` | ~40 days, then a header-only CSV with HTTP 200 |
+| FIRMS `*_SP` | lags ~3 months, then goes back years |
+
+So the far edge of "Last month" is covered by VIIRS/MODIS and Sentinel-3 without the
+10-minute geostationary detail, and roughly **40–90 days back FIRMS has nothing to
+give** — too old for NRT, too recent for SP. `backfill` clamps to these depths rather
+than crawling chunks that can only be empty. The gap fills in as SP catches up, but
+only when `backfill` is run again; nothing re-fetches history on its own.
 
 ## What it does each cycle
 
@@ -256,18 +279,24 @@ second display gives a live wall view that never jumps.
       store.py     SQLite: detections, events, notification state
       events.py    space-time clustering and change detection
       enrich.py    weather / spread risk
-      notify.py    terminal-notifier or osascript
+      notify.py    terminal-notifier, notify-send or osascript
+      sms.py       httpSMS alert text and delivery
       mapgen.py    HTML map renderer
+      expose.py    publish the map through a local ngrok agent
+      serve.py     poll + serve the map over HTTP, with /health
       poller.py    the loop
-      menubar.py   rumps menu bar UI
+      menubar.py   rumps menu bar UI (macOS only, imported lazily)
     data/
-      zavidovici.geojson   boundary (OSM rel. 2528292)
-      settlements.json     413 named places for location descriptions
-    tests_events.py        clustering + alert-logic tests (python3 tests_events.py)
+      zavidovici.geojson          boundary (OSM rel. 2528292)
+      zavidovici-buffer.geojson   the drawn "nearby" band
+      settlements.json            413 named places for location descriptions
+    deploy/                       Dockerfile, systemd unit, nginx server block
+    tests_events.py               clustering + alert-logic tests (python3 tests_events.py)
 
 State lives in `~/Library/Application Support/FireWatch/` — `firewatch.db`,
-`snapshot.json`, `fire-map.html`, `firewatch.log`. Detections are kept for
-`retention_days` (60), so the 30-day view is always fully populated.
+`snapshot.json`, `fire-map.html`, `firewatch.log` — and Linux follows XDG instead.
+Detections are kept for `retention_days` (400), so even the one-year view stays
+populated.
 
 ## Tuning
 
@@ -282,14 +311,14 @@ Edit `~/.config/firewatch/config.json` (any subset of the defaults in
   Narrowing it only affects new fetches; `python3 -m firewatch reclip --apply` drops
   the history a wider setting had already let in
 - `quiet_hours` (default 4) — when a fire counts as out
-- `window_hours` (default 720) — how far back events are built; the view horizon
+- `window_hours` (default 8760) — how far back events are built; the view horizon
 - `default_range` (default `3d`) — which range the menu bar and map open on
-- `retention_days` (default 60) — database retention; must exceed the largest range
+- `retention_days` (default 400) — database retention; must exceed the largest range
+- `notify_cooldown_min` (default 25) — re-alert rate limit
 
 Only settings you actually change are written to `config.json`. Saving the full
 resolved config would freeze every default and stop later updates from reaching an
 existing install.
-- `notify_cooldown_min` (default 25) — re-alert rate limit
 
 ## FIRMS quota
 
@@ -303,8 +332,9 @@ costs 2, so a 4-dataset sweep is 8 — at the default cadence roughly 24/hour, u
   heat, flares and agricultural burning all register. Treat it as a screening signal
   and verify before acting.
 - Cloud cover blocks detection entirely on every one of these sensors.
-- `fire-detection-zavidovici.sh` and `zavidovici-granica.gpx` are kept as-is; the
-  shell script still works standalone and this system supersedes it.
+- `fire-detection-zavidovici.sh`, `fire-detection-bih.sh` and
+  `zavidovici-granica.gpx` are standalone leftovers kept in the repo; nothing in
+  `firewatch/` reads them.
 
 Data: NASA FIRMS (LANCE/ESDIS) · EUMETSAT MTG & Sentinel-3 via EUMETView ·
 boundary and settlements © OpenStreetMap contributors (ODbL) · weather Open-Meteo.

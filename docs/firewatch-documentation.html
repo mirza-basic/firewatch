@@ -263,9 +263,8 @@
 
 <p class="lede">FireWatch watches for active fires inside the 560 km&sup2; of Grad
 Zavidovići and reports them through a macOS menu bar app, desktop notifications and
-a live map. It replaces a shell script that polled a single NASA feed, and the whole
-reason it exists is timing: knowing a forest is burning eleven hours late is history,
-not warning.</p>
+a live map. The whole reason it exists is timing: knowing a forest is burning eleven
+hours late is history, not warning.</p>
 
 <!-- ==================== 1 ==================== -->
 <h2 id="problem"><span class="num">01</span> The timing problem</h2>
@@ -958,7 +957,7 @@ satellite and fade with age; a scrollable timeline ruler spans the whole selecte
 period containing detections, so an empty fortnight reads as empty. It carries
 labelled time ticks, a fixed centre playhead, and every detection as a coloured
 mark on the track; the step unit switches between minute, hour, day and week, and
-a play button at three speeds animates the fire's progression by scrolling it. The initial snapshot is still inlined for first
+a play button at three speeds animates the fire's progression by scrolling it. The snapshot is inlined for first
 paint, so the page renders correctly even if the data file is missing.</p>
 <p>The municipality outline is drawn from the same 731-point polygon the clip
 uses, with the 2 km <em>nearby</em> band around it as a separate toggleable layer.
@@ -1003,7 +1002,7 @@ different amounts, which is not documented anywhere and had to be measured:</p>
   <thead><tr><th>Request</th><th class="num-col">Cost</th><th>Note</th></tr></thead>
   <tbody>
     <tr><td class="mono">api/area/csv/…</td><td class="mono">2</td><td>Regardless of how many rows come back</td></tr>
-    <tr><td class="mono">api/data_availability/…/ALL</td><td class="mono">5</td><td>We no longer call this</td></tr>
+    <tr><td class="mono">api/data_availability/…/ALL</td><td class="mono">5</td><td>Not called — the per-dataset form costs 1</td></tr>
     <tr><td class="mono">api/data_availability/…/&lt;one&gt;</td><td class="mono">1</td><td></td></tr>
     <tr><td class="mono">mapserver/mapkey_status</td><td class="mono">0</td><td>Free — poll it freely</td></tr>
   </tbody>
@@ -1011,11 +1010,11 @@ different amounts, which is not documented anywhere and had to be measured:</p>
 </div>
 
 <p>A full sweep of the four NRT datasets costs <strong>8</strong>. At a 20-minute
-cadence that is 24 per hour, roughly <strong>0.5%</strong> of budget. The old shell
-script cost 29 per run because it queried every dataset the availability endpoint
-listed, including multi-year archives and burned-area products that cannot produce a
-current alert. The other services are unmetered, though Nominatim and Overpass are
-only called once, at build time, and their results are bundled.</p>
+cadence that is 24 per hour, roughly <strong>0.5%</strong> of budget. Only those four
+are queried: the availability endpoint lists multi-year archives and burned-area
+products too, and none of them can produce a current alert. The other services are
+unmetered, though Nominatim and Overpass are only called once, at build time, and
+their results are bundled.</p>
 
 <!-- ==================== 9 ==================== -->
 <h2 id="fieldnotes"><span class="num">09</span> Field notes</h2>
@@ -1053,12 +1052,12 @@ why a month of FIRMS history is stitched from six windows.</p>
 <code>requests</code> throughout and the <code>launchd</code> agent pins
 <code>SSL_CERT_FILE</code> so anything else that reaches for the stdlib also works.</p>
 
-<h4>Saving a whole config freezes every default</h4>
-<p>The original <code>save()</code> wrote the fully resolved settings dict, so the
-first time the menu bar persisted a preference it also froze all twenty defaults to
-disk — after which changing a default in code had no effect on an existing install.
-It cost an hour of "why is this value not updating". <code>save()</code> now writes
-only genuine overrides.</p>
+<h4>Saving a whole config would freeze every default</h4>
+<p><code>save()</code> writes only genuine overrides, and must keep doing so.
+Persisting the fully resolved settings dict — which is what the menu bar would do the
+first time it stored a preference — pins all twenty defaults to disk, after which
+changing a default in code has no effect on an existing install. The symptom is a
+value that will not update, with nothing in the log.</p>
 
 <h4>A space in the path takes the public map down silently</h4>
 <p>ngrok serves a directory as <code>file://&lt;path&gt;</code>, and Python's
