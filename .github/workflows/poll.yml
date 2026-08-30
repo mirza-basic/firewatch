@@ -1,10 +1,10 @@
 # Poll the satellite feeds, keep the database in the repo, publish the map to Pages.
 #
 # This is the free, no-card deployment: Actions is unlimited on public repositories
-# and Pages hosts the map. The trade is latency - cron has a five-minute floor and
-# GitHub does not guarantee timing, so 5-30 minutes of drift is normal. Meteosat is
-# already ~25 minutes behind the flame front, so expect 40-55 minutes to an alert
-# rather than the 25-35 a always-on host gives you.
+# and Pages hosts the map. Runs are driven by an external scheduler (see `on:` below),
+# so the floor is that service's cadence plus however long a runner takes to start.
+# Meteosat is already ~25 minutes behind the flame front, so a 10-15 minute external
+# cadence puts an alert 30-45 minutes behind it.
 #
 # Secrets to set under Settings > Secrets and variables > Actions:
 #   FIRMS_MAP_KEY     required for VIIRS/MODIS; without it that feed is skipped and
@@ -16,20 +16,16 @@
 
 name: poll
 
+# Triggered from outside, not on a cron. GitHub's own scheduler has a five-minute
+# floor and drifts 5-30 minutes under load; an external caller hits
+#   POST /repos/{owner}/{repo}/actions/workflows/poll.yml/dispatches
+# on whatever cadence it likes, so the interval is the caller's to choose. A cadence
+# under 10 minutes buys nothing: MTG publishes a new slice every 10 minutes with
+# ~25 minutes of latency, so faster polling only burns runs.
 on:
-  schedule:
-    # Every 15 minutes. Five is the floor but pointless here: MTG publishes a new
-    # slice every 10 minutes with ~25 minutes of latency, so polling faster only
-    # burns runs. Delays under load make the effective interval longer anyway.
-    # Offset, not "*/15". */15 fires at :00 :15 :30 :45 - the four most contended
-    # minutes on GitHub's shared scheduler, where the queue is longest and runs are
-    # most likely to be delayed or dropped outright. Same cadence, quieter minutes.
-    - cron: "7,22,37,52 * * * *"
-  workflow_dispatch: {}          # so you can force a run from the Actions tab
+  workflow_dispatch: {}          # the external trigger, and the Actions tab button
 
-# The workflow commits the database back, which needs write access. It also keeps
-# the workflow alive: scheduled workflows on public repos are disabled after 60 days
-# with no commits, and only commits reset that timer.
+# The workflow commits the database back, which needs write access.
 permissions:
   contents: write
   pages: write
@@ -90,32 +86,25 @@ jobs:
           git config user.name  "firewatch[bot]"
           git config user.email "firewatch@users.noreply.github.com"
 
-          # Committing on every run would be 2,880 commits a month, each storing a
-          # fresh copy of the database - the repo would balloon for no information.
+          # Committing on every run would be a commit per trigger - at a 15-minute
+          # cadence, 2,880 a month, each storing a fresh copy of the database. The
+          # repo would balloon for no information.
           # snapshot.json and the meta table change every cycle by design, so bytes
           # are the wrong test. Detection count is the semantic one.
           COUNT=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; print(sqlite3.connect(d).execute('SELECT COUNT(*) FROM detections').fetchone()[0] if d.exists() else 0)")
           PREV=$(cat state/.detections 2>/dev/null || echo -1)
           echo "detections: $PREV -> $COUNT"
 
-          # A heartbeat once a day, because scheduled workflows on public repos are
-          # disabled after 60 days without commits and only commits reset that timer.
-          # A quiet winter could otherwise switch the monitor off silently.
-          date -u +%Y-%m-%d > state/.heartbeat
-
           # Stage the database ONLY when the count moved. meta.last_cycle is
           # rewritten every cycle, so the file's bytes change on every run even when
-          # nothing was detected - `git add -A state` therefore committed a fresh
-          # 188 KB blob every 15 minutes, about half a gigabyte of objects a month
-          # carrying no new information. The earlier gate guarded only the marker
-          # file, which achieved nothing.
+          # nothing was detected - `git add -A state` would therefore commit a fresh
+          # 188 KB blob every run, hundreds of megabytes a month carrying no new
+          # information.
           if [ "$COUNT" != "$PREV" ]; then
             echo "$COUNT" > state/.detections
             git add state/firewatch.db state/.detections
           fi
-          # Markers are tiny text. The heartbeat changes once a day, which is the
-          # one commit a quiet week needs to keep the schedule from being disabled.
-          git add state/.heartbeat state/config
+          git add state/config
           if git diff --cached --quiet; then
             echo "nothing to commit"
           else
@@ -136,6 +125,17 @@ jobs:
               exit 1
             fi
           fi
+
+      # The documentation ships with the map, at /docs/. A Pages deploy replaces the
+      # whole site, so this cannot be a workflow of its own: a deploy that published
+      # only the map would delete /docs, and one that published only the docs would
+      # take the map - the URL that goes out in every SMS - off the air.
+      #
+      # Rebuilt from docs/*.html on every run rather than committed: it needs no
+      # network, costs a fraction of a second, and cannot drift from the sources.
+      # The wrapping is the point - see the module docstring.
+      - name: Build the documentation into the site
+        run: python3 deploy/build-site.py public
 
       - uses: actions/upload-pages-artifact@v3
         with:

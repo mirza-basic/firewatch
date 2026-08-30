@@ -82,6 +82,8 @@ TEMPLATE = r"""<!doctype html>
     cursor:pointer;font-family:inherit}
   .acts a:hover,.acts button:hover{background:#31404f;border-color:#4a5866}
   footer{padding:10px 14px;border-top:1px solid var(--line);color:var(--dim);font-size:11px}
+  .foot-link{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent}
+  .foot-link:hover,.foot-link:focus-visible{border-bottom-color:currentColor}
   .empty{text-align:center;color:var(--dim);padding:40px 20px}
   .empty .big{font-size:34px;margin-bottom:10px}
   /* Anchored to both edges of the map area rather than centred, so the ruler gets
@@ -317,6 +319,7 @@ const I18N = {
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
     noDetRange:"no detections in range", boundary:"boundary", refreshNote:
       "data refreshes in place every 60 s · your view is kept",
+    docs:"Documentation",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
     r_1y:"Last year",
     rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month", rs_1y:"Year",
@@ -357,6 +360,7 @@ const I18N = {
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
     noDetRange:"nema detekcija u periodu", boundary:"granica", refreshNote:
       "podaci se osvježavaju svakih 60 s · prikaz se čuva",
+    docs:"Dokumentacija",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
     r_1y:"Zadnja godina",
     rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec", rs_1y:"Godina",
@@ -798,8 +802,14 @@ function renderHeader(){
     ...Object.entries(DATA.source_status||{}).map(([k,v])=>
       `<span class="chip" title="${(v.detail||"").replace(/"/g,"")}">${k} <b style="color:${v.ok?"#3fb950":"#e63946"}">${v.ok?t("ok"):t("fail")}</b></span>`)
   ].join("");
+  // The documentation is published beside the map, at <site>/docs/, by the same
+  // Pages deploy that publishes this page - so it is only linked when this instance
+  // has a public address. The local file:// map has no sibling docs directory and
+  // would only offer a dead link.
+  const docsLink = DATA.public_url
+    ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
-    `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292
+    `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}
      <br>${t("refreshNote")}`;
 }
 

@@ -417,12 +417,16 @@ seven days, and FireWatch is three HTTP calls every few minutes on an otherwise
 sleeping box. It is close to the definition of idle. Oracle warns before reclaiming,
 but you would be running something that structurally looks abandoned.</p>
 
-<h3>The no-VM option, and what it costs</h3>
-<p>GitHub Actions cron plus GitHub Pages needs no server at all. But Actions cron has a
-five-minute floor and is routinely delayed 10&ndash;30 minutes under load, and there is
-no disk. That drags Meteosat's ~25-minute latency out to something worse than FIRMS
-&mdash; discarding the one property that makes this near-live rather than a daily
-digest. Only worth it if &ldquo;a few times a day&rdquo; is genuinely enough.</p>
+<h3>The no-VM option, and what it takes</h3>
+<p>GitHub Actions plus GitHub Pages needs no server at all, and it is what this project
+actually runs on. Two objections have to be answered for it to work. The first is
+timing: Actions cron has a five-minute floor and is routinely delayed 10&ndash;30 minutes
+under load, which would drag Meteosat's ~25-minute latency out to something worse than
+FIRMS. The answer is not to use it &mdash; <code>poll.yml</code> carries only a
+<code>workflow_dispatch</code> trigger and an external scheduler calls it, so the cadence
+is exact. The second is that a runner has no disk: the answer is that the SQLite database
+is committed back into the repository, so the repo <em>is</em> the disk, and the run that
+finds a fire hands its state to the run that reports the fire is still burning.</p>
 
 <div class="note">
   <span class="lbl">Honest counterpoint</span>

@@ -363,6 +363,57 @@ succeeded, so a failed notification never suppresses the SMS.
 - Inert until a sender, a recipient list and the key are all present; `sms.ready()`
   returns the specific reason it is not usable, including non-E.164 numbers.
 
+## The GitHub deployment
+
+This repository *is* a running instance, not just the source of one. `.github/workflows/`
+holds the whole production deployment, and it is the one described in
+`docs/firewatch-fork.html`.
+
+```
+poll.yml     the cycle: fetch → cluster → alert → render → publish
+test-sms.yml manual SMS delivery check; previews by default, sending is a checkbox
+```
+
+Four facts drive everything about it:
+
+**There is no `schedule:`.** `poll.yml` is `workflow_dispatch` only, called from outside
+by `POST /repos/{owner}/{repo}/actions/workflows/poll.yml/dispatches` with
+`{"ref":"main"}`. GitHub's cron has a five-minute floor and drifts 5-30 minutes under
+load, which is a lot to add to a feed already 25 minutes behind the fire. The cost of
+moving the trigger outside is that **GitHub can no longer tell you it stopped**: if the
+caller dies, there is no failed run and no red cross, just a map that quietly stops
+updating. There is also nothing left to keep alive - the 60-day disable rule applies only
+to scheduled workflows - which is why the old `state/.heartbeat` commit is gone.
+
+**The repository is the disk.** A runner keeps nothing, so `state/firewatch.db` is
+committed back at the end of each cycle. That database carries the `notified` rows, so a
+failed push is not a cosmetic failure: the next run re-discovers the same fire and texts
+about it again. Hence the rebase-and-retry loop, and the `::error::` if all three attempts
+fail. The commit is gated on the **detection count**, not on the file's bytes -
+`meta.last_cycle` changes every cycle, so `git add -A state` would commit a fresh 188 KB
+blob every run forever.
+
+**A Pages deploy replaces the whole site.** `public/` holds the map, and
+`deploy/build-site.py` adds `docs/` to it just before upload. This is why documentation
+publishing cannot be its own workflow: a deploy carrying only the docs would take the map
+- the URL in every SMS - off the air, and the next poll would delete the docs. The build
+script wraps each `docs/*.html` in a real `<!doctype>`/`<head>` skeleton, because those
+files are written in artifact-body form (no doctype, no viewport) so they can also be
+published as Claude artifacts. Serving them unwrapped renders every page at desktop width
+on a phone.
+
+**Secrets, not config.** `FIRMS_MAP_KEY`, `HTTPSMS_API_KEY`, `HTTPSMS_FROM` and
+`FIREWATCH_SMS_TO` come from repository secrets. The last one exists precisely because
+this repo is public and `sms_to` in `config.json` would publish real phone numbers; the
+workflow logs the recipient *count*, never the numbers, since GitHub masks an exact secret
+value and not the individual numbers inside a comma-separated one.
+
+Three settings in the repo itself, all of which fail silently when wrong: **Workflow
+permissions** must be read/write or the state push fails; **Pages source** must be
+*GitHub Actions* and not a branch; and `FIREWATCH_PUBLIC_URL` is hardcoded in **both**
+workflow files - left pointing at someone else's site it is still a valid, working URL,
+so every SMS quietly links to the wrong map.
+
 ## Publishing the map
 
 `expose.py` serves `PUBLIC_DIR` — the map and its data file, nothing else — through

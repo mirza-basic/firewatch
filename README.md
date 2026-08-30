@@ -1,6 +1,11 @@
 # FireWatch Zavidovići
 
-> **Documentation** (open in a browser):
+### 🔥 [Live map](https://mirza-basic.github.io/firewatch) · 📖 [Documentation](https://mirza-basic.github.io/firewatch/docs/)
+
+Both are published by the `poll` workflow: the map is rebuilt from the database
+every run, and the documentation is generated from `docs/*.html` beside it.
+
+> **The pages**, readable on the site above or straight from this repository:
 > - [`docs/firewatch-documentation.html`](docs/firewatch-documentation.html) — how the
 >   system works: data sources, field-level data reference, the processing pipeline,
 >   change-detection state machine, rate limits and field notes.
@@ -15,6 +20,9 @@
 >   operation, configuration, and moving it to another municipality.
 > - [`docs/firewatch-sms-preview.html`](docs/firewatch-sms-preview.html) — every alert
 >   SMS, rendered, with its character budget.
+> - [`docs/firewatch-fork.html`](docs/firewatch-fork.html) — **run this for your own
+>   town**: take a copy, point it at another municipality, and let GitHub Actions poll
+>   and GitHub Pages host it, for free.
 
 Near-live wildfire monitoring for **Grad (opština) Zavidovići**, as a macOS menu bar
 app with notifications and a live map.
@@ -269,6 +277,25 @@ Every 60 s it pulls fresh data in place — the poller rewrites a sibling
 `fire-map-data.js` and the page re-renders from it — so your zoom, pan, selected
 range, timeline position and any open popup are preserved. Leaving it open on a
 second display gives a live wall view that never jumps.
+
+## How the hosted copy runs
+
+There is no server. `.github/workflows/poll.yml` runs one full cycle per trigger —
+fetch, cluster, diff, alert, render — and GitHub Pages serves the result. The SQLite
+database is committed back into `state/` at the end of each run, so the repository
+itself is the disk that carries state between runs.
+
+The workflow has **no `schedule:`**: its only trigger is `workflow_dispatch`, called
+from outside on whatever cadence you choose. GitHub's own cron has a five-minute floor
+and drifts 5–30 minutes under load, which is a lot to add to a feed already 25 minutes
+behind the fire. The trade is that GitHub cannot tell you the trigger died — watch the
+timestamp on the map, not the Actions tab.
+
+The same run publishes this documentation to `/docs/` beside the map, generated from
+`docs/*.html` by `deploy/build-site.py`.
+
+Setting this up for a different municipality is
+[`docs/firewatch-fork.html`](docs/firewatch-fork.html), end to end.
 
 ## Layout
 

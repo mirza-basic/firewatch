@@ -1,0 +1,799 @@
+<title>Your Own FireWatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation, the API reference and the platform guides so the set reads
+     as one publication. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+  pre{font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.62;
+    background:var(--surface); color:var(--ink); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); border-radius:6px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 18px}
+  pre code{background:none; padding:0; font-size:inherit}
+  pre .c{color:var(--ink-3)}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  td.wrap-ok{white-space:normal}
+  .src-mtg{color:var(--mtg); font-weight:600}
+  .src-firms{color:var(--firms); font-weight:600}
+  .src-s3{color:var(--s3); font-weight:600}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .pill{display:inline-block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:4px;
+    background:var(--surface-2); color:var(--ink-2); vertical-align:middle}
+  .pill.ok{background:var(--ok); color:#fff}
+  .pill.no{background:var(--surface-3); color:var(--ink-2)}
+  .pill.crit{background:var(--crit); color:#fff}
+
+  /* Setting this up is a genuine ordered sequence - each stage depends on the one
+     before - so the stages are numbered. The secret and setting tables are
+     lookups, and are not. */
+  ol.stages{list-style:none; counter-reset:st; margin:22px 0 8px; padding:0; max-width:none}
+  ol.stages > li{counter-increment:st; position:relative; padding:0 0 22px 52px; margin:0;
+    border-left:1px solid var(--rule); margin-left:15px}
+  ol.stages > li:last-child{border-left-color:transparent; padding-bottom:2px}
+  ol.stages > li::before{content:counter(st); position:absolute; left:-15px; top:0;
+    width:30px; height:30px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--rule); color:var(--accent);
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600;
+    display:grid; place-items:center}
+  ol.stages h3{margin:3px 0 5px}
+  ol.stages p{margin-bottom:9px}
+  ol.stages pre{margin-bottom:12px}
+
+  /* The GitHub settings a reader has to click through. A path, not prose. */
+  .click{font-family:Archivo,sans-serif; font-size:13.5px; background:var(--surface-2);
+    border-radius:6px; padding:9px 13px; margin:0 0 14px; max-width:var(--measure);
+    color:var(--ink-2)}
+  .click b{font-weight:600; color:var(--ink)}
+  .click .sep{color:var(--ink-3); padding:0 5px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">Your own copy</div>
+  <ol>
+    <li><a href="#where"><span class="n">01</span><span>Will it work where you are</span></a></li>
+    <li><a href="#shape"><span class="n">02</span><span>What you are switching on</span></a></li>
+    <li><a href="#copy"><span class="n">03</span><span>Take a copy</span></a></li>
+    <li><a href="#settings"><span class="n">04</span><span>Three GitHub settings</span></a></li>
+    <li><a href="#place"><span class="n">05</span><span>Point it at your municipality</span></a></li>
+    <li><a href="#clear"><span class="n">06</span><span>Clear the Bosnian state</span></a></li>
+    <li><a href="#secrets"><span class="n">07</span><span>Secrets</span></a></li>
+    <li><a href="#url"><span class="n">08</span><span>The map URL</span></a></li>
+    <li><a href="#verify"><span class="n">09</span><span>First run</span></a></li>
+    <li><a href="#living"><span class="n">10</span><span>Living with it</span></a></li>
+    <li><a href="#bosnian"><span class="n">11</span><span>What stays Bosnian</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Run it for your own town</div>
+  <h1>Your Own FireWatch</h1>
+  <p class="standfirst">Take a copy of the repository, point it at a different
+  municipality, and let GitHub poll the satellites, host the map and send the
+  SMS &mdash; on free infrastructure, with no server of your own.</p>
+  <dl class="facts">
+    <div><dt>Hosting cost</dt><dd>$0</dd></div>
+    <div><dt>Server needed</dt><dd>none</dd></div>
+    <div><dt>Poll cadence</dt><dd>yours</dd></div>
+    <div><dt>Alert latency</dt><dd>30&ndash;45 min</dd></div>
+    <div><dt>Secrets to set</dt><dd>4</dd></div>
+    <div><dt>Setup time</dt><dd>~1 h</dd></div>
+  </dl>
+</header>
+
+<p class="lede">This is the deployment with no machine in it. GitHub Actions runs the
+poller, the repository itself stores the database, and GitHub Pages serves the map and
+these pages. Nothing about the pipeline is specific to Bosnia &mdash; but one thing about
+your <em>location</em> decides whether this is worth doing at all, so start there.</p>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="where"><span class="num">01</span> Will it work where you are</h2>
+
+<p>FireWatch is near-live because of one feed: <span class="src-mtg">Meteosat MTG</span>,
+which is geostationary over 0&deg; longitude and publishes a new fire field every ten
+minutes. Beyond roughly <strong>&plusmn;60&deg; of longitude it cannot see the ground at
+all</strong>. The other two feeds are global, but they are polar-orbiting and about three
+hours behind.</p>
+
+<p>So before anything else, find your longitude. These counts are detections returned for
+a 36-hour window over deliberately-burning test boxes, so a zero means the satellite is
+blind there rather than the sky being quiet:</p>
+
+<div class="tw">
+<table>
+  <caption>Measured 26 August 2026 &mdash; from the field manual's coverage survey</caption>
+  <thead><tr><th>Region</th><th class="num-col">Lon</th>
+    <th class="num-col">Meteosat</th><th class="num-col">Sentinel-3</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td>Eastern Brazil</td><td class="num">&minus;40&deg;</td><td class="num">1644</td><td class="num">&mdash;</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>West Africa</td><td class="num">&minus;15&deg;</td><td class="num">6</td><td class="num">&mdash;</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>Iberia</td><td class="num">&minus;7&deg;</td><td class="num">2</td><td class="num">0</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>Bosnia <span class="pill">home</span></td><td class="num">+18&deg;</td><td class="num">0</td><td class="num">0</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>Central Africa</td><td class="num">+22&deg;</td><td class="num">507</td><td class="num">0</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>Greece / Turkey</td><td class="num">+26&deg;</td><td class="num">240</td><td class="num">1</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>Southern Africa</td><td class="num">+28&deg;</td><td class="num">3000+</td><td class="num">&mdash;</td><td><span class="pill ok">near-live</span></td></tr>
+    <tr><td>Kazakhstan</td><td class="num">+70&deg;</td><td class="num">0</td><td class="num">&mdash;</td><td><span class="pill no">3 h delayed</span></td></tr>
+    <tr><td>India</td><td class="num">+78&deg;</td><td class="num">0</td><td class="num">&mdash;</td><td><span class="pill no">3 h delayed</span></td></tr>
+    <tr><td>Thailand</td><td class="num">+100&deg;</td><td class="num">0</td><td class="num">&mdash;</td><td><span class="pill no">3 h delayed</span></td></tr>
+    <tr><td>SE Australia</td><td class="num">+147&deg;</td><td class="num">0</td><td class="num">3</td><td><span class="pill no">3 h delayed</span></td></tr>
+    <tr><td>California</td><td class="num">&minus;120&deg;</td><td class="num">0</td><td class="num">12</td><td><span class="pill no">3 h delayed</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <span class="lbl">Off the disc it still works &mdash; just not fast</span>
+  <p>Outside roughly 60&deg;W&ndash;60&deg;E you keep VIIRS, MODIS and Sentinel-3, so you
+  keep global coverage, the clustering, the map, the history and the SMS. What you lose is
+  the ten-minute feed, and with it the point of the whole exercise: alerts arrive about
+  three hours after the satellite saw the fire instead of forty minutes. Decide whether
+  that is still useful to you before spending an hour on setup.</p>
+  <p>Meteosat answers an out-of-disc query with <strong>HTTP 200 and an empty feature
+  list</strong>, never an error &mdash; identical to a quiet sky. That is why the table above
+  uses boxes that were definitely burning.</p>
+</div>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="shape"><span class="num">02</span> What you are switching on</h2>
+
+<p>Three GitHub features doing three jobs, and no server anywhere:</p>
+
+<div class="tw">
+<table>
+  <thead><tr><th>Piece</th><th>Job</th><th>Where it lives</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Actions</strong> &mdash; <code>poll.yml</code></td>
+      <td class="wrap-ok">On each external trigger: fetch the three feeds, cluster, diff,
+        send SMS, render the map and the documentation</td>
+      <td class="mono">.github/workflows</td></tr>
+    <tr><td><strong>The repository</strong></td>
+      <td class="wrap-ok">Stores the SQLite database between runs, committed back by the
+        workflow when the detection count moves</td>
+      <td class="mono">state/firewatch.db</td></tr>
+    <tr><td><strong>Pages</strong></td>
+      <td class="wrap-ok">Serves the map at <code>/</code> &mdash; the link that goes out in
+        every alert &mdash; and this documentation at <code>/docs/</code></td>
+      <td class="mono">public/</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The runner is stateless, which is why the database is committed back into the repo:
+that commit <em>is</em> the memory. It carries the detections already seen and the
+record of which alerts already went out, so the next run does not re-text you about the
+same fire.</p>
+
+<div class="note">
+  <span class="lbl">The cost of free</span>
+  <p><strong>Money:</strong> nothing. Actions minutes are unlimited on public repositories
+  and Pages is free with them. Keep the repository <strong>public</strong> &mdash; a private
+  one bills Actions minutes and needs a paid plan for Pages.</p>
+  <p><strong>Latency:</strong> the workflow is triggered from outside rather than by
+  GitHub's own scheduler, so the cadence is yours to pick &mdash; see §08. Meteosat is
+  already ~25 minutes behind the flame front and a runner takes a moment to start, so a
+  10&ndash;15 minute cadence puts an alert <strong>30&ndash;45 minutes</strong> behind it,
+  against the 25&ndash;35 an always-on host gives you.</p>
+</div>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="copy"><span class="num">03</span> Take a copy</h2>
+
+<p>Two routes, and the quieter one is not the fork button.</p>
+
+<h3>A clean copy <span class="pill ok">recommended</span></h3>
+<p>The upstream repository accumulates a commit every time the detection count changes
+&mdash; that is the design &mdash; so its history is mostly Bosnian database blobs you have no
+use for. Starting fresh gives you a repository whose history is your own:</p>
+
+<pre><code>git clone --depth 1 https://github.com/mirza-basic/firewatch.git my-firewatch
+cd my-firewatch
+rm -rf .git
+git init -b main
+
+<span class="c"># create an EMPTY public repo on GitHub first, then:</span>
+git remote add origin https://github.com/&lt;you&gt;/&lt;repo&gt;.git</code></pre>
+
+<h3>Or fork it</h3>
+<p>A fork keeps the link upstream, so you can pull improvements later. The trade is that
+you inherit the whole history, and that <strong>a fork starts with its workflows switched
+off</strong>. You have to enable them by hand on the Actions tab before anything runs, and
+until you do, every trigger you send is rejected.</p>
+
+<p>Either way, do not push yet. The next three sections change files that you want in
+your first commit.</p>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="settings"><span class="num">04</span> Three GitHub settings</h2>
+
+<p class="lede">All three are silent when wrong. The workflow will run, go green, and
+publish nothing.</p>
+
+<ol class="stages">
+  <li>
+    <h3>Let Actions write to the repository</h3>
+    <div class="click"><b>Settings</b><span class="sep">&rsaquo;</span>Actions
+      <span class="sep">&rsaquo;</span>General<span class="sep">&rsaquo;</span>
+      <b>Workflow permissions</b><span class="sep">&rsaquo;</span>
+      Read and write permissions</div>
+    <p>The workflow commits the database back after every cycle. Without write access
+    the poll succeeds, the push fails, and the run ends red &mdash; and worse than red:
+    the detections and the record of what was already alerted die with the workspace,
+    so the next run re-discovers the same fire and texts about it again.</p>
+  </li>
+  <li>
+    <h3>Publish Pages from Actions, not from a branch</h3>
+    <div class="click"><b>Settings</b><span class="sep">&rsaquo;</span>Pages
+      <span class="sep">&rsaquo;</span>Build and deployment
+      <span class="sep">&rsaquo;</span><b>Source</b><span class="sep">&rsaquo;</span>
+      GitHub Actions</div>
+    <p>The map is uploaded as a deployment artifact, never committed to a branch. Left on
+    the default "Deploy from a branch", the deploy step fails and the map never appears.</p>
+  </li>
+  <li>
+    <h3>Enable Actions if you forked</h3>
+    <div class="click"><b>Actions</b> tab<span class="sep">&rsaquo;</span>
+      I understand my workflows, go ahead and enable them</div>
+    <p>Skip this on a clean copy &mdash; workflows in a repository you created yourself are
+    already live.</p>
+  </li>
+</ol>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="place"><span class="num">05</span> Point it at your municipality</h2>
+
+<p class="lede">Two data files and four constants define the place. Both files are
+build-time artifacts committed to the repository, so Nominatim and Overpass are never
+called while FireWatch is running &mdash; you generate them once, locally, and commit
+the result.</p>
+
+<p>Do this part on your own machine. You need Python with <code>requests</code>:</p>
+
+<pre><code>python3 -m pip install requests certifi</code></pre>
+
+<ol class="stages">
+  <li>
+    <h3>Fetch the boundary</h3>
+    <p>Search for the <em>administrative</em> name, not the town. "Kakanj" returns the
+    town node with a Point geometry; "Op&#263;ina Kakanj" returns the boundary relation you
+    actually want.</p>
+<pre><code>import json, requests
+
+NAME = "Op&#263;ina Kakanj"          <span class="c"># the administrative name</span>
+OUT  = "data/kakanj.geojson"
+
+r = requests.get("https://nominatim.openstreetmap.org/search",
+                 params={"q": NAME, "format": "json", "polygon_geojson": 1, "limit": 8},
+                 headers={"User-Agent": "firewatch-setup/1.0"}, timeout=60)
+hits = [h for h in r.json()
+        if h["osm_type"] == "relation" and h["class"] == "boundary"
+        and h.get("geojson", {}).get("type") in ("Polygon", "MultiPolygon")]
+if not hits:
+    raise SystemExit("no boundary relation - try the administrative name")
+
+h = hits[0]
+print(h["display_name"])
+print("TOWN_LAT, TOWN_LON =", h["lat"] + ",", h["lon"])   <span class="c"># keep these</span>
+
+json.dump({"type": "FeatureCollection", "features": [{
+    "type": "Feature",
+    "properties": {"name": NAME, "admin_level": 6,
+                   "source": f"OpenStreetMap relation {h['osm_id']}",
+                   "licence": "ODbL 1.0"},
+    "geometry": h["geojson"]}]},
+    open(OUT, "w"), ensure_ascii=False)</code></pre>
+    <p>Nominatim asks for a real <code>User-Agent</code> and at most one request a second.
+    You are calling it once, ever.</p>
+  </li>
+
+  <li>
+    <h3>Fetch the settlements</h3>
+    <p>These are what turn coordinates into <em>"7.0 km ESE of Kamenica"</em>. Use a radius
+    comfortably wider than the municipality &mdash; places just outside it are what name a
+    fire over the border.</p>
+<pre><code>import json, requests
+
+LAT, LON, RADIUS = 44.1754925, 18.1420167, 25000     <span class="c"># from step 1</span>
+Q = (f'[out:json][timeout:90];'
+     f'(node["place"~"^(city|town|village|hamlet)$"](around:{RADIUS},{LAT},{LON}););'
+     f'out body;')
+
+<span class="c"># Global mirrors only, and retry rather than fall back to a regional one.</span>
+for url in ("https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter"):
+    try:
+        r = requests.post(url, data={"data": Q}, timeout=120)
+        elements = r.json().get("elements", []) if r.ok else []
+    except Exception as exc:
+        print(url, "failed:", exc); continue
+    if elements:
+        break
+else:
+    raise SystemExit("empty result - do NOT accept this, run it again")
+
+places = [{"n": e["tags"]["name"], "k": e["tags"]["place"],
+           "lat": e["lat"], "lon": e["lon"]}
+          for e in elements if e.get("tags", {}).get("name")]
+json.dump(places, open("data/settlements.json", "w"), ensure_ascii=False)
+print(len(places), "places")</code></pre>
+    <div class="note crit">
+      <span class="lbl">A regional mirror answers 200 and returns nothing</span>
+      <p>Overpass mirrors are flaky, so a retry is genuinely needed &mdash; but choose where
+      you retry. <code>overpass.osm.ch</code> is a <strong>Switzerland-only extract</strong>:
+      it answers HTTP 200 with <code>{"elements": []}</code> for anywhere else, which is
+      indistinguishable from "no settlements here". A naive fallback loop lands on it,
+      writes an empty <code>settlements.json</code>, and every fire is then labelled by bare
+      coordinates. Treat an empty result as a failure, never as an answer.</p>
+    </div>
+  </li>
+
+  <li>
+    <h3>Point the code at the new files</h3>
+    <p>Four constants in <code>firewatch/config.py</code>:</p>
+<pre><code>BOUNDARY_GEOJSON = DATA_DIR / "kakanj.geojson"
+SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
+BUFFER_GEOJSON   = DATA_DIR / "kakanj-buffer.geojson"
+
+<span class="c"># Reference point for bearings and distances: the town centre.</span>
+TOWN_LAT, TOWN_LON = 44.1754925, 18.1420167</code></pre>
+    <p>Use the coordinates Nominatim printed for the relation. Everything the map, the
+    menu bar and the SMS say about direction and distance "of town" is measured from
+    this one point.</p>
+  </li>
+
+  <li>
+    <h3>Rebuild the map band</h3>
+<pre><code>python3 -m pip install shapely pyproj
+python3 -m firewatch buffer</code></pre>
+    <p>This draws the dashed 2 km "nearby" band around the outline. It is the only command
+    in the project that needs <code>shapely</code> and <code>pyproj</code>, and they are
+    imported inside that one function, so the workflow still installs only
+    <code>requests</code> and <code>certifi</code>. Skip this and the map simply draws no
+    band &mdash; the page omits it rather than drawing a confident line in the wrong place.</p>
+  </li>
+</ol>
+
+<div class="note good">
+  <span class="lbl">This procedure has been run end to end</span>
+  <p>Following exactly these steps against a neighbouring municipality produced a
+  601-vertex boundary, 506 settlements, a correctly built 2 km band, a spatial clip that
+  accepted the town centre and rejected a point 30 km away, and a rendered map.</p>
+</div>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="clear"><span class="num">06</span> Clear the Bosnian state</h2>
+
+<p>The repository ships with a live database in it. Those detections are clipped to the
+Zavidovi&#263;i boundary and are meaningless to you &mdash; and if you leave them, your first
+map is a map of someone else's fires.</p>
+
+<pre><code>rm state/firewatch.db state/.detections</code></pre>
+
+<div class="tw">
+<table>
+  <caption>What each file does, so you know what you are deleting</caption>
+  <thead><tr><th>File</th><th>Holds</th><th>If you leave it</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">state/firewatch.db</td><td class="wrap-ok">Detections, events, and which alerts were already sent</td>
+      <td class="wrap-ok">Bosnian fires on your map, forever</td></tr>
+    <tr><td class="mono">state/.detections</td><td class="wrap-ok">Last committed detection count &mdash; the test for "did anything change"</td>
+      <td class="wrap-ok">Your first real detections look like no change, so nothing commits</td></tr>
+    <tr><td class="mono">state/config/config.json</td><td class="wrap-ok"><code>{"auto_expose": false}</code> &mdash; keep it</td>
+      <td class="wrap-ok">Nothing. It is not location-specific</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Give yourself history on day one</h3>
+<p>A fresh database makes the 7-day and 30-day views misleading rather than useful, and
+nothing backfills on its own. Fill it locally before the first push, then commit the
+result &mdash; the workflow inherits it:</p>
+
+<pre><code>export FIREWATCH_DATA_DIR=$PWD/state
+export FIREWATCH_CONFIG_DIR=$PWD/state/config
+export FIRMS_MAP_KEY=&lt;your key&gt;
+
+python3 -m firewatch backfill 30      <span class="c"># ~5 minutes</span>
+git add state/firewatch.db</code></pre>
+
+<p>That is 30 days, stitched from six FIRMS windows (the API caps a query at 5 days) and
+48-hour WFS chunks (a 30-day Meteosat query never returns). Backfilled fires that are
+already out raise no alerts &mdash; a <code>new</code> alert means newly burning, not newly
+discovered &mdash; so this will not text anybody.</p>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="secrets"><span class="num">07</span> Secrets</h2>
+
+<div class="click"><b>Settings</b><span class="sep">&rsaquo;</span>Secrets and variables
+  <span class="sep">&rsaquo;</span>Actions<span class="sep">&rsaquo;</span>
+  <b>New repository secret</b></div>
+
+<div class="tw">
+<table>
+  <thead><tr><th>Secret</th><th>Where it comes from</th><th>Without it</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">FIRMS_MAP_KEY</td>
+      <td class="wrap-ok"><a href="https://firms.modaps.eosdis.nasa.gov/api/map_key/">firms.modaps.eosdis.nasa.gov</a>
+        &mdash; free, arrives in seconds</td>
+      <td class="wrap-ok">VIIRS and MODIS are skipped and reported as <code>[----]</code>,
+        not as a failure. Meteosat and Sentinel-3 carry the cycle</td></tr>
+    <tr><td class="mono">HTTPSMS_API_KEY</td>
+      <td class="wrap-ok"><a href="https://httpsms.com">httpsms.com</a> settings &mdash; your
+        own Android phone is the gateway</td>
+      <td class="wrap-ok">No SMS. Everything else runs</td></tr>
+    <tr><td class="mono">HTTPSMS_FROM</td>
+      <td class="wrap-ok">The gateway phone's own number, E.164 (<code>+387&hellip;</code>)</td>
+      <td class="wrap-ok">No SMS</td></tr>
+    <tr><td class="mono">FIREWATCH_SMS_TO</td>
+      <td class="wrap-ok">Recipients, comma-separated, E.164</td>
+      <td class="wrap-ok">No SMS</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <span class="lbl">Why recipients are a secret and not config</span>
+  <p>Normally the recipient list lives in <code>config.json</code> so it can be edited
+  while the service runs. On a public repository that would publish your friends' phone
+  numbers, so <code>FIREWATCH_SMS_TO</code> exists to override the file entirely. The trade
+  is one-way: with it set the list is fixed for the life of the process, and
+  <code>sms-add</code> / <code>sms-remove</code> refuse to run rather than write to a file
+  nothing reads. To change who gets texted, edit the secret.</p>
+  <p>The workflow logs the recipient <em>count</em>, never the numbers &mdash; GitHub masks an
+  exact secret value, not the individual numbers inside a comma-separated one, and that
+  log is public.</p>
+</div>
+
+<!-- ==================== 08 ==================== -->
+<h2 id="url"><span class="num">08</span> The map URL</h2>
+
+<p>Your Pages address is <code>https://&lt;you&gt;.github.io/&lt;repo&gt;</code>, and it is
+written into <strong>two workflow files</strong>. Change both:</p>
+
+<pre><code><span class="c">.github/workflows/poll.yml</span>
+      FIREWATCH_PUBLIC_URL: https://&lt;you&gt;.github.io/&lt;repo&gt;
+
+<span class="c">.github/workflows/test-sms.yml</span>
+      FIREWATCH_PUBLIC_URL: https://&lt;you&gt;.github.io/&lt;repo&gt;</code></pre>
+
+<div class="note crit">
+  <span class="lbl">Miss this and your alerts point at someone else's fires</span>
+  <p>The map link is resolved at send time. On a laptop it comes from the local ngrok
+  agent; on a host there is none, so <code>FIREWATCH_PUBLIC_URL</code> is the only source.
+  Left unchanged it is a valid, working URL &mdash; pointing at the original
+  Zavidovi&#263;i map. Nothing errors. Every SMS you send just quietly links to Bosnia.</p>
+</div>
+
+<h3>Then decide what triggers it</h3>
+
+<p><code>poll.yml</code> has no <code>schedule:</code> block. Its only trigger is
+<code>workflow_dispatch</code>, which means something outside GitHub has to ask it to run
+&mdash; a free cron service, a home server, anything that can make an HTTP request on a
+timer.</p>
+
+<p>GitHub's own scheduler is the obvious alternative and the reason it is not used: cron
+there has a five-minute floor and is routinely delayed 5&ndash;30 minutes under load, which
+is a lot of drift to add to a feed that is already 25 minutes behind the fire. An external
+caller fires when it says it will.</p>
+
+<pre><code>POST https://api.github.com/repos/&lt;you&gt;/&lt;repo&gt;/actions/workflows/poll.yml/dispatches
+Authorization: Bearer &lt;token&gt;
+Accept: application/vnd.github+json
+Content-Type: application/json
+
+{"ref":"main"}</code></pre>
+
+<div class="note warn">
+  <span class="lbl">Three things that make this call fail</span>
+  <p><code>ref</code> is <strong>required</strong>. Post an empty body and you get
+  <code>422 Unprocessable Entity</code>, not a message explaining what is missing.</p>
+  <p>The token needs <strong>Actions: read and write</strong> &mdash; a fine-grained personal
+  access token scoped to this one repository is enough, and expires on a date you choose.
+  Put a reminder somewhere: an expired token fails silently from GitHub's side, because
+  nothing on GitHub knows it was supposed to be called.</p>
+  <p>Success is <code>204 No Content</code> with an <em>empty body</em>. Do not treat "no
+  response" as a failure and retry into a queue of duplicate runs.</p>
+</div>
+
+<p>Cadence is now yours to choose. Under ten minutes buys nothing &mdash; MTG publishes a
+new slice every ten minutes with ~25 minutes of latency, so polling faster only burns
+runs. Ten to fifteen minutes is the sweet spot.</p>
+
+<!-- ==================== 09 ==================== -->
+<h2 id="verify"><span class="num">09</span> First run</h2>
+
+<p>Push, then drive the first cycle from the Actions tab, before you wire up the
+external trigger &mdash; one moving part at a time:</p>
+
+<div class="click"><b>Actions</b> tab<span class="sep">&rsaquo;</span><b>poll</b>
+  <span class="sep">&rsaquo;</span>Run workflow</div>
+
+<p>Then work down this list. Each line fails in its own way, and none of them shout:</p>
+
+<div class="tw">
+<table>
+  <thead><tr><th>Check</th><th>Good</th><th>If not</th></tr></thead>
+  <tbody>
+    <tr><td class="wrap-ok">The run is green</td>
+      <td class="wrap-ok">Both jobs, <code>poll</code> and <code>publish</code></td>
+      <td class="wrap-ok">A red <em>publish</em> is almost always Pages still set to
+        "Deploy from a branch" &mdash; §04</td></tr>
+    <tr><td class="wrap-ok">The poll log names your places</td>
+      <td class="wrap-ok">Settlements you recognise</td>
+      <td class="wrap-ok">Bare coordinates mean <code>settlements.json</code> is empty
+        &mdash; the Swiss-mirror trap in §05</td></tr>
+    <tr><td class="wrap-ok">Sources report</td>
+      <td class="wrap-ok"><code>[ok  ] mtg</code> and <code>[ok  ] s3</code>; FIRMS either
+        <code>[ok  ]</code> or <code>[----]</code></td>
+      <td class="wrap-ok"><code>[----]</code> means no key set, which is a supported state.
+        <code>[FAIL]</code> means the key is wrong or the feed is down</td></tr>
+    <tr><td class="wrap-ok">A commit appeared</td>
+      <td class="wrap-ok"><code>state: N detections @ &hellip;</code></td>
+      <td class="wrap-ok">No commit and a red push step means write permission &mdash; §04</td></tr>
+    <tr><td class="wrap-ok">The map loads</td>
+      <td class="wrap-ok">Your boundary, your band, your town at the centre</td>
+      <td class="wrap-ok">Pages takes a minute on the very first deploy</td></tr>
+    <tr><td class="wrap-ok">The documentation loads</td>
+      <td class="wrap-ok"><code>/docs/</code> lists these pages; the map's panel footer
+        links to it</td>
+      <td class="wrap-ok">Built by the same run &mdash; if the map is there and the docs are
+        not, check the build step's log</td></tr>
+    <tr><td class="wrap-ok">SMS delivery</td>
+      <td class="wrap-ok">Run <strong>test-sms</strong> &mdash; it previews by default</td>
+      <td class="wrap-ok">Check <code>usable</code> in its log; it names the reason</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note good">
+  <span class="lbl">test-sms will not surprise anyone</span>
+  <p>Clicking "Run workflow" on <strong>test-sms</strong> without thinking prints the
+  message and its segment cost and sends nothing. A test SMS goes to real phones and costs
+  a real segment, so sending is a checkbox you have to tick on purpose. The preview shows
+  the exact text, the character count, the segment count and the resolved map link &mdash;
+  which is the fastest way to confirm §08 landed.</p>
+</div>
+
+<!-- ==================== 10 ==================== -->
+<h2 id="living"><span class="num">10</span> Living with it</h2>
+
+<h3>Nothing on GitHub will tell you it stopped</h3>
+<p>Because the trigger lives outside GitHub, GitHub has no opinion about whether it is
+still firing. If your cron service dies, its free tier lapses, or the access token
+expires, the workflow simply stops being called &mdash; no failed run, no red cross, no
+email. The map freezes at its last good render and keeps serving happily.</p>
+<p>So monitor the caller, not the repository. The cheapest check is the map itself: its
+panel header carries the time of the last cycle, and a timestamp hours old on a page that
+loads fine is the whole failure mode in one glance.</p>
+<div class="note">
+  <span class="lbl">One thing you no longer have to worry about</span>
+  <p>GitHub disables <em>scheduled</em> workflows on a public repository after 60 days
+  without commits &mdash; a rule that has turned off many a quiet side project. It does not
+  apply here: there is no schedule to disable. A <code>workflow_dispatch</code> trigger
+  keeps working however long the repository sits still.</p>
+</div>
+
+<h3>Why it does not commit every run</h3>
+<p>At a 15-minute cadence, committing every cycle would be 2,880 commits a month, each
+storing a fresh copy of the database &mdash; hundreds of megabytes carrying no new
+information. The database's bytes change every cycle by design, so the workflow tests the
+<em>detection count</em> instead and stages the database only when that moves.</p>
+
+<h3>FIRMS quota</h3>
+<p>The key allows 5000 transactions per rolling 10-minute window. A sweep of the four NRT
+datasets costs 8, so even at a 10-minute cadence that is 48 an hour &mdash; about 1% of one
+window's allowance. A 30-day backfill costs 48. You are not going to run out.</p>
+
+<h3>When it goes quiet</h3>
+<div class="tw">
+<table>
+  <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
+  <tbody>
+    <tr><td class="wrap-ok">Nothing detected, ever, and you are outside Europe or Africa</td>
+      <td class="wrap-ok">You are off the Meteosat disc &mdash; §01</td></tr>
+    <tr><td class="wrap-ok">Fires labelled by coordinates, no place names</td>
+      <td class="wrap-ok"><code>settlements.json</code> is empty, almost certainly a regional
+        Overpass mirror. Refetch from a global one</td></tr>
+    <tr><td class="wrap-ok">The band vanished from the map</td>
+      <td class="wrap-ok"><code>nearby_buffer_km</code> changed without a rebuild.
+        <code>python3 -m firewatch buffer</code>, commit the artifact</td></tr>
+    <tr><td class="wrap-ok">Long ranges are empty</td>
+      <td class="wrap-ok">Nothing backfills on its own &mdash; §06</td></tr>
+    <tr><td class="wrap-ok">40&ndash;90 day old history is missing</td>
+      <td class="wrap-ok">Not a bug. FIRMS near-real-time reaches back ~40 days and the
+        archive lags ~3 months, so that window has neither until the archive catches
+        up</td></tr>
+    <tr><td class="wrap-ok">The same fire texts you twice</td>
+      <td class="wrap-ok">A failed push lost the run's state. Check write permissions
+        &mdash; §04</td></tr>
+    <tr><td class="wrap-ok">FIRMS fails with <code>Network is unreachable</code></td>
+      <td class="wrap-ok">Already handled: <code>FIREWATCH_FORCE_IPV4</code> is set in both
+        workflows, because the runners have no IPv6 route and FIRMS is the one host that
+        publishes an AAAA record. Do not remove it</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Every source failure is isolated and logged with its reason, and one failing feed never
+blocks the others. A run that reports one dead source and still publishes a map is
+working as designed.</p>
+
+<!-- ==================== 11 ==================== -->
+<h2 id="bosnian"><span class="num">11</span> What stays Bosnian</h2>
+
+<p>None of this breaks anything, and all of it is visible. Fix it when you have the
+patience:</p>
+
+<div class="tw">
+<table>
+  <thead><tr><th>What</th><th>Where</th></tr></thead>
+  <tbody>
+    <tr><td class="wrap-ok">The strings "Zavidovi&#263;i" and "Grad Zavidovi&#263;i" in the interface</td>
+      <td class="mono">mapgen.py, menubar.py,<br>notify.py, __main__.py</td></tr>
+    <tr><td class="wrap-ok">The map's second language &mdash; a full Bosnian translation
+      including Slavic plural rules. Replace the <code>bs</code> block, or delete it and
+      keep English only</td>
+      <td class="mono">mapgen.py &rarr; I18N</td></tr>
+    <tr><td class="wrap-ok">The map opens in Bosnian by default</td>
+      <td class="mono">mapgen.py</td></tr>
+    <tr><td class="wrap-ok">The timezone, <code>Europe/Sarajevo</code></td>
+      <td class="mono">enrich.py, mapgen.py</td></tr>
+    <tr><td class="wrap-ok">SMS wording &mdash; <code>sms_language</code> is <code>bs</code>
+      or <code>en</code>, and both wordings already exist</td>
+      <td class="mono">config.py, sms.py</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="lbl">If you add a third language</span>
+  <p>Alert text is transliterated to ASCII before sending, because one non-GSM character
+  switches the whole SMS to UCS-2 and drops the segment from 160 characters to 70. An
+  alert currently measures at most 153 characters &mdash; one segment &mdash; across every
+  stored event, every alert kind and the longest settlement name. If your place names are
+  longer than Bosnian ones, or your wording is, measure before you assume it still
+  fits.</p>
+</div>
+
+<footer>
+  <p>FireWatch is near-live wildfire monitoring built for Grad Zavidovi&#263;i, Bosnia. The
+  pipeline is not specific to it: three satellite feeds, a municipality polygon, and
+  clustering that turns scattered thermal anomalies into one tracked fire.</p>
+  <p>Detections are satellite <em>thermal anomalies</em>, not confirmed wildfires.
+  Industrial heat, flares and agricultural burning all register, and cloud cover blocks
+  detection entirely on every one of these sensors. Treat it as a screening signal and
+  verify before acting.</p>
+  <p>Boundary and settlement data &copy; OpenStreetMap contributors, ODbL 1.0. Fire
+  detections courtesy of NASA FIRMS (LANCE/ESDIS) and EUMETSAT. Weather by Open-Meteo.</p>
+</footer>
+</main>
+</div>
