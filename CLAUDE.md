@@ -89,6 +89,17 @@ one detection per sensor per overpass per hot pixel (45 for a single real fire),
 clustering is what makes an alert mean "something changed" rather than "a satellite
 looked again". Events carry a stable id derived from their earliest detection.
 
+**`active` is one line, and it is a claim about the data.** `events.py:173` is the
+whole of it — `"active" if (now - last_ts) <= quiet_after else "quiet"`, where
+`last_ts` is the newest detection *in the cluster* and `quiet_after` is `quiet_hours`
+(4). It is recomputed every cycle from `now`, so no status is stored and none can get
+stuck; an event goes quiet by not being re-detected, and there is no expiry job. What
+it asserts is that *a satellite still reports heat*, not that the fire is burning:
+cloud blocks detection completely on all three sensors, and MTG cannot see below
+roughly 5 MW, so a fire can go `quiet` on schedule while burning unchanged. That is
+why `extinguished` is informational and silent — it is news about the feed, not about
+the forest.
+
 The map opens in **Bosnian**, unconditionally — there is no `navigator.language`
 sniff. A reader's own choice wins: the EN/BS toggle writes `fw_lang` to
 `localStorage` and that is checked first, so switching to English is remembered per
@@ -227,6 +238,12 @@ These all cost real debugging time. Most are silent failures.
     the URL stays up until the agent restarts. A free account also allows only three
     endpoints per agent session — a fourth is refused with `ERR_NGROK_324`, and the
     session is shared with anything else on the machine that uses ngrok.
+17. **Lowering `quiet_hours` *increases* SMS volume.** The intuition is that a
+    shorter window means less noise; the opposite happens. A short window pushes
+    events into `quiet` during the ordinary gap between polar overpasses, and the
+    next detection then arrives as `reignited` — which is in `sms_kinds`, unlike the
+    silent `extinguished`. One long fire under a 1 h window becomes a day-long
+    stutter of extinguished/reignited pairs, one text per pair.
 
 ## Landmine: FIRMS from a CI runner
 

@@ -816,6 +816,59 @@ lifecycle so notifications carry information rather than repeating themselves.</
   burning, not newly discovered.</figcaption>
 </figure>
 
+<h3>What <em>active</em> actually means</h3>
+
+<p>The whole state machine turns on one line, in <code>events.build_events</code>:</p>
+
+<pre><code>"status": "active" if (now - last_ts) &lt;= quiet_after else "quiet",</code></pre>
+
+<p>So an event is <strong>active when its newest detection is younger than
+<code>quiet_hours</code></strong> (4 h by default), and quiet otherwise. Three
+properties of that rule are worth stating, because none of them is visible from the
+word itself.</p>
+
+<p><strong>It is a property of the event, not of a detection.</strong>
+<code>last_ts</code> is the timestamp of the newest detection <em>in the cluster</em>.
+One fire produces one detection per sensor per overpass per hot pixel — 45 for a
+single real fire — so the clustering has to happen first; the status then describes
+the whole group.</p>
+
+<p><strong>It is recomputed from scratch every cycle.</strong> <code>now</code> is the
+current cycle's clock, so nothing is stored and no status can get stuck: an event
+crosses into <code>quiet</code> simply by not receiving new detections, with no
+expiry job anywhere. The same pass records <code>age_min</code>, the minutes since
+that last detection, which is the number the map shows.</p>
+
+<div class="note warn">
+  <span class="lbl">Absence of evidence, not evidence of extinction</span>
+  <p><code>active</code> means <em>a satellite still reports heat here</em>. It does
+  not mean the fire is burning, and <code>quiet</code> does not mean it is out.
+  <strong>Cloud cover blocks detection completely on all three sensors</strong>, so a
+  fire that clouds over goes quiet on schedule while burning exactly as before. The
+  same applies to a fire that drops below the detection floor — roughly 5 MW for
+  Meteosat's ~4 km pixels — without going out.</p>
+  <p>This is why <code>extinguished</code> is the one alert that never sends an SMS.
+  It is a statement about the data, and the field does not need a text message saying
+  the satellite stopped seeing something.</p>
+</div>
+
+<p><strong>Why four hours.</strong> It is a compromise between the two failure modes
+either side of it. Polar-orbiting satellites pass 4&ndash;7 times a day, so a much
+shorter window would declare a fire out in the ordinary gap between overpasses; a much
+longer one would leave dead fires reported as burning for most of a day. Inside the
+Meteosat disc the fast feed narrows the gap to ten minutes, but the threshold has to
+survive the case where Meteosat is clouded out and only the polar passes remain.</p>
+
+<div class="note">
+  <span class="lbl">Tuning it inverts the way you would expect</span>
+  <p><code>quiet_hours</code> is configurable, but <strong>lowering it produces more
+  SMS traffic, not less</strong>. A shorter window pushes events into
+  <code>quiet</code> between overpasses, and the next detection then arrives as
+  <code>reignited</code> — which <em>is</em> in <code>sms_kinds</code>. A single long
+  fire, under a 1 h window, becomes a stutter of extinguished/reignited pairs texting
+  you all day.</p>
+</div>
+
 <div class="tw">
 <table>
   <caption>Alert kinds and exact trigger conditions</caption>

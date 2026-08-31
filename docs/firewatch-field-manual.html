@@ -349,7 +349,9 @@ editing.</p>
     <tr><td class="mono">cluster_gap_hours</td><td class="num">8.0</td>
         <td>And how close in time</td></tr>
     <tr><td class="mono">quiet_hours</td><td class="num">4.0</td>
-        <td>Silence after which a fire is treated as out</td></tr>
+        <td>Silence after which a fire is reported quiet rather than active.
+        Lowering it means <em>more</em> SMS, not fewer &mdash; the next detection then
+        arrives as <code>reignited</code></td></tr>
     <tr><td class="mono">window_hours</td><td class="num">8760</td>
         <td>How far back events are built &mdash; the view horizon</td></tr>
     <tr><td class="mono">retention_days</td><td class="num">400</td>

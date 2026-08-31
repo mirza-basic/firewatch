@@ -337,7 +337,9 @@ Edit `~/.config/firewatch/config.json` (any subset of the defaults in
   needs `python3 -m firewatch buffer` afterwards, or the band vanishes from the map.
   Narrowing it only affects new fetches; `python3 -m firewatch reclip --apply` drops
   the history a wider setting had already let in
-- `quiet_hours` (default 4) — when a fire counts as out
+- `quiet_hours` (default 4) — silence after which a fire is reported quiet rather
+  than active. Lowering it sends *more* SMS, not fewer: events drop to quiet between
+  satellite overpasses and the next detection returns as `reignited`
 - `window_hours` (default 8760) — how far back events are built; the view horizon
 - `default_range` (default `3d`) — which range the menu bar and map open on
 - `retention_days` (default 400) — database retention; must exceed the largest range
