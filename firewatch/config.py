@@ -133,7 +133,14 @@ DEFAULTS = {
     "cluster_radius_km": 3.5,
     "cluster_gap_hours": 8.0,
     # An event with no new detection for this long is treated as no longer burning.
-    "quiet_hours": 4.0,
+    # Five, not four, because four was tighter than Sentinel-3's own delivery: that
+    # feed lands 3-4 h after acquisition (S3A measured 4.13 h), so a fire only S3 had
+    # seen arrived already quiet and the `new` gate threw the alert away. Replaying
+    # all stored history at both values moves three events - every one Sentinel-3
+    # reported first - from a late `reignited` to a correct `new`, 2.4 to 3.7 h
+    # earlier, for one fewer SMS overall. Keep it under cluster_gap_hours (8) or an
+    # event reads active while its cluster can no longer absorb the next detection.
+    "quiet_hours": 5.0,
     # Working window for clustering. This is the *view* horizon, not the fetch
     # horizon: each poll only fetches ~24 h of overlap because history already
     # lives in SQLite, so a year-long window is one wider read per cycle, not a

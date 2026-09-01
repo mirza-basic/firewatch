@@ -92,7 +92,7 @@ looked again". Events carry a stable id derived from their earliest detection.
 **`active` is one line, and it is a claim about the data.** `events.py:173` is the
 whole of it — `"active" if (now - last_ts) <= quiet_after else "quiet"`, where
 `last_ts` is the newest detection *in the cluster* and `quiet_after` is `quiet_hours`
-(4). It is recomputed every cycle from `now`, so no status is stored and none can get
+(5). It is recomputed every cycle from `now`, so no status is stored and none can get
 stuck; an event goes quiet by not being re-detected, and there is no expiry job. What
 it asserts is that *a satellite still reports heat*, not that the fire is burning:
 cloud blocks detection completely on all three sensors, and MTG cannot see below
@@ -244,6 +244,17 @@ These all cost real debugging time. Most are silent failures.
     next detection then arrives as `reignited` — which is in `sms_kinds`, unlike the
     silent `extinguished`. One long fire under a 1 h window becomes a day-long
     stutter of extinguished/reignited pairs, one text per pair.
+
+    **It also has a hard floor: the slowest feed's delivery latency.** Sentinel-3
+    arrives 3-4 h after acquisition (S3A measured 4.13 h), so under the old 4 h
+    setting a fire only S3 had seen landed already `quiet` and the `new` gate — which
+    requires `status == "active"` — dropped the alert entirely. The fire was then
+    announced hours later by FIRMS, as `reignited`, which told the reader it was
+    burning *again* when it had never been reported once. Replaying all stored
+    history at 4 vs 5 moves exactly three alerts, every one of them a fire Sentinel-3
+    reported first, 2.4-3.7 h earlier and from `reignited` to `new`, for one fewer
+    SMS. Below a feed's latency, that feed can only ever alert when it lands on the
+    fast half of its distribution.
 
 ## Landmine: FIRMS from a CI runner
 

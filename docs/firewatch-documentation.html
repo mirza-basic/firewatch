@@ -823,7 +823,7 @@ lifecycle so notifications carry information rather than repeating themselves.</
 <pre><code>"status": "active" if (now - last_ts) &lt;= quiet_after else "quiet",</code></pre>
 
 <p>So an event is <strong>active when its newest detection is younger than
-<code>quiet_hours</code></strong> (4 h by default), and quiet otherwise. Three
+<code>quiet_hours</code></strong> (5 h by default), and quiet otherwise. Three
 properties of that rule are worth stating, because none of them is visible from the
 word itself.</p>
 
@@ -852,12 +852,30 @@ that last detection, which is the number the map shows.</p>
   the satellite stopped seeing something.</p>
 </div>
 
-<p><strong>Why four hours.</strong> It is a compromise between the two failure modes
+<p><strong>Why five hours.</strong> It is a compromise between the two failure modes
 either side of it. Polar-orbiting satellites pass 4&ndash;7 times a day, so a much
 shorter window would declare a fire out in the ordinary gap between overpasses; a much
 longer one would leave dead fires reported as burning for most of a day. Inside the
 Meteosat disc the fast feed narrows the gap to ten minutes, but the threshold has to
 survive the case where Meteosat is clouded out and only the polar passes remain.</p>
+
+<div class="note warn">
+  <span class="lbl">It was four, and four was below a feed's own latency</span>
+  <p>Sentinel-3 reaches this system 3&ndash;4 hours after the satellite looked
+  (Sentinel-3A measured at 4.13 h). Under a four-hour window a fire that only
+  Sentinel-3 had seen therefore arrived <em>already quiet</em>, and since
+  <code>new</code> requires <code>status == "active"</code>, the alert was silently
+  discarded. The fire was announced hours later by FIRMS instead &mdash; and
+  announced as <code>reignited</code>, telling the reader a fire was burning again
+  when it had never been reported at all.</p>
+  <p>Replaying every stored event at both settings moves exactly three alerts, all
+  three of them fires Sentinel-3 reported first: <strong>2.4 to 3.7 hours
+  earlier</strong>, each from a late <code>reignited</code> to a correct
+  <code>new</code>, at a cost of one fewer SMS overall. Nothing alerts later and no
+  alert is lost. The general rule: <strong>never set this below the slowest feed's
+  delivery latency</strong>, or that feed can only alert when it happens to land on
+  the fast half of its distribution.</p>
+</div>
 
 <div class="note">
   <span class="lbl">Tuning it inverts the way you would expect</span>
@@ -879,7 +897,7 @@ survive the case where Meteosat is clouded out and only the polar passes remain.
     <tr><td><strong>grew</strong></td><td>More detections <em>and</em> footprint wider by ≥0.5 km</td><td class="mono">Tink</td></tr>
     <tr><td><strong>corroborated</strong></td><td>The source set gains a member — a second satellite family confirms</td><td class="mono">Tink</td></tr>
     <tr><td><strong>reignited</strong></td><td>A quiet event produces detections again</td><td class="mono">Basso</td></tr>
-    <tr><td><strong>extinguished</strong></td><td>An active event goes 4 h with no detection</td><td class="mono">silent</td></tr>
+    <tr><td><strong>extinguished</strong></td><td>An active event goes 5 h with no detection</td><td class="mono">silent</td></tr>
   </tbody>
 </table>
 </div>
