@@ -22,11 +22,12 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
-# Held back from the public site. The SMS preview renders real alert text against
-# real event data - fire coordinates and the alert wording as it reaches a phone -
-# which is fine to keep in the repository and to hand to a reviewer, but is not
-# something the published site needs. Drop the name from this set to publish it.
-SKIP = {"firewatch-sms-preview.html"}
+# Held back from the public site. Drop a name from this set to publish it.
+#
+# The Sentinel-3 plan describes work that has not been built and is not scheduled.
+# On the public site it would read as a roadmap; in the repository it is what it
+# is, a measured case for a change that was deliberately deferred.
+SKIP = {"firewatch-sentinel3-plan.html"}
 
 SKELETON = """<!doctype html>
 <html lang="en">

@@ -316,6 +316,7 @@ const I18N = {
     spread:"{risk} spread risk", risk_elevated:"elevated", risk_high:"high",
     risk_extreme:"extreme", risk_moderate:"moderate", risk_unknown:"unknown",
     satellite:"Satellite", copyCoords:"Copy coords", copied:"copied",
+    discoveredBy:"Reported by", savedAt:"saved",
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
     noDetRange:"no detections in range", boundary:"boundary", refreshNote:
       "data refreshes in place every 60 s · your view is kept",
@@ -357,6 +358,7 @@ const I18N = {
     spread:"rizik širenja: {risk}", risk_elevated:"povišen", risk_high:"visok",
     risk_extreme:"ekstreman", risk_moderate:"umjeren", risk_unknown:"nepoznat",
     satellite:"Satelit", copyCoords:"Kopiraj koordinate", copied:"kopirano",
+    discoveredBy:"Prvi prijavio", savedAt:"sačuvano",
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
     noDetRange:"nema detekcija u periodu", boundary:"granica", refreshNote:
       "podaci se osvježavaju svakih 60 s · prikaz se čuva",
@@ -652,6 +654,24 @@ function drawEvents(){
   });
 }
 
+// Which feed got this fire into the database first, which satellite, and when it
+// landed. Arrival, not acquisition: the feed that saw it earliest is often not the
+// one that reported it earliest. Falls back to the series head for a snapshot
+// written before these fields existed, so an older cached fire-map-data.js still
+// renders - without a saved time, which that snapshot cannot know.
+function credit(e){
+  const s = e.credit_source || (e.series && e.series[0] && e.series[0].source);
+  if(!s) return "";
+  const grey = "color:#8b98a5";
+  const sensor = e.credit_sensor
+    ? ` <span style="${grey}">${e.credit_sensor}</span>` : "";
+  const saved = e.credit_saved_at
+    ? ` <span style="${grey}">&middot; ${t("savedAt")} ${
+        fmtLocal(Date.parse(e.credit_saved_at))}</span>` : "";
+  return `${t("discoveredBy")} <b style="color:${SRC[s]?.c||"#fff"}">${
+    SRC[s]?.n||s}</b>${sensor}${saved}<br>`;
+}
+
 function popupHtml(e){
   const w = e.weather;
   return `<b>${t("sev_"+e.severity).toUpperCase()}</b> &middot; ${t("st_"+e.status)}<br>
@@ -660,6 +680,7 @@ function popupHtml(e){
     FRP <b>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW"}</b> ${t("peak")},
     ${e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW"} ${t("latest")}<br>
     ${e.n_det} ${t("detections")} &middot; ${e.sources.join(", ")}<br>
+    ${credit(e)}
     ${t("lastSeen").toLowerCase()} ${ago(e.age_min)} &middot; ${e.extent_km} km ${t("across")}
     ${w?`<br>${t("wind")} ${Math.round(w.speed)} km/h ${t("from")} ${dir(w.from)} (${t("gusts")} ${Math.round(w.gusts)}), ${t("rh")} ${w.humidity}%`:""}
     <br><br><a href="https://www.google.com/maps?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>

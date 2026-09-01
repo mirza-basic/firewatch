@@ -147,6 +147,15 @@ def build_events(dets: list[dict]) -> list[dict]:
         last_ts = parse_iso(group[-1]["ts"])
         age_min = (now - last_ts).total_seconds() / 60.0
 
+        # The detection that reached the database first. `first_seen` is stamped per
+        # row at insert, so this is arrival order, not acquisition order - and the
+        # two genuinely differ: MTG has taken credit for a fire VIIRS saw 21 min
+        # earlier, because MTG's ~25 min latency beat VIIRS's 2 h. Synthetic
+        # detections carry no first_seen, and a whole cluster ingested in one cycle
+        # (which backfill always produces) ties on it, so acquisition time breaks
+        # the tie and covers its absence.
+        credited = min(group, key=lambda d: (d.get("first_seen") or d["ts"], d["ts"]))
+
         # Spatial extent as the diagonal of the detection bounding box. The exact
         # max-pairwise distance is O(n^2), which a month-long event with thousands
         # of detections makes expensive; the diagonal is O(n) and never smaller.
@@ -170,6 +179,13 @@ def build_events(dets: list[dict]) -> list[dict]:
             "sum_frp": round(sum(frps), 2) if frps else None,
             "sources": sources,
             "sensors": sorted({d["sensor"] for d in group if d.get("sensor")}),
+            # Credit: which feed got this fire into the database first, and when it
+            # landed. Deliberately not the same as first_ts, which is the earliest
+            # *acquisition* and the detection the event id derives from - so credit
+            # and identity can name different sightings.
+            "credit_source": credited["source"],
+            "credit_sensor": credited.get("sensor"),
+            "credit_saved_at": credited.get("first_seen"),
             "status": "active" if (now - last_ts) <= quiet_after else "quiet",
             "inside": any(d["inside"] for d in group),
             "place": geo.describe_location(lat, lon),

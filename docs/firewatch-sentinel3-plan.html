@@ -1,0 +1,570 @@
+<title>Sentinel-3 Fast Path</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation and API reference so the three read as one set. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+  pre{font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.62;
+    background:var(--surface); color:var(--ink); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); border-radius:6px;
+    padding:14px 16px; overflow-x:auto; margin:0 0 18px}
+  pre code{background:none; padding:0; font-size:inherit}
+  pre .c{color:var(--ink-3)}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  .src-mtg{color:var(--mtg); font-weight:600}
+  .src-firms{color:var(--firms); font-weight:600}
+  .src-s3{color:var(--s3); font-weight:600}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .pill{display:inline-block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:4px;
+    background:var(--surface-2); color:var(--ink-2); vertical-align:middle}
+  .pill.ok{background:var(--ok); color:#fff}
+  .pill.no{background:var(--surface-3); color:var(--ink-2)}
+  .pill.crit{background:var(--crit); color:#fff}
+
+  /* Install and relocation are genuine ordered sequences, so they are numbered.
+     The command and setting tables are lookups, and are not. */
+  ol.stages{list-style:none; counter-reset:st; margin:22px 0 8px; padding:0; max-width:none}
+  ol.stages > li{counter-increment:st; position:relative; padding:0 0 22px 52px; margin:0;
+    border-left:1px solid var(--rule); margin-left:15px}
+  ol.stages > li:last-child{border-left-color:transparent; padding-bottom:2px}
+  ol.stages > li::before{content:counter(st); position:absolute; left:-15px; top:0;
+    width:30px; height:30px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--rule); color:var(--accent);
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600;
+    display:grid; place-items:center}
+  ol.stages h3{margin:3px 0 5px}
+  ol.stages p{margin-bottom:9px}
+  ol.stages pre{margin-bottom:12px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">Sentinel-3 Fast Path</div>
+  <ol>
+    <li><a href="#buys"><span class="n">01</span><span>What it buys</span></a></li>
+    <li><a href="#measured"><span class="n">02</span><span>The measurements</span></a></li>
+    <li><a href="#where"><span class="n">03</span><span>Where the hours go</span></a></li>
+    <li><a href="#design"><span class="n">04</span><span>The design</span></a></li>
+    <li><a href="#phases"><span class="n">05</span><span>Phases</span></a></li>
+    <li><a href="#landmines"><span class="n">06</span><span>Predicted landmines</span></a></li>
+    <li><a href="#decision"><span class="n">07</span><span>The decision</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Implementation plan &middot; not built</div>
+  <h1>Sentinel-3 Fast Path</h1>
+  <p class="standfirst">A plan for cutting Sentinel-3 fire detection latency from three
+  or four hours to about ninety minutes, by taking the product from the EUMETSAT Data
+  Store instead of the EUMETView map service. Written to be executed later, or not at
+  all.</p>
+  <dl class="facts">
+    <div><dt>Latency now</dt><dd>3&ndash;4 h</dd></div>
+    <div><dt>Latency after</dt><dd>~1.5 h</dd></div>
+    <div><dt>Extra passes</dt><dd>none</dd></div>
+    <div><dt>New dependencies</dt><dd>netCDF + numpy</dd></div>
+  </dl>
+</header>
+
+<div class="note warn">
+  <span class="lbl">Status: documented, deliberately not implemented</span>
+  <p>Nothing in this plan has been written. It exists because the measurements behind
+  it were expensive to gather and would otherwise be lost. <strong>The recommendation
+  is not to build this yet</strong> &mdash; see <a href="#decision">07</a> for the
+  conditions that would change that answer. Everything here was measured against the
+  live services on <strong>1 September 2026</strong>.</p>
+</div>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="buys"><span class="num">01</span> What it buys, and what it does not</h2>
+
+<p>Sentinel-3 detections currently reach FireWatch three to four hours after the
+satellite passes. The same product is finished and available roughly ninety minutes
+after acquisition. That gap &mdash; about <strong>two hours</strong> &mdash; is the
+entire prize, and it is worth being precise about how narrow that is.</p>
+
+<div class="tw">
+<table>
+  <caption>What changes, and what does not</caption>
+  <thead><tr><th>Property</th><th>Today</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>Delivery latency</td><td class="num">3&ndash;4 h</td>
+        <td class="num">~1.5 h</td></tr>
+    <tr><td>Overpasses per day</td><td class="num">~2.4</td>
+        <td class="num">~2.4</td></tr>
+    <tr><td>Smallest fire detectable</td><td class="num">2.59 MW</td>
+        <td class="num">2.59 MW</td></tr>
+    <tr><td>Credentials required</td><td><span class="pill ok">none</span></td>
+        <td><span class="pill crit">OAuth key + secret</span></td></tr>
+    <tr><td>Runtime dependencies</td><td class="num">4</td>
+        <td class="num">6</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>It adds no passes.</strong> Sentinel-3A and 3B cross Zavidovići about 2.4
+times a day between them, and no change to how the data is fetched affects when a
+satellite is overhead. Sentinel-3C launches on 14&ndash;15 September 2026, but it
+replaces 3A rather than joining it, and needs months of commissioning first.</p>
+
+<p><strong>It adds no sensitivity.</strong> The same instrument produces the same fire
+pixels. A fire below SLSTR's threshold stays invisible, and the gap that actually hurts
+this system &mdash; MTG needing roughly 9&nbsp;MW before it registers anything &mdash;
+is untouched.</p>
+
+<div class="note good">
+  <span class="lbl">The one real argument for doing it</span>
+  <p>At ~1.5 h, Sentinel-3 would become the <strong>second-fastest feed</strong>,
+  overtaking FIRMS at a measured median of 191 minutes. For a fire in the
+  3&ndash;10&nbsp;MW band &mdash; too small for <span class="src-mtg">MTG</span>, well
+  within reach of SLSTR's 1&nbsp;km pixels &mdash; that is a genuine two-hour head
+  start on the only other feed that can see it.</p>
+</div>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="measured"><span class="num">02</span> The measurements this rests on</h2>
+
+<p>Every number below was taken from the live services rather than from documentation,
+because the published figures describe the product and not the path it travels to get
+here. The method matters: latency was measured by asking each service for its newest
+record <em>anywhere on Earth</em>, so an empty answer means the data has not been
+published, not that nothing happened to burn nearby.</p>
+
+<div class="tw">
+<table>
+  <caption>Newest record available, queried globally, 2026-09-01 06:27Z</caption>
+  <thead><tr><th>Feed</th><th class="mono">Newest acquisition</th><th>Age</th></tr></thead>
+  <tbody>
+    <tr><td class="src-mtg">MTG</td><td class="mono">2026-09-01T06:00Z</td>
+        <td class="num">0.45 h</td></tr>
+    <tr><td class="src-s3">Sentinel-3A</td><td class="mono">2026-09-01T02:19Z</td>
+        <td class="num">4.13 h</td></tr>
+    <tr><td class="src-s3">Sentinel-3B</td><td class="mono">2026-09-01T03:22Z</td>
+        <td class="num">3.08 h</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Against that, the Data Store's own timing. Every granule identifier carries three
+timestamps &mdash; sensing start, sensing stop, and product creation &mdash; so
+latency is readable straight off the name, with no downloads and no credentials. Across
+100 consecutive granules, all of them <code>NR</code> (near-real-time) class:</p>
+
+<pre><code>acquisition -&gt; product creation:
+   min 50 min | median 92 min | max 143 min</code></pre>
+
+<div class="tw">
+<table>
+  <caption>Collection <span class="mono">EO:EUM:DAT:0417</span> &mdash; SLSTR Level 2 Fire Radiative Power</caption>
+  <thead><tr><th>Property</th><th>Measured</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>Granules over Zavidovići, 30 h</td><td class="num">3</td>
+        <td>S3B 09:27Z, S3A 19:47Z, S3B 20:50Z on 08-31</td></tr>
+    <tr><td>Granule size, recent NRT</td><td class="num">431&ndash;1743 KB</td>
+        <td>from the <code>productInformation.size</code> field</td></tr>
+    <tr><td>Granule size, deep archive</td><td class="num">11&ndash;21 MB</td>
+        <td><strong>unexplained</strong> &mdash; see landmine 4</td></tr>
+    <tr><td>Archive depth</td><td class="num">&gt; 800 days</td>
+        <td>products present at 2, 30, 100, 400 and 800 days back</td></tr>
+    <tr><td>Timeliness class at depth</td><td class="mono">NR</td>
+        <td>the archive keeps the NRT product; it is not replaced by NTC</td></tr>
+    <tr><td>Discovery API auth</td><td><span class="pill ok">anonymous</span></td>
+        <td>OpenSearch, bbox- and time-filterable</td></tr>
+    <tr><td>Download API auth</td><td><span class="pill crit">required</span></td>
+        <td>anonymous request returns a WSO2 404, not a 401</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="lbl">A correction worth recording</span>
+  <p>Comparing <code>first_seen</code> against acquisition time in the database
+  suggests Sentinel-3 latency of 7.5 to 13 hours. <strong>That figure is wrong.</strong>
+  <code>poller.py</code> fetches 30 h of Sentinel-3 history every 20 minutes, so the
+  fetch window cannot be the cause &mdash; those gaps are the poller not running
+  overnight. Measure publishing latency at the service, never from
+  <code>first_seen</code>.</p>
+</div>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="where"><span class="num">03</span> Where the two hours go</h2>
+
+<p>FireWatch takes Sentinel-3 from <code>view.eumetsat.int/geoserver/wfs</code>, the
+same EUMETView gateway that serves MTG. That service is built for <em>map
+visualisation</em>: it ingests the product on its own schedule and republishes it as
+queryable points. The ingest is where the two hours are spent.</p>
+
+<p>The Data Store is the product's source of record. It publishes the granule as soon
+as processing finishes, which the identifiers show is 50 to 143 minutes after the
+satellite looked.</p>
+
+<div class="tw">
+<table>
+  <caption>The two paths compared</caption>
+  <thead><tr><th></th><th>EUMETView WFS (today)</th><th>Data Store (proposed)</th></tr></thead>
+  <tbody>
+    <tr><td>Returns</td><td>fire points, bbox-filtered</td><td>whole granules</td></tr>
+    <tr><td>Format</td><td>GeoJSON</td><td>ZIP of a <code>.SEN3</code> directory</td></tr>
+    <tr><td>Parsing</td><td><code>r.json()</code></td><td>netCDF inside <code>FRP_in.nc</code></td></tr>
+    <tr><td>Credentials</td><td>none</td><td>consumer key + secret</td></tr>
+    <tr><td>Bytes per day</td><td>a few KB</td><td>~2 MB (3 granules)</td></tr>
+    <tr><td>Latency</td><td class="num">3&ndash;4 h</td><td class="num">~1.5 h</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Note the shape of the trade: the WFS does the spatial filtering server-side and
+hands back exactly the points inside the boundary. The Data Store hands over a
+three-minute frame spanning a 1400&nbsp;km swath, of which Zavidovići is a rounding
+error. Two hours of freshness is bought with a download, a decompression, a
+scientific-array parse and a spatial filter that all now happen locally.</p>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="design"><span class="num">04</span> The design</h2>
+
+<h3>Keep the WFS path</h3>
+
+<p>The Data Store becomes a <em>fast path</em>, not a replacement. The WFS path needs no
+credentials, already works, and is far cheaper for deep history &mdash; archive granules
+are 20 to 40 times larger than NRT ones, so backfilling a year through the Data Store
+would move gigabytes to recover six detections. <strong>Backfill stays on the
+WFS.</strong> The fast path covers roughly the last 24 hours and nothing more.</p>
+
+<h3>Credentials, following the existing pattern</h3>
+
+<p>Resolution order mirrors <code>config.firms_key()</code>: the environment
+(<code>EUMETSAT_CONSUMER_KEY</code> / <code>EUMETSAT_CONSUMER_SECRET</code>), then the
+macOS Keychain via <code>config.keychain_secret()</code> under service
+<code>firewatch-eumetsat</code>, and nothing in <code>config.json</code>. The pair is
+exchanged for a bearer token at <code>https://api.eumetsat.int/token</code>. Both values
+must be added to <code>config.RedactingFormatter</code> before the first request is
+ever made, not after.</p>
+
+<h3>The dependency, made optional</h3>
+
+<p>The fire pixels live in <code>FRP_in.nc</code>, a netCDF-4 file, which needs
+<code>netCDF4</code> or <code>h5netcdf</code> plus numpy. FireWatch runs on four
+dependencies and the GitHub workflow installs two. <strong>This project already has a
+pattern for exactly this situation</strong>: <code>geo.build_buffer()</code> imports
+<code>shapely</code> and <code>pyproj</code> <em>inside the function</em>, so the
+running app never needs them. The fast path follows it &mdash; import inside the
+fetch, and on <code>ImportError</code> log once at info level and fall through to the
+WFS. An install without the libraries loses two hours of latency and nothing else.</p>
+
+<h3>Flow</h3>
+
+<ol class="stages">
+  <li>
+    <h3>Discover</h3>
+    <p>Query the OpenSearch endpoint for granules intersecting the municipality bbox
+    in the last 24 h. Anonymous, cheap, and it returns the download link per granule.</p>
+<pre><code>GET https://api.eumetsat.int/data/search-products/1.0.0/os
+    ?format=json&amp;pi=EO:EUM:DAT:0417
+    &amp;bbox=17.9,44.05,18.55,44.55
+    &amp;dtstart=...&amp;dtend=...</code></pre>
+  </li>
+  <li>
+    <h3>Filter against what has already been processed</h3>
+    <p>Keep processed granule ids in the database. Expect about three new granules a
+    day, so on almost every cycle this step ends the work with no download at all.</p>
+  </li>
+  <li>
+    <h3>Download and parse</h3>
+    <p>Fetch the ZIP with the bearer token, read <code>FRP_in.nc</code> in memory,
+    keep pixels passing the existing <code>geo</code> clip.</p>
+  </li>
+  <li>
+    <h3>Emit detections with WFS-identical uids</h3>
+    <p>Build <code>s3:{sat}:{lat:.4f}:{lon:.4f}:{ts}</code> exactly as
+    <code>fetch_sentinel3</code> does, so a pixel arriving by both routes is stored
+    once. This is the step most likely to go wrong; see landmine 1.</p>
+  </li>
+</ol>
+
+<h3>Configuration</h3>
+
+<div class="tw">
+<table>
+  <caption>New settings, all defaulting to the current behaviour</caption>
+  <thead><tr><th class="mono">key</th><th>default</th><th>meaning</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">s3_fast_path</td><td class="mono">false</td>
+        <td>Opt in to the Data Store route. Off means today's behaviour exactly.</td></tr>
+    <tr><td class="mono">s3_datastore_collection</td><td class="mono">EO:EUM:DAT:0417</td>
+        <td>Collection id, so a rename does not need a release.</td></tr>
+    <tr><td class="mono">s3_fast_path_hours</td><td class="mono">24</td>
+        <td>How far back to look for undownloaded granules.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="phases"><span class="num">05</span> Phases</h2>
+
+<p>Ordered so that the cheapest work delivers standalone value and the expensive work
+can be abandoned without waste.</p>
+
+<ol class="stages">
+  <li>
+    <h3>Overpass awareness &mdash; no dependencies, no credentials</h3>
+    <p>The same EUMETView server already in use publishes
+    <code>copernicus:sentinel3a_orbital_tracks</code> and
+    <code>sentinel3b_orbital_tracks</code>. Reading them through the existing
+    <code>_wfs_features</code> gives <em>when Sentinel-3 last looked at Zavidovići,
+    and when it looks next</em>.</p>
+    <p>This ships alone and is worth having on its own merits: it converts "Sentinel-3
+    has shown nothing for eight days" from ambiguous into answerable, which is the
+    question that motivated this whole investigation. It also makes every later phase
+    testable, because you know which overpasses <em>should</em> have produced data.</p>
+  </li>
+  <li>
+    <h3>Discovery and validation &mdash; still no credentials</h3>
+    <p>Add the OpenSearch query and the processed-granule bookkeeping. Log which
+    granules <em>would</em> be downloaded and what the latency saving would have been,
+    without downloading anything. Run it for a fortnight.</p>
+    <p><strong>This is the go/no-go gate.</strong> If it shows the fast path would have
+    beaten the WFS on fewer than a handful of real detections, stop here &mdash; the
+    remaining work is the expensive part and the evidence says it is not worth it.</p>
+  </li>
+  <li>
+    <h3>Authenticated fetch and parse</h3>
+    <p>Token handling, download, netCDF parse behind the optional import, uid
+    construction. Validate by fetching one overpass through both routes and asserting
+    the uid sets are identical &mdash; not merely overlapping.</p>
+  </li>
+  <li>
+    <h3>Integration and cutover</h3>
+    <p>Wire into <code>poller.SOURCE_SPECS</code> behind <code>s3_fast_path</code>,
+    extend <code>source_status</code> so the two routes are distinguishable in
+    <code>/health</code>, and document the credential in the Field Manual and the
+    Linux and hosting guides. Rollback is flipping one setting.</p>
+  </li>
+</ol>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="landmines"><span class="num">06</span> Predicted landmines</h2>
+
+<p>In the spirit of the existing landmines list &mdash; these are the failures worth
+predicting before they cost a debugging session.</p>
+
+<div class="note crit">
+  <span class="lbl">1 &middot; Divergent uids double-count every fire</span>
+  <p>If the Data Store's coordinates or timestamps round differently from the WFS's,
+  the same fire pixel is stored twice: <code>n_det</code> inflates, footprints grow,
+  and <code>grew</code> alerts fire for a fire that did nothing. <strong>This is the
+  FIRMS <code>_NRT</code>/<code>_SP</code> landmine repeating</strong> &mdash; the same
+  instrument, the same overpass, processed twice, storing as two detections. It is the
+  single highest risk here, and it fails silently in the direction of sending more SMS,
+  not fewer. Gate the merge on a uid-equality test against a real overpass.</p>
+</div>
+
+<div class="note crit">
+  <span class="lbl">2 &middot; A hard import kills the GitHub deployment</span>
+  <p><code>poll.yml</code> installs <code>requests</code> and <code>certifi</code> and
+  nothing else. A module-level <code>import netCDF4</code> anywhere in the import graph
+  takes down the production cycle, and it will look like a source outage rather than an
+  import error. Keep the import inside the function.</p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">3 &middot; Bearer tokens expire mid-run</span>
+  <p>The token has a lifetime of roughly an hour, and the poller is a long-lived
+  process. Cache it with its expiry, refresh on 401, and never assume a token obtained
+  at startup is still valid on the next overpass &mdash; which, at 2.4 passes a day, is
+  always many hours later.</p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">4 &middot; The granule size figure is unverified</span>
+  <p>Recent NRT granules report 431&ndash;1743&nbsp;KB; granules 100 days and older
+  report 11&ndash;21&nbsp;MB. The units are not documented in the response and the
+  discrepancy is unexplained. Three granules a day at 0.6&nbsp;MB is nothing; at
+  21&nbsp;MB it is a different conversation on a metered host. <strong>Measure one real
+  download before committing to the design.</strong></p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">5 &middot; A second credential that fails silently</span>
+  <p>FireWatch already treats a missing FIRMS key as a supported state rather than a
+  failure. Do the same here: report <em>not configured</em> distinctly from
+  <em>failed</em>, exclude it from <code>/health</code> rather than counting it down,
+  and give it a <code>ready()</code>-style reason string like <code>sms.ready()</code>.</p>
+</div>
+
+<div class="note">
+  <span class="lbl">6 &middot; Do not let the fast path become the only path</span>
+  <p>It is tempting to retire the WFS once the Data Store works. Do not. The WFS is the
+  credential-free route, the deep-archive route and the fallback when the netCDF
+  libraries are absent. Losing it would mean an install without an EUMETSAT account has
+  no Sentinel-3 at all, where today it simply has slower Sentinel-3.</p>
+</div>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="decision"><span class="num">07</span> The decision, and when to revisit it</h2>
+
+<p>The recommendation is <strong>not to build this now</strong>. The reasoning is
+proportion rather than difficulty.</p>
+
+<p>Sentinel-3 has contributed <strong>6 detections in six months</strong>. It is by a
+wide margin the least productive of the three feeds. This plan spends an OAuth
+credential, a numpy and netCDF dependency, a download-and-parse pipeline and a
+double-counting risk in order to make that feed two hours fresher, twice a day. The
+same engineering effort spent almost anywhere else in FireWatch would produce more.</p>
+
+<div class="note good">
+  <span class="lbl">Build it when one of these becomes true</span>
+  <p>&mdash; A fire in the 3&ndash;10&nbsp;MW band is missed or acted on late, and the
+  two hours would have mattered.<br>
+  &mdash; Sentinel-3 starts contributing detections at a rate comparable to FIRMS,
+  making it a feed worth optimising.<br>
+  &mdash; Phase 2's dry run shows the fast path would have beaten the WFS on real
+  detections often enough to justify phases 3 and 4.<br>
+  &mdash; A deployment appears where FIRMS is unavailable, leaving Sentinel-3 as the
+  only sensitive feed.</p>
+</div>
+
+<p>Phase 1 is the exception. Overpass awareness costs no dependency, no credential and
+no risk, uses code that already exists, and answers a question that has already come up
+in practice. It is worth doing whether or not the rest of this plan is ever
+executed.</p>
+
+<footer>
+  <p><strong>FireWatch</strong> &middot; Sentinel-3 fast path &mdash; implementation
+  plan. Measurements taken 1 September 2026 against
+  <code>view.eumetsat.int</code> and <code>api.eumetsat.int</code>.</p>
+  <p>Nothing described here is implemented. Sentinel-3 is fetched today through the
+  EUMETView WFS exactly as documented in the system documentation, and this page
+  describes an alternative that was investigated and deliberately deferred.</p>
+</footer>
+</main>
+</div>
