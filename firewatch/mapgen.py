@@ -318,8 +318,7 @@ const I18N = {
     satellite:"Satellite", copyCoords:"Copy coords", copied:"copied",
     discoveredBy:"Reported by", savedAt:"saved",
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
-    noDetRange:"no detections in range", boundary:"boundary", refreshNote:
-      "data refreshes in place every 60 s · your view is kept",
+    noDetRange:"no detections in range", boundary:"boundary",
     docs:"Documentation",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
     r_1y:"Last year",
@@ -360,8 +359,7 @@ const I18N = {
     satellite:"Satelit", copyCoords:"Kopiraj koordinate", copied:"kopirano",
     discoveredBy:"Prvi prijavio", savedAt:"sačuvano",
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
-    noDetRange:"nema detekcija u periodu", boundary:"granica", refreshNote:
-      "podaci se osvježavaju svakih 60 s · prikaz se čuva",
+    noDetRange:"nema detekcija u periodu", boundary:"granica",
     docs:"Dokumentacija",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
     r_1y:"Zadnja godina",
@@ -830,8 +828,7 @@ function renderHeader(){
   const docsLink = DATA.public_url
     ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
-    `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}
-     <br>${t("refreshNote")}`;
+    `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}`;
 }
 
 // Chrome on Android reports the visible height in innerHeight, so this keeps a
@@ -1463,6 +1460,14 @@ setSliderTime(tMax); drawDets(sliderTime());
 // cache-busted <script> tag and re-render from it. Map centre, zoom, selected
 // range, selected fire and slider position are all left untouched - which is the
 // whole point, since location.reload() discarded every one of them.
+//
+// This is how often the page re-checks, not how often the data changes: the hosted
+// copy is polled by an external scheduler every ~15 minutes. Checking every minute
+// anyway is nearly free - one script tag against a static file - and means a fresh
+// publish shows up within a minute of landing rather than up to a cycle late. The
+// page states none of this any more; the "updated {t}" line in the header is the
+// honest answer to "how fresh is this", so raising the interval would only make
+// that read worse.
 const REFRESH_MS = window.__fwRefreshMs || 60000;
 let refreshFails = 0;
 
