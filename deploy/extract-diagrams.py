@@ -41,9 +41,10 @@ STYLE_SRC = DOCS / "firewatch-documentation.html"
 # carry an aria-label in the docs; where they do, it wins, because it was written
 # against the drawing. The other two never had one.
 DIAGRAMS = [
-    ("firewatch-documentation.html", "0 0 960 252", "timing-gaps.svg", None),
+    ("firewatch-documentation.html", "0 0 960 362", "timing-gaps.svg", None),
     ("firewatch-documentation.html", "0 0 900 268", "latency-budget.svg", None),
     ("firewatch-fork.html", "0 0 960 500", "github-actions.svg", None),
+    ("firewatch-documentation.html", "0 0 720 250", "clustering.svg", None),
     ("firewatch-documentation.html", "0 0 760 668", "pipeline.svg",
      "The polling cycle. Three feeds - Meteosat MTG every 4 minutes, NASA FIRMS and "
      "Sentinel-3 every 20 - produce detections, which pass through six stages: a "

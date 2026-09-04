@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 252" width="960" height="252" role="img" aria-label="Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat is geostationary and watches continuously, taking 144 looks a day, one every ten minutes; sixteen of them detected this fire, between 10:50 and 16:30. The polar satellites pass only when they are overhead: three VIIRS platforms detected it five times, MODIS three and Sentinel-3 twice, and between 00:41 and 08:01 no polar satellite passed at all. Meteosat kept watching through that window, but a fire under roughly five megawatts is below what its four kilometre pixels can see.">
-<title>Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat is geostationary and watches continuously, taking 144 looks a day, one every ten minutes; sixteen of them detected this fire, between 10:50 and 16:30. The polar satellites pass only when they are overhead: three VIIRS platforms detected it five times, MODIS three and Sentinel-3 twice, and between 00:41 and 08:01 no polar satellite passed at all. Meteosat kept watching through that window, but a fire under roughly five megawatts is below what its four kilometre pixels can see.</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 362" width="960" height="362" role="img" aria-label="Timeline of satellite observations of one fire over 27 hours, 3 to 4 September 2026. Meteosat is geostationary and watches continuously, 144 looks a day; it detected this fire six times, including once at 18:40 UTC, after dark. Sentinel-3 detected it twice at 20:01, also after dark. The three VIIRS platforms detected it fifteen times, eleven of those between 00:41 and 01:45 in the middle of the night. MODIS caught it at 07:58. The longest gap is six hours thirteen minutes before dawn, which coincides with the 04:00 to 07:00 UTC window in which no polar satellite crosses this latitude. Below the timeline, the weakest fire each feed has reported over this municipality: Meteosat with four kilometre pixels, 4.4 megawatts; the three VIIRS platforms at 375 metres, 0.19 megawatts; MODIS at one kilometre, 3.4; Sentinel-3 at one kilometre, 2.6. A fire warms only the part of a pixel it lands in, so the detection floor tracks pixel size rather than sensor quality.">
+<title>Timeline of satellite observations of one fire over 27 hours, 3 to 4 September 2026. Meteosat is geostationary and watches continuously, 144 looks a day; it detected this fire six times, including once at 18:40 UTC, after dark. Sentinel-3 detected it twice at 20:01, also after dark. The three VIIRS platforms detected it fifteen times, eleven of those between 00:41 and 01:45 in the middle of the night. MODIS caught it at 07:58. The longest gap is six hours thirteen minutes before dawn, which coincides with the 04:00 to 07:00 UTC window in which no polar satellite crosses this latitude. Below the timeline, the weakest fire each feed has reported over this municipality: Meteosat with four kilometre pixels, 4.4 megawatts; the three VIIRS platforms at 375 metres, 0.19 megawatts; MODIS at one kilometre, 3.4; Sentinel-3 at one kilometre, 2.6. A fire warms only the part of a pixel it lands in, so the detection floor tracks pixel size rather than sensor quality.</title>
 <style>
   .s-box{fill:#e7ecee; stroke:#cfd9dd; stroke-width:1}
   .s-box-hi{fill:#f6e3da; stroke:#bf4318; stroke-width:1.4}
@@ -18,22 +18,25 @@
   .s-poly{fill:#0b6a88; fill-opacity:.1; stroke:#0b6a88; stroke-width:1.6}
   .s-buf{fill:none; stroke:#bf4318; stroke-width:1.2; stroke-dasharray:5 4}
 </style>
-<rect x="0" y="0" width="960" height="252" fill="#f2f5f6"/>
+<rect x="0" y="0" width="960" height="362" fill="#f2f5f6"/>
     <defs>
       <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
               markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
     </defs>
-    <!-- Legend. The chart plots detections, and without saying so the empty hours
-         on the Meteosat lane read as hours when nothing was watching - which is the
-         opposite of what a geostationary satellite does. -->
+    <!-- Night, sunset to sunrise for 44.44N / 18.15E on 3-4 September: 17:15 and
+         04:20 UTC. Shaded because the point of this figure is that the fire was
+         detected right through it. -->
+    <rect x="320" y="34" width="337" height="162" fill="#6a7b84" fill-opacity="0.09"/>
+    <text x="488" y="30" class="s-t-s" text-anchor="middle">night · sunset 17:15 → sunrise 04:20 UTC</text>
+
+    <!-- legend -->
     <g>
       <rect x="100" y="9" width="26" height="11" rx="5.5" fill="#0b6a88" fill-opacity="0.15"/>
       <line x1="103" y1="14.5" x2="123" y2="14.5" stroke="#0b6a88" stroke-opacity="0.55"
             stroke-width="1.2" stroke-dasharray="1 4.7"/>
       <text x="134" y="18" class="s-t-s">Meteosat watching: 144 looks a day, one every 10 min</text>
-      <circle cx="452" cy="14.5" r="4" class="s-fill-mtg"/>
-      <text x="464" y="18" class="s-t-s">a look that detected this fire</text>
     </g>
+
     <!-- lanes -->
     <text x="92" y="56" class="s-t-b" text-anchor="end">Meteosat MTG</text>
     <text x="92" y="70" class="s-t-s" text-anchor="end">geostationary</text>
@@ -42,54 +45,68 @@
     <text x="92" y="156" class="s-t-b" text-anchor="end">Sentinel-3</text>
     <line x1="100" y1="34" x2="100" y2="196" class="s-dash"/>
     <line x1="920" y1="34" x2="920" y2="196" class="s-dash"/>
-    <!-- MTG's continuous watch. Drawn before the dots so they sit on top of it. -->
+
+    <!-- Meteosat's continuous watch, one dash per 10-minute slice -->
     <rect x="100" y="44" width="820" height="16" rx="8" fill="#0b6a88" fill-opacity="0.15"/>
     <line x1="101" y1="52" x2="919" y2="52" stroke="#0b6a88" stroke-opacity="0.5"
-          stroke-width="1.2" stroke-dasharray="1 4.7"/>
-    <!-- MTG: 16 of those looks detected the fire -->
+          stroke-width="1.2" stroke-dasharray="1 5.06"/>
+
+    <!-- Detections, positioned from the database. Simultaneous pixels are spread
+         horizontally so all of them are visible. -->
     <g class="s-fill-mtg">
-      <circle cx="470" cy="52" r="4"/><circle cx="481" cy="52" r="4"/>
-      <circle cx="487" cy="52" r="4"/><circle cx="498" cy="52" r="4"/>
-      <circle cx="504" cy="52" r="4"/><circle cx="510" cy="52" r="4"/>
-      <circle cx="521" cy="52" r="4"/><circle cx="527" cy="52" r="4"/>
-      <circle cx="533" cy="52" r="4"/><circle cx="538" cy="52" r="4"/>
-      <circle cx="550" cy="52" r="4"/><circle cx="590" cy="52" r="4"/>
-      <circle cx="624" cy="52" r="4"/><circle cx="647" cy="52" r="4"/>
-      <circle cx="652" cy="52" r="4"/><circle cx="664" cy="52" r="4"/>
-    </g>
-    <text x="676" y="56" class="s-t-m">16 detections</text>
-    <!-- VIIRS: 5 -->
+      <circle cx="237" cy="52" r="4"/><circle cx="252" cy="52" r="4"/><circle cx="267" cy="52" r="4"/>
+      <circle cx="272" cy="52" r="4"/><circle cx="282" cy="52" r="4"/><circle cx="363" cy="52" r="4"/></g>
+    <text x="377" y="56" class="s-t-m">6</text>
     <g class="s-fill-firms">
-      <circle cx="112" cy="92" r="4"/><circle cx="123" cy="92" r="4"/>
-      <circle cx="483" cy="92" r="4"/><circle cx="504" cy="92" r="4"/>
-      <circle cx="513" cy="92" r="4"/>
-    </g>
-    <text x="527" y="96" class="s-t-m">5</text>
-    <!-- MODIS: 3 -->
-    <g class="s-fill-firms">
-      <circle cx="374" cy="124" r="4"/><circle cx="578" cy="124" r="4"/>
-      <circle cx="754" cy="124" r="4"/>
-    </g>
-    <text x="768" y="128" class="s-t-m">3</text>
-    <!-- S3: 2 -->
-    <g class="s-fill-s3">
-      <circle cx="394" cy="152" r="4"/><circle cx="798" cy="152" r="4"/>
-    </g>
-    <text x="812" y="156" class="s-t-m">2</text>
-    <!-- gap bracket -->
-    <line x1="123" y1="178" x2="374" y2="178" class="s-line-hi"/>
-    <line x1="123" y1="172" x2="123" y2="184" class="s-line-hi"/>
-    <line x1="374" y1="172" x2="374" y2="184" class="s-line-hi"/>
-    <text x="248" y="194" class="s-t-s" text-anchor="middle"
-      style="fill:#bf4318;font-weight:600">7 h 20 m with no polar satellite overhead</text>
+      <circle cx="155" cy="92" r="4"/><circle cx="173" cy="92" r="4"/><circle cx="183" cy="92" r="4"/>
+      <circle cx="542" cy="92" r="4"/><circle cx="550" cy="92" r="4"/><circle cx="544" cy="92" r="4"/>
+      <circle cx="552" cy="92" r="4"/><circle cx="561" cy="92" r="4"/><circle cx="569" cy="92" r="4"/>
+      <circle cx="561" cy="92" r="4"/><circle cx="570" cy="92" r="4"/><circle cx="578" cy="92" r="4"/>
+      <circle cx="587" cy="92" r="4"/><circle cx="595" cy="92" r="4"/><circle cx="893" cy="92" r="4"/></g>
+    <text x="907" y="96" class="s-t-m">15</text>
+    <g class="s-fill-firms"><circle cx="767" cy="124" r="4"/></g>
+    <text x="781" y="128" class="s-t-m">1</text>
+    <g class="s-fill-s3"><circle cx="400" cy="156" r="4"/><circle cx="408" cy="156" r="4"/></g>
+    <text x="418" y="160" class="s-t-m">2</text>
+
+    <!-- The one real gap, and it is the measured pre-dawn hole -->
+    <line x1="578" y1="178" x2="767" y2="178" class="s-line-hi"/>
+    <line x1="578" y1="172" x2="578" y2="184" class="s-line-hi"/>
+    <line x1="767" y1="172" x2="767" y2="184" class="s-line-hi"/>
+    <text x="673" y="194" class="s-t-s" text-anchor="middle"
+      style="fill:#bf4318;font-weight:600">6 h 13 m — the 04–07 UTC hole</text>
+
     <!-- axis -->
     <line x1="100" y1="212" x2="920" y2="212" class="s-line" marker-end="url(#a1)"/>
     <g class="s-t-m" text-anchor="middle">
-      <text x="100" y="232">00</text><text x="203" y="232">03</text>
-      <text x="305" y="232">06</text><text x="408" y="232">09</text>
-      <text x="510" y="232">12</text><text x="613" y="232">15</text>
-      <text x="715" y="232">18</text><text x="818" y="232">21</text>
-      <text x="920" y="232">24</text>
+      <text x="100" y="232">10</text><text x="191" y="232">13</text><text x="282" y="232">16</text>
+      <text x="373" y="232">19</text><text x="464" y="232">22</text><text x="556" y="232">01</text>
+      <text x="647" y="232">04</text><text x="738" y="232">07</text><text x="829" y="232">10</text>
+      <text x="920" y="232">13</text>
     </g>
-    <text x="510" y="248" class="s-t-s" text-anchor="middle">hours UTC · 20 August 2026</text>
+    <text x="510" y="248" class="s-t-s" text-anchor="middle">hours UTC · 3–4 September 2026 · one fire, 2.1 km south of Suha</text>
+
+    <!-- Sensitivity: the lanes say when each feed looks, this says what it can see. -->
+    <line x1="100" y1="268" x2="920" y2="268" class="s-dash"/>
+    <text x="100" y="288" class="s-t-s">A fire warms only the part of the pixel it lands in, so the floor tracks pixel size — the weakest each feed has actually reported here:</text>
+
+    <rect x="100" y="298" width="196" height="54" rx="7" class="s-box"/>
+    <text x="112" y="317" class="s-t-b" style="fill:#0b6a88">Meteosat MTG</text>
+    <text x="112" y="332" class="s-t-s">~4 km pixel</text>
+    <text x="112" y="346" class="s-t-m">weakest 4.4 MW</text>
+
+    <rect x="308" y="298" width="196" height="54" rx="7" class="s-box-hi"/>
+    <text x="320" y="317" class="s-t-b" style="fill:#8a6008">VIIRS ×3</text>
+    <text x="320" y="332" class="s-t-s">375 m pixel</text>
+    <text x="320" y="346" class="s-t-m">weakest 0.19 MW</text>
+
+    <rect x="516" y="298" width="196" height="54" rx="7" class="s-box"/>
+    <text x="528" y="317" class="s-t-b" style="fill:#8a6008">MODIS</text>
+    <text x="528" y="332" class="s-t-s">1 km pixel</text>
+    <text x="528" y="346" class="s-t-m">weakest 3.4 MW</text>
+
+    <rect x="724" y="298" width="196" height="54" rx="7" class="s-box"/>
+    <text x="736" y="317" class="s-t-b" style="fill:#8a1c6f">Sentinel-3</text>
+    <text x="736" y="332" class="s-t-s">1 km pixel</text>
+    <text x="736" y="346" class="s-t-m">weakest 2.6 MW</text>
   </svg>

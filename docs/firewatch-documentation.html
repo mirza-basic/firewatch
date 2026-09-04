@@ -276,32 +276,41 @@ separates the sources is not how they see, but <strong>how often</strong> and
 
 <p>Polar-orbiting satellites (VIIRS, MODIS, Sentinel-3) circle pole to pole while the
 Earth turns underneath, so each one passes over Bosnia only a couple of times a day.
-Their imagery is sharp — 375 m pixels for VIIRS — but between passes there is simply
-nobody looking. Geostationary satellites sit fixed above the equator and stare at the
-same hemisphere continuously, trading resolution for relentless repetition.</p>
+Their imagery is sharp — 375 m pixels for VIIRS — but between their own passes they
+contribute nothing, and those gaps are not spread evenly through the day. Measured
+across 41.5–47.5°N over three days, in a longitude band busy enough with real fires
+that an empty hour means nobody was overhead rather than nothing was burning, the four
+near-real-time feeds together leave <strong>three roughly three-hour windows a
+day</strong>: 04:00–07:00, 15:00–18:00 and 20:00–23:00 UTC. The small hours are
+covered, thinly — 02:00–03:00 shows up at wide scan angles from an adjacent swath.
+Geostationary satellites sit fixed above the equator and stare at the same hemisphere
+continuously, trading resolution for relentless repetition.</p>
 
-<p>Here is a real day over Zavidovići — 20 August 2026, when a fire burned in the
-forest 18 km south-east of town. Every mark is an actual observation of that fire
-recorded in the database:</p>
+<p>Here is a real fire over Zavidovići — 3&ndash;4 September 2026, burning 2.1 km south
+of Suha. Every mark is an actual observation of it recorded in the database, and the
+shaded stretch is night, from sunset to sunrise:</p>
 
 <figure>
   <div class="figscroll">
-  <svg viewBox="0 0 960 252" role="img" aria-label="Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat is geostationary and watches continuously, taking 144 looks a day, one every ten minutes; sixteen of them detected this fire, between 10:50 and 16:30. The polar satellites pass only when they are overhead: three VIIRS platforms detected it five times, MODIS three and Sentinel-3 twice, and between 00:41 and 08:01 no polar satellite passed at all. Meteosat kept watching through that window, but a fire under roughly five megawatts is below what its four kilometre pixels can see.">
+  <svg viewBox="0 0 960 362" role="img" aria-label="Timeline of satellite observations of one fire over 27 hours, 3 to 4 September 2026. Meteosat is geostationary and watches continuously, 144 looks a day; it detected this fire six times, including once at 18:40 UTC, after dark. Sentinel-3 detected it twice at 20:01, also after dark. The three VIIRS platforms detected it fifteen times, eleven of those between 00:41 and 01:45 in the middle of the night. MODIS caught it at 07:58. The longest gap is six hours thirteen minutes before dawn, which coincides with the 04:00 to 07:00 UTC window in which no polar satellite crosses this latitude. Below the timeline, the weakest fire each feed has reported over this municipality: Meteosat with four kilometre pixels, 4.4 megawatts; the three VIIRS platforms at 375 metres, 0.19 megawatts; MODIS at one kilometre, 3.4; Sentinel-3 at one kilometre, 2.6. A fire warms only the part of a pixel it lands in, so the detection floor tracks pixel size rather than sensor quality.">
     <defs>
       <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
               markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
     </defs>
-    <!-- Legend. The chart plots detections, and without saying so the empty hours
-         on the Meteosat lane read as hours when nothing was watching - which is the
-         opposite of what a geostationary satellite does. -->
+    <!-- Night, sunset to sunrise for 44.44N / 18.15E on 3-4 September: 17:15 and
+         04:20 UTC. Shaded because the point of this figure is that the fire was
+         detected right through it. -->
+    <rect x="320" y="34" width="337" height="162" fill="var(--ink-3)" fill-opacity="0.09"/>
+    <text x="488" y="30" class="s-t-s" text-anchor="middle">night &middot; sunset 17:15 &rarr; sunrise 04:20 UTC</text>
+
+    <!-- legend -->
     <g>
       <rect x="100" y="9" width="26" height="11" rx="5.5" fill="var(--mtg)" fill-opacity="0.15"/>
       <line x1="103" y1="14.5" x2="123" y2="14.5" stroke="var(--mtg)" stroke-opacity="0.55"
             stroke-width="1.2" stroke-dasharray="1 4.7"/>
       <text x="134" y="18" class="s-t-s">Meteosat watching: 144 looks a day, one every 10 min</text>
-      <circle cx="452" cy="14.5" r="4" class="s-fill-mtg"/>
-      <text x="464" y="18" class="s-t-s">a look that detected this fire</text>
     </g>
+
     <!-- lanes -->
     <text x="92" y="56" class="s-t-b" text-anchor="end">Meteosat MTG</text>
     <text x="92" y="70" class="s-t-s" text-anchor="end">geostationary</text>
@@ -310,66 +319,84 @@ recorded in the database:</p>
     <text x="92" y="156" class="s-t-b" text-anchor="end">Sentinel-3</text>
     <line x1="100" y1="34" x2="100" y2="196" class="s-dash"/>
     <line x1="920" y1="34" x2="920" y2="196" class="s-dash"/>
-    <!-- MTG's continuous watch. Drawn before the dots so they sit on top of it. -->
+
+    <!-- Meteosat's continuous watch, one dash per 10-minute slice -->
     <rect x="100" y="44" width="820" height="16" rx="8" fill="var(--mtg)" fill-opacity="0.15"/>
     <line x1="101" y1="52" x2="919" y2="52" stroke="var(--mtg)" stroke-opacity="0.5"
-          stroke-width="1.2" stroke-dasharray="1 4.7"/>
-    <!-- MTG: 16 of those looks detected the fire -->
+          stroke-width="1.2" stroke-dasharray="1 5.06"/>
+
+    <!-- Detections, positioned from the database. Simultaneous pixels are spread
+         horizontally so all of them are visible. -->
     <g class="s-fill-mtg">
-      <circle cx="470" cy="52" r="4"/><circle cx="481" cy="52" r="4"/>
-      <circle cx="487" cy="52" r="4"/><circle cx="498" cy="52" r="4"/>
-      <circle cx="504" cy="52" r="4"/><circle cx="510" cy="52" r="4"/>
-      <circle cx="521" cy="52" r="4"/><circle cx="527" cy="52" r="4"/>
-      <circle cx="533" cy="52" r="4"/><circle cx="538" cy="52" r="4"/>
-      <circle cx="550" cy="52" r="4"/><circle cx="590" cy="52" r="4"/>
-      <circle cx="624" cy="52" r="4"/><circle cx="647" cy="52" r="4"/>
-      <circle cx="652" cy="52" r="4"/><circle cx="664" cy="52" r="4"/>
-    </g>
-    <text x="676" y="56" class="s-t-m">16 detections</text>
-    <!-- VIIRS: 5 -->
+      <circle cx="237" cy="52" r="4"/><circle cx="252" cy="52" r="4"/><circle cx="267" cy="52" r="4"/>
+      <circle cx="272" cy="52" r="4"/><circle cx="282" cy="52" r="4"/><circle cx="363" cy="52" r="4"/></g>
+    <text x="377" y="56" class="s-t-m">6</text>
     <g class="s-fill-firms">
-      <circle cx="112" cy="92" r="4"/><circle cx="123" cy="92" r="4"/>
-      <circle cx="483" cy="92" r="4"/><circle cx="504" cy="92" r="4"/>
-      <circle cx="513" cy="92" r="4"/>
-    </g>
-    <text x="527" y="96" class="s-t-m">5</text>
-    <!-- MODIS: 3 -->
-    <g class="s-fill-firms">
-      <circle cx="374" cy="124" r="4"/><circle cx="578" cy="124" r="4"/>
-      <circle cx="754" cy="124" r="4"/>
-    </g>
-    <text x="768" y="128" class="s-t-m">3</text>
-    <!-- S3: 2 -->
-    <g class="s-fill-s3">
-      <circle cx="394" cy="152" r="4"/><circle cx="798" cy="152" r="4"/>
-    </g>
-    <text x="812" y="156" class="s-t-m">2</text>
-    <!-- gap bracket -->
-    <line x1="123" y1="178" x2="374" y2="178" class="s-line-hi"/>
-    <line x1="123" y1="172" x2="123" y2="184" class="s-line-hi"/>
-    <line x1="374" y1="172" x2="374" y2="184" class="s-line-hi"/>
-    <text x="248" y="194" class="s-t-s" text-anchor="middle"
-      style="fill:var(--accent);font-weight:600">7 h 20 m with no polar satellite overhead</text>
+      <circle cx="155" cy="92" r="4"/><circle cx="173" cy="92" r="4"/><circle cx="183" cy="92" r="4"/>
+      <circle cx="542" cy="92" r="4"/><circle cx="550" cy="92" r="4"/><circle cx="544" cy="92" r="4"/>
+      <circle cx="552" cy="92" r="4"/><circle cx="561" cy="92" r="4"/><circle cx="569" cy="92" r="4"/>
+      <circle cx="561" cy="92" r="4"/><circle cx="570" cy="92" r="4"/><circle cx="578" cy="92" r="4"/>
+      <circle cx="587" cy="92" r="4"/><circle cx="595" cy="92" r="4"/><circle cx="893" cy="92" r="4"/></g>
+    <text x="907" y="96" class="s-t-m">15</text>
+    <g class="s-fill-firms"><circle cx="767" cy="124" r="4"/></g>
+    <text x="781" y="128" class="s-t-m">1</text>
+    <g class="s-fill-s3"><circle cx="400" cy="156" r="4"/><circle cx="408" cy="156" r="4"/></g>
+    <text x="418" y="160" class="s-t-m">2</text>
+
+    <!-- The one real gap, and it is the measured pre-dawn hole -->
+    <line x1="578" y1="178" x2="767" y2="178" class="s-line-hi"/>
+    <line x1="578" y1="172" x2="578" y2="184" class="s-line-hi"/>
+    <line x1="767" y1="172" x2="767" y2="184" class="s-line-hi"/>
+    <text x="673" y="194" class="s-t-s" text-anchor="middle"
+      style="fill:var(--accent);font-weight:600">6 h 13 m &mdash; the 04&ndash;07 UTC hole</text>
+
     <!-- axis -->
     <line x1="100" y1="212" x2="920" y2="212" class="s-line" marker-end="url(#a1)"/>
     <g class="s-t-m" text-anchor="middle">
-      <text x="100" y="232">00</text><text x="203" y="232">03</text>
-      <text x="305" y="232">06</text><text x="408" y="232">09</text>
-      <text x="510" y="232">12</text><text x="613" y="232">15</text>
-      <text x="715" y="232">18</text><text x="818" y="232">21</text>
-      <text x="920" y="232">24</text>
+      <text x="100" y="232">10</text><text x="191" y="232">13</text><text x="282" y="232">16</text>
+      <text x="373" y="232">19</text><text x="464" y="232">22</text><text x="556" y="232">01</text>
+      <text x="647" y="232">04</text><text x="738" y="232">07</text><text x="829" y="232">10</text>
+      <text x="920" y="232">13</text>
     </g>
-    <text x="510" y="248" class="s-t-s" text-anchor="middle">hours UTC &middot; 20 August 2026</text>
+    <text x="510" y="248" class="s-t-s" text-anchor="middle">hours UTC &middot; 3&ndash;4 September 2026 &middot; one fire, 2.1 km south of Suha</text>
+
+    <!-- Sensitivity: the lanes say when each feed looks, this says what it can see. -->
+    <line x1="100" y1="268" x2="920" y2="268" class="s-dash"/>
+    <text x="100" y="288" class="s-t-s">A fire warms only the part of the pixel it lands in, so the floor tracks pixel size &mdash; the weakest each feed has actually reported here:</text>
+
+    <rect x="100" y="298" width="196" height="54" rx="7" class="s-box"/>
+    <text x="112" y="317" class="s-t-b" style="fill:var(--mtg)">Meteosat MTG</text>
+    <text x="112" y="332" class="s-t-s">~4 km pixel</text>
+    <text x="112" y="346" class="s-t-m">weakest 4.4 MW</text>
+
+    <rect x="308" y="298" width="196" height="54" rx="7" class="s-box-hi"/>
+    <text x="320" y="317" class="s-t-b" style="fill:var(--firms)">VIIRS &times;3</text>
+    <text x="320" y="332" class="s-t-s">375 m pixel</text>
+    <text x="320" y="346" class="s-t-m">weakest 0.19 MW</text>
+
+    <rect x="516" y="298" width="196" height="54" rx="7" class="s-box"/>
+    <text x="528" y="317" class="s-t-b" style="fill:var(--firms)">MODIS</text>
+    <text x="528" y="332" class="s-t-s">1 km pixel</text>
+    <text x="528" y="346" class="s-t-m">weakest 3.4 MW</text>
+
+    <rect x="724" y="298" width="196" height="54" rx="7" class="s-box"/>
+    <text x="736" y="317" class="s-t-b" style="fill:var(--s3)">Sentinel-3</text>
+    <text x="736" y="332" class="s-t-s">1 km pixel</text>
+    <text x="736" y="346" class="s-t-m">weakest 2.6 MW</text>
   </svg>
   </div>
-  <figcaption><b>One geostationary feed saw the fire more times in six hours than
-  every polar satellite managed all day.</b> Meteosat took 144 looks that day and
-  detected the fire in 16 of them, between 10:50 and 16:30; the polar satellites
-  managed ten looks between them, scattered, and between 00:41 and 08:01 none of
-  them was overhead at all. Meteosat was still watching through that window &mdash;
-  but this fire peaked at 10.5 MW, and a fire much below roughly 5 MW is under what
-  its 4 km pixels can resolve. Continuity is the thing the polar feeds cannot
-  provide at this latitude; sensitivity is what they bring in return.</figcaption>
+  <figcaption><b>Nothing about detection stops at sunset.</b> Thermal infrared needs no
+  daylight, and this fire was picked up right through the night: Meteosat at 18:40 UTC
+  after dark, Sentinel-3 twice at 20:01, and the VIIRS platforms eleven times between
+  00:41 and 01:45, while it burned at 1.3&ndash;3.0&nbsp;MW. What the timeline shows
+  instead is the difference in <em>kind</em> between the two sorts of satellite. Meteosat
+  is above the same spot continuously &mdash; the band runs the full width, one dash per
+  10-minute slice &mdash; and contributes a run of detections whenever the fire is hot
+  enough for a 4&nbsp;km pixel. The polar feeds are sharper and catch it far weaker, but
+  arrive in bursts when an orbit brings them over. The single real gap here is the
+  6&nbsp;h&nbsp;13&nbsp;m before dawn, and it is not an accident: measured across this
+  latitude, no polar satellite crosses between 04:00 and 07:00 UTC, and Meteosat could not
+  cover for them because by then the fire was well under its floor.</figcaption>
 </figure>
 
 <p>Cadence is only half of it. A satellite seeing a fire is not the same as you
@@ -575,7 +602,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
 
 <figure>
   <div class="figscroll">
-  <svg viewBox="0 0 760 668" role="img" aria-label="Vertical pipeline diagram. Three sources - Meteosat MTG polled every 4 minutes, NASA FIRMS every 20 minutes and Sentinel-3 every 20 minutes - feed a spatial clip stage, then a SQLite deduplication store which emits only unseen detections, then clustering into fire events, then enrichment with settlement and weather, then a diff against the previous cycle, which produces notifications, the menu bar state and the fire map.">
+  <svg viewBox="0 0 760 668" role="img" aria-label="Vertical pipeline diagram. Three sources - Meteosat MTG, NASA FIRMS and Sentinel-3 - feed a spatial clip stage, then a SQLite deduplication store which emits only unseen detections, then clustering into fire events, then enrichment with settlement and weather, then a diff against the previous cycle, which produces alerts, the published snapshot and the fire map.">
     <defs>
       <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
               markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
@@ -584,17 +611,14 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <rect x="16" y="16" width="232" height="62" rx="6" class="s-box"/>
     <text x="30" y="38" class="s-t-b" style="fill:var(--mtg)">Meteosat MTG</text>
     <text x="30" y="55" class="s-t-s">WFS &middot; 10-min slices</text>
-    <text x="30" y="70" class="s-t-m">poll 4 min (2 min if active)</text>
 
     <rect x="264" y="16" width="232" height="62" rx="6" class="s-box"/>
     <text x="278" y="38" class="s-t-b" style="fill:var(--firms)">NASA FIRMS</text>
     <text x="278" y="55" class="s-t-s">CSV &middot; 4 NRT datasets</text>
-    <text x="278" y="70" class="s-t-m">poll 20 min</text>
 
     <rect x="512" y="16" width="232" height="62" rx="6" class="s-box"/>
     <text x="526" y="38" class="s-t-b" style="fill:var(--s3)">Sentinel-3 SLSTR</text>
     <text x="526" y="55" class="s-t-s">WFS &middot; A and B</text>
-    <text x="526" y="70" class="s-t-m">poll 20 min</text>
 
     <line x1="132" y1="78" x2="132" y2="118" class="s-line" marker-end="url(#a3)"/>
     <line x1="380" y1="78" x2="380" y2="118" class="s-line" marker-end="url(#a3)"/>
@@ -640,17 +664,17 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
     <text x="30" y="602" class="s-t-b">6 &middot; Notify + SMS</text>
     <text x="30" y="618" class="s-t-s">rate-limited per event</text>
-    <text x="30" y="633" class="s-t-m">and kind, 25 min</text>
+    <text x="30" y="633" class="s-t-s">and per kind</text>
 
     <rect x="264" y="580" width="232" height="62" rx="6" class="s-box"/>
-    <text x="278" y="602" class="s-t-b">7 &middot; Publish: menu bar</text>
-    <text x="278" y="618" class="s-t-s">title, list, submenus</text>
-    <text x="278" y="633" class="s-t-m">rebuilt every cycle</text>
+    <text x="278" y="602" class="s-t-b">7 &middot; Publish: snapshot</text>
+    <text x="278" y="618" class="s-t-s">snapshot.json — the published state</text>
+    <text x="278" y="633" class="s-t-s">what every front end reads</text>
 
     <rect x="512" y="580" width="232" height="62" rx="6" class="s-box"/>
     <text x="526" y="602" class="s-t-b">7 &middot; Publish: map</text>
-    <text x="526" y="618" class="s-t-s">snapshot.json + HTML</text>
-    <text x="526" y="633" class="s-t-m">refreshes in place, 60 s</text>
+    <text x="526" y="618" class="s-t-s">fire-map.html + its data file</text>
+    <text x="526" y="633" class="s-t-s">refreshes in place</text>
   </svg>
   </div>
   <figcaption><b>One cycle, end to end.</b> The two highlighted stages are where raw
@@ -704,13 +728,13 @@ schedules, so one slow or failing feed never blocks the others.</p>
   <li>
     <h3>Cluster into fire events</h3>
     <p>Raw detections are a terrible unit for alerting. One fire produces one
-    detection per sensor, per overpass, per hot pixel — the 20 August fire produced
+    detection per sensor, per overpass, per hot pixel — a fire here on 20 August produced
     45. So detections are grouped by single linkage: two belong to the same fire if
     they are within <strong>3.5 km</strong> and <strong>8 hours</strong> of each
     other, transitively. The radius is set by MTG's ~4 km pixels; anything tighter
     would split one geostationary fire into several.</p>
     <figure>
-      <svg viewBox="0 0 720 250" role="img" aria-label="Clustering diagram. On the left, fifteen detections in three different source colours are scattered in two groups. A linkage rule of 3.5 kilometres and 8 hours is applied. On the right the left group has become a single event of 45 detections seen by three satellites, and the smaller group a separate event of 3 detections.">
+      <svg viewBox="0 0 720 250" role="img" aria-label="Clustering diagram. On the left, thirteen detections in three different source colours are scattered in two groups. A linkage rule of 3.5 kilometres and 8 hours is applied. On the right the left group has become a single event of 45 detections seen by three satellites, and the smaller group a separate event of 3 detections.">
         <defs>
           <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
                   markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
@@ -863,8 +887,10 @@ that last detection, which is the number the map shows.</p>
   not mean the fire is burning, and <code>quiet</code> does not mean it is out.
   <strong>Cloud cover blocks detection completely on all three sensors</strong>, so a
   fire that clouds over goes quiet on schedule while burning exactly as before. The
-  same applies to a fire that drops below the detection floor — roughly 5 MW for
-  Meteosat's ~4 km pixels — without going out.</p>
+  same applies to a fire that drops below the detection floor — around 4&ndash;5 MW for
+  Meteosat's ~4 km pixels; the weakest it has ever reported here is 4.4 MW — without
+  going out. A fire here on 20 August did exactly that, falling to 0.7&ndash;2.1 MW overnight
+  and staying visible only to VIIRS.</p>
   <p>This is why <code>extinguished</code> is the one alert that never sends an SMS.
   It is a statement about the data, and the field does not need a text message saying
   the satellite stopped seeing something.</p>
@@ -1225,9 +1251,11 @@ sensitivity; <code>nearby_buffer_km</code> for how far past the border to watch;
   front, set by EUMETSAT's publishing latency. Nothing in this code can improve
   that.</li>
   <li><strong>Small fires are invisible to the fast feed.</strong> MTG's ~4 km pixels
-  need roughly 5 MW before they register. Sub-pixel and smouldering fires are caught
-  only by the 375 m VIIRS passes, hours later — which is exactly why all three feeds
-  are kept rather than just the fastest.</li>
+  need around 4&ndash;5 MW before they register &mdash; measured over this municipality,
+  the weakest Meteosat has reported is 4.4 MW against 0.19 MW for VIIRS at 375 m, because
+  a fire warms only the part of a pixel it lands in. Sub-pixel and smouldering fires are
+  caught only by those VIIRS passes, hours later &mdash; which is exactly why all three
+  feeds are kept rather than just the fastest.</li>
   <li><strong>Cloud blocks everything.</strong> Every one of these instruments is
   optical/thermal. Overcast means no detection from any of them.</li>
   <li><strong>Month view thins out at the far edge.</strong> The MTG archive holds

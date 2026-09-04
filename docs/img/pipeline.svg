@@ -27,17 +27,14 @@
     <rect x="16" y="16" width="232" height="62" rx="6" class="s-box"/>
     <text x="30" y="38" class="s-t-b" style="fill:#0b6a88">Meteosat MTG</text>
     <text x="30" y="55" class="s-t-s">WFS · 10-min slices</text>
-    <text x="30" y="70" class="s-t-m">poll 4 min (2 min if active)</text>
 
     <rect x="264" y="16" width="232" height="62" rx="6" class="s-box"/>
     <text x="278" y="38" class="s-t-b" style="fill:#8a6008">NASA FIRMS</text>
     <text x="278" y="55" class="s-t-s">CSV · 4 NRT datasets</text>
-    <text x="278" y="70" class="s-t-m">poll 20 min</text>
 
     <rect x="512" y="16" width="232" height="62" rx="6" class="s-box"/>
     <text x="526" y="38" class="s-t-b" style="fill:#8a1c6f">Sentinel-3 SLSTR</text>
     <text x="526" y="55" class="s-t-s">WFS · A and B</text>
-    <text x="526" y="70" class="s-t-m">poll 20 min</text>
 
     <line x1="132" y1="78" x2="132" y2="118" class="s-line" marker-end="url(#a3)"/>
     <line x1="380" y1="78" x2="380" y2="118" class="s-line" marker-end="url(#a3)"/>
@@ -83,15 +80,15 @@
     <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
     <text x="30" y="602" class="s-t-b">6 · Notify + SMS</text>
     <text x="30" y="618" class="s-t-s">rate-limited per event</text>
-    <text x="30" y="633" class="s-t-m">and kind, 25 min</text>
+    <text x="30" y="633" class="s-t-s">and per kind</text>
 
     <rect x="264" y="580" width="232" height="62" rx="6" class="s-box"/>
-    <text x="278" y="602" class="s-t-b">7 · Publish: menu bar</text>
-    <text x="278" y="618" class="s-t-s">title, list, submenus</text>
-    <text x="278" y="633" class="s-t-m">rebuilt every cycle</text>
+    <text x="278" y="602" class="s-t-b">7 · Publish: snapshot</text>
+    <text x="278" y="618" class="s-t-s">snapshot.json — the published state</text>
+    <text x="278" y="633" class="s-t-s">what every front end reads</text>
 
     <rect x="512" y="580" width="232" height="62" rx="6" class="s-box"/>
     <text x="526" y="602" class="s-t-b">7 · Publish: map</text>
-    <text x="526" y="618" class="s-t-s">snapshot.json + HTML</text>
-    <text x="526" y="633" class="s-t-m">refreshes in place, 60 s</text>
+    <text x="526" y="618" class="s-t-s">fire-map.html + its data file</text>
+    <text x="526" y="633" class="s-t-s">refreshes in place</text>
   </svg>

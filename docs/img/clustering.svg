@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 250" width="720" height="250" role="img" aria-label="Clustering diagram. On the left, thirteen detections in three different source colours are scattered in two groups. A linkage rule of 3.5 kilometres and 8 hours is applied. On the right the left group has become a single event of 45 detections seen by three satellites, and the smaller group a separate event of 3 detections.">
+<title>Clustering diagram. On the left, thirteen detections in three different source colours are scattered in two groups. A linkage rule of 3.5 kilometres and 8 hours is applied. On the right the left group has become a single event of 45 detections seen by three satellites, and the smaller group a separate event of 3 detections.</title>
+<style>
+  .s-box{fill:#e7ecee; stroke:#cfd9dd; stroke-width:1}
+  .s-box-hi{fill:#f6e3da; stroke:#bf4318; stroke-width:1.4}
+  .s-line{stroke:#6a7b84; stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:#bf4318; stroke-width:1.8; fill:none}
+  .s-dash{stroke:#6a7b84; stroke-width:1.2; fill:none; stroke-dasharray:4 3}
+  .s-t{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px}
+  .s-t-b{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:#6a7b84; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:10.5px}
+  .s-t-m{fill:#3b4a53; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px}
+  .s-fill-mtg{fill:#0b6a88}
+  .s-fill-firms{fill:#8a6008}
+  .s-fill-s3{fill:#8a1c6f}
+  .s-str-mtg{stroke:#0b6a88}
+  .s-arrow{fill:#6a7b84}
+  .s-poly{fill:#0b6a88; fill-opacity:.1; stroke:#0b6a88; stroke-width:1.6}
+  .s-buf{fill:none; stroke:#bf4318; stroke-width:1.2; stroke-dasharray:5 4}
+</style>
+<rect x="0" y="0" width="720" height="250" fill="#f2f5f6"/>
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+                  markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+        </defs>
+        <text x="20" y="24" class="s-t-s">raw detections</text>
+        <circle cx="118" cy="108" r="46" class="s-dash"/>
+        <g><circle cx="100" cy="92" r="4" class="s-fill-mtg"/><circle cx="118" cy="86" r="4" class="s-fill-mtg"/>
+           <circle cx="134" cy="98" r="4" class="s-fill-mtg"/><circle cx="106" cy="112" r="4" class="s-fill-firms"/>
+           <circle cx="126" cy="118" r="4" class="s-fill-firms"/><circle cx="142" cy="112" r="4" class="s-fill-mtg"/>
+           <circle cx="96" cy="128" r="4" class="s-fill-s3"/><circle cx="118" cy="134" r="4" class="s-fill-mtg"/>
+           <circle cx="138" cy="128" r="4" class="s-fill-firms"/><circle cx="110" cy="72" r="4" class="s-fill-mtg"/></g>
+        <circle cx="248" cy="188" r="26" class="s-dash"/>
+        <g><circle cx="240" cy="182" r="4" class="s-fill-firms"/><circle cx="256" cy="186" r="4" class="s-fill-firms"/>
+           <circle cx="246" cy="196" r="4" class="s-fill-firms"/></g>
+        <line x1="300" y1="120" x2="376" y2="120" class="s-line-hi" marker-end="url(#a4)"/>
+        <text x="338" y="110" class="s-t-m" text-anchor="middle" style="fill:#bf4318">3.5 km</text>
+        <text x="338" y="140" class="s-t-m" text-anchor="middle" style="fill:#bf4318">8 h</text>
+        <text x="400" y="24" class="s-t-s">tracked events</text>
+        <circle cx="480" cy="108" r="30" class="s-box-hi"/>
+        <text x="480" y="113" class="s-t-b" text-anchor="middle">1</text>
+        <text x="524" y="100" class="s-t-b">Event 1</text>
+        <text x="524" y="116" class="s-t-s">45 detections, 3 satellites</text>
+        <text x="524" y="131" class="s-t-m">stable id across cycles</text>
+        <circle cx="480" cy="192" r="18" class="s-box"/>
+        <text x="480" y="197" class="s-t-b" text-anchor="middle">2</text>
+        <text x="524" y="190" class="s-t-b">Event 2</text>
+        <text x="524" y="206" class="s-t-s">3 detections, stays separate</text>
+      </svg>
