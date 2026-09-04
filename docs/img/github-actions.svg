@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="960" height="500" role="img" aria-label="How one FireWatch run works on GitHub Actions. An external timer posts to the workflow dispatch API, because the workflow has no schedule block. A runner then executes six steps: checkout, which brings down the SQLite database and is the only restore that exists; setup-python and pip install; python -m firewatch poll, which fetches the three satellite feeds and sends SMS on change; committing the database back to the repository, gated on the detection count; building the documentation into the site; and uploading the Pages artifact. A second job deploys it to GitHub Pages. The runner is discarded when the run ends, so the repository is the disk and Pages is the output.">
+<title>How one FireWatch run works on GitHub Actions. An external timer posts to the workflow dispatch API, because the workflow has no schedule block. A runner then executes six steps: checkout, which brings down the SQLite database and is the only restore that exists; setup-python and pip install; python -m firewatch poll, which fetches the three satellite feeds and sends SMS on change; committing the database back to the repository, gated on the detection count; building the documentation into the site; and uploading the Pages artifact. A second job deploys it to GitHub Pages. The runner is discarded when the run ends, so the repository is the disk and Pages is the output.</title>
+<style>
+  .s-box{fill:#e7ecee; stroke:#cfd9dd; stroke-width:1}
+  .s-box-hi{fill:#f6e3da; stroke:#bf4318; stroke-width:1.4}
+  .s-line{stroke:#6a7b84; stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:#bf4318; stroke-width:1.8; fill:none}
+  .s-dash{stroke:#6a7b84; stroke-width:1.2; fill:none; stroke-dasharray:4 3}
+  .s-t{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px}
+  .s-t-b{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:#6a7b84; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:10.5px}
+  .s-t-m{fill:#3b4a53; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px}
+  .s-fill-mtg{fill:#0b6a88}
+  .s-fill-firms{fill:#8a6008}
+  .s-fill-s3{fill:#8a1c6f}
+  .s-str-mtg{stroke:#0b6a88}
+  .s-arrow{fill:#6a7b84}
+  .s-poly{fill:#0b6a88; fill-opacity:.1; stroke:#0b6a88; stroke-width:1.6}
+  .s-buf{fill:none; stroke:#bf4318; stroke-width:1.2; stroke-dasharray:5 4}
+</style>
+<rect x="0" y="0" width="960" height="500" fill="#f2f5f6"/>
+    <defs>
+      <marker id="ga-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+
+    <!-- column headings -->
+    <text x="125" y="16" class="s-t-s" text-anchor="middle">outside GitHub</text>
+    <text x="480" y="16" class="s-t-s" text-anchor="middle">one run · discarded when it ends</text>
+    <text x="840" y="16" class="s-t-s" text-anchor="middle">persists between runs</text>
+
+    <!-- the trigger -->
+    <rect x="330" y="26" width="300" height="42" rx="8" class="s-box"/>
+    <text x="480" y="45" class="s-t-b" text-anchor="middle">any timer that can POST</text>
+    <text x="480" y="60" class="s-t-s" text-anchor="middle">a cron service, a home box, your laptop</text>
+    <line x1="480" y1="68" x2="480" y2="92" class="s-line" marker-end="url(#ga-a)"/>
+    <text x="492" y="84" class="s-t-m">workflow_dispatch</text>
+    <text x="322" y="45" class="s-t-s" text-anchor="end">no</text>
+    <text x="322" y="60" class="s-t-m" text-anchor="end">schedule:</text>
+
+    <!-- the runner -->
+    <rect x="250" y="96" width="460" height="392" rx="10" class="s-dash"/>
+    <text x="262" y="114" class="s-t-m">job: poll · ubuntu-latest</text>
+
+    <rect x="262" y="122" width="436" height="42" rx="7" class="s-box"/>
+    <text x="274" y="140" class="s-t-b">1 · actions/checkout</text>
+    <text x="274" y="156" class="s-t-s">the database comes down with the repo — this is the restore</text>
+
+    <rect x="262" y="170" width="436" height="34" rx="7" class="s-box"/>
+    <text x="274" y="191" class="s-t-b">2 · setup-python 3.14  ·  pip install requests certifi</text>
+
+    <rect x="262" y="210" width="436" height="52" rx="7" class="s-box-hi"/>
+    <text x="274" y="230" class="s-t-b">3 · python3 -m firewatch poll</text>
+    <text x="274" y="248" class="s-t-s">fetch → clip → dedupe → cluster → enrich → diff → alert</text>
+
+    <rect x="262" y="268" width="436" height="42" rx="7" class="s-box"/>
+    <text x="274" y="286" class="s-t-b">4 · commit state/ back</text>
+    <text x="274" y="302" class="s-t-s">only when the detection count moved · push, rebase, retry ×3</text>
+
+    <rect x="262" y="316" width="436" height="34" rx="7" class="s-box"/>
+    <text x="274" y="337" class="s-t-b">5 · build-site.py — the docs, wrapped, beside the map</text>
+
+    <rect x="262" y="356" width="436" height="34" rx="7" class="s-box"/>
+    <text x="274" y="377" class="s-t-b">6 · upload-pages-artifact — public/</text>
+
+    <text x="262" y="410" class="s-t-m">job: publish · needs: poll</text>
+    <rect x="262" y="416" width="436" height="34" rx="7" class="s-box"/>
+    <text x="274" y="437" class="s-t-b">actions/deploy-pages</text>
+
+    <text x="262" y="470" class="s-t-s">a second dispatch queues behind this one; it never cancels it</text>
+
+    <!-- feeds in, SMS out -->
+    <rect x="16" y="210" width="218" height="52" rx="8" class="s-box"/>
+    <text x="28" y="230" class="s-t-b">three satellite feeds</text>
+    <text x="28" y="248" class="s-t-s">Meteosat · FIRMS · Sentinel-3</text>
+    <line x1="234" y1="236" x2="256" y2="236" class="s-line" marker-end="url(#ga-a)"/>
+
+    <rect x="16" y="290" width="218" height="52" rx="8" class="s-box"/>
+    <text x="28" y="310" class="s-t-b">phones</text>
+    <text x="28" y="328" class="s-t-s">httpSMS, on change only</text>
+    <line x1="262" y1="258" x2="238" y2="288" class="s-line" marker-end="url(#ga-a)"/>
+
+    <!-- the disk: out on checkout, back on push -->
+    <rect x="726" y="122" width="218" height="60" rx="8" class="s-box-hi"/>
+    <text x="738" y="142" class="s-t-b">the repository</text>
+    <text x="738" y="158" class="s-t-m">state/firewatch.db</text>
+    <text x="738" y="174" class="s-t-s">the only storage there is</text>
+    <line x1="726" y1="143" x2="702" y2="143" class="s-line-hi" marker-end="url(#ga-a)"/>
+    <path d="M698,289 L714,289 L714,190 L790,190 L790,182" class="s-line-hi" marker-end="url(#ga-a)"/>
+    <text x="722" y="206" class="s-t-m" style="fill:#bf4318">push</text>
+
+    <rect x="726" y="416" width="218" height="60" rx="8" class="s-box"/>
+    <text x="738" y="436" class="s-t-b">GitHub Pages</text>
+    <text x="738" y="452" class="s-t-s">the map at / and the docs at /docs/</text>
+    <text x="738" y="468" class="s-t-s">the link inside every SMS</text>
+    <line x1="698" y1="433" x2="722" y2="433" class="s-line" marker-end="url(#ga-a)"/>
+  </svg>

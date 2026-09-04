@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 32 780 214" width="780" height="214" role="img" aria-label="The state machine for one fire event. A first detection while the fire is still burning enters ACTIVE and raises a new alert; a first detection already older than the quiet window is recorded silently. ACTIVE means seen within 5 hours; 5 hours with nothing moves the event to QUIET and raises extinguished. A fresh detection returns it to ACTIVE as reignited. While active, three self-transitions raise grew when the footprint widens by 0.5 km, intensified when peak power goes up 1.5 times and at least 3 MW, and corroborated when a second satellite sees it.">
+<title>The state machine for one fire event. A first detection while the fire is still burning enters ACTIVE and raises a new alert; a first detection already older than the quiet window is recorded silently. ACTIVE means seen within 5 hours; 5 hours with nothing moves the event to QUIET and raises extinguished. A fresh detection returns it to ACTIVE as reignited. While active, three self-transitions raise grew when the footprint widens by 0.5 km, intensified when peak power goes up 1.5 times and at least 3 MW, and corroborated when a second satellite sees it.</title>
+<style>
+  .s-box{fill:#e7ecee; stroke:#cfd9dd; stroke-width:1}
+  .s-box-hi{fill:#f6e3da; stroke:#bf4318; stroke-width:1.4}
+  .s-line{stroke:#6a7b84; stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:#bf4318; stroke-width:1.8; fill:none}
+  .s-dash{stroke:#6a7b84; stroke-width:1.2; fill:none; stroke-dasharray:4 3}
+  .s-t{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px}
+  .s-t-b{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:#6a7b84; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:10.5px}
+  .s-t-m{fill:#3b4a53; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px}
+  .s-fill-mtg{fill:#0b6a88}
+  .s-fill-firms{fill:#8a6008}
+  .s-fill-s3{fill:#8a1c6f}
+  .s-str-mtg{stroke:#0b6a88}
+  .s-arrow{fill:#6a7b84}
+  .s-poly{fill:#0b6a88; fill-opacity:.1; stroke:#0b6a88; stroke-width:1.6}
+  .s-buf{fill:none; stroke:#bf4318; stroke-width:1.2; stroke-dasharray:5 4}
+</style>
+<rect x="0" y="32" width="780" height="214" fill="#f2f5f6"/>
+    <defs>
+      <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+              markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <rect x="14" y="118" width="132" height="56" rx="6" class="s-box"/>
+    <text x="80" y="142" class="s-t-b" text-anchor="middle">First detection</text>
+    <text x="80" y="158" class="s-t-s" text-anchor="middle">never seen before</text>
+
+    <rect x="256" y="112" width="152" height="68" rx="8" class="s-box-hi"/>
+    <text x="332" y="141" class="s-t-b" text-anchor="middle">ACTIVE</text>
+    <text x="332" y="159" class="s-t-s" text-anchor="middle">seen within 5 h</text>
+
+    <rect x="574" y="112" width="152" height="68" rx="8" class="s-box"/>
+    <text x="650" y="141" class="s-t-b" text-anchor="middle">QUIET</text>
+    <text x="650" y="159" class="s-t-s" text-anchor="middle">nothing for 5 h+</text>
+
+    <line x1="146" y1="140" x2="248" y2="140" class="s-line-hi" marker-end="url(#a5)"/>
+    <text x="197" y="132" class="s-t-m" text-anchor="middle" style="fill:#bf4318">new</text>
+
+    <path d="M146,162 Q200,236 566,206" class="s-dash" marker-end="url(#a5)"/>
+    <text x="330" y="232" class="s-t-m" text-anchor="middle">already stale → recorded, no alert</text>
+
+    <line x1="408" y1="134" x2="566" y2="134" class="s-line" marker-end="url(#a5)"/>
+    <text x="487" y="126" class="s-t-m" text-anchor="middle">extinguished</text>
+
+    <path d="M566,166 Q487,196 416,168" class="s-line" marker-end="url(#a5)"/>
+    <text x="491" y="192" class="s-t-m" text-anchor="middle">reignited</text>
+
+    <path d="M300,112 Q332,58 364,112" class="s-line-hi" marker-end="url(#a5)"/>
+    <text x="332" y="46" class="s-t-m" text-anchor="middle" style="fill:#bf4318">while burning:</text>
+    <text x="440" y="66" class="s-t-s">footprint +0.5 km → <tspan style="font-weight:600">grew</tspan></text>
+    <text x="440" y="82" class="s-t-s">FRP ×1.5 and +3 MW → <tspan style="font-weight:600">intensified</tspan></text>
+    <text x="440" y="98" class="s-t-s">2nd satellite sees it → <tspan style="font-weight:600">corroborated</tspan></text>
+  </svg>

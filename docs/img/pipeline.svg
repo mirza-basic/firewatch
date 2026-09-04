@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 668" width="760" height="668" role="img" aria-label="The polling cycle. Three feeds - Meteosat MTG every 4 minutes, NASA FIRMS and Sentinel-3 every 20 - produce detections, which pass through six stages: a spatial clip to the municipality boundary plus a 2 km buffer; deduplication into SQLite, where INSERT OR IGNORE decides what is new; clustering into fire events by single linkage at 3.5 km and 8 hours; enrichment with the nearest settlement, wind and a spread-risk label; a diff against the previous cycle producing new, intensified, grew, corroborated, reignited and extinguished alerts; and delivery, rate-limited per event.">
+<title>The polling cycle. Three feeds - Meteosat MTG every 4 minutes, NASA FIRMS and Sentinel-3 every 20 - produce detections, which pass through six stages: a spatial clip to the municipality boundary plus a 2 km buffer; deduplication into SQLite, where INSERT OR IGNORE decides what is new; clustering into fire events by single linkage at 3.5 km and 8 hours; enrichment with the nearest settlement, wind and a spread-risk label; a diff against the previous cycle producing new, intensified, grew, corroborated, reignited and extinguished alerts; and delivery, rate-limited per event.</title>
+<style>
+  .s-box{fill:#e7ecee; stroke:#cfd9dd; stroke-width:1}
+  .s-box-hi{fill:#f6e3da; stroke:#bf4318; stroke-width:1.4}
+  .s-line{stroke:#6a7b84; stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:#bf4318; stroke-width:1.8; fill:none}
+  .s-dash{stroke:#6a7b84; stroke-width:1.2; fill:none; stroke-dasharray:4 3}
+  .s-t{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px}
+  .s-t-b{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:#6a7b84; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:10.5px}
+  .s-t-m{fill:#3b4a53; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px}
+  .s-fill-mtg{fill:#0b6a88}
+  .s-fill-firms{fill:#8a6008}
+  .s-fill-s3{fill:#8a1c6f}
+  .s-str-mtg{stroke:#0b6a88}
+  .s-arrow{fill:#6a7b84}
+  .s-poly{fill:#0b6a88; fill-opacity:.1; stroke:#0b6a88; stroke-width:1.6}
+  .s-buf{fill:none; stroke:#bf4318; stroke-width:1.2; stroke-dasharray:5 4}
+</style>
+<rect x="0" y="0" width="760" height="668" fill="#f2f5f6"/>
+    <defs>
+      <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
+              markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <!-- sources -->
+    <rect x="16" y="16" width="232" height="62" rx="6" class="s-box"/>
+    <text x="30" y="38" class="s-t-b" style="fill:#0b6a88">Meteosat MTG</text>
+    <text x="30" y="55" class="s-t-s">WFS · 10-min slices</text>
+    <text x="30" y="70" class="s-t-m">poll 4 min (2 min if active)</text>
+
+    <rect x="264" y="16" width="232" height="62" rx="6" class="s-box"/>
+    <text x="278" y="38" class="s-t-b" style="fill:#8a6008">NASA FIRMS</text>
+    <text x="278" y="55" class="s-t-s">CSV · 4 NRT datasets</text>
+    <text x="278" y="70" class="s-t-m">poll 20 min</text>
+
+    <rect x="512" y="16" width="232" height="62" rx="6" class="s-box"/>
+    <text x="526" y="38" class="s-t-b" style="fill:#8a1c6f">Sentinel-3 SLSTR</text>
+    <text x="526" y="55" class="s-t-s">WFS · A and B</text>
+    <text x="526" y="70" class="s-t-m">poll 20 min</text>
+
+    <line x1="132" y1="78" x2="132" y2="118" class="s-line" marker-end="url(#a3)"/>
+    <line x1="380" y1="78" x2="380" y2="118" class="s-line" marker-end="url(#a3)"/>
+    <line x1="628" y1="78" x2="628" y2="118" class="s-line" marker-end="url(#a3)"/>
+    <text x="140" y="102" class="s-t-m">FRP points</text>
+    <text x="388" y="102" class="s-t-m">CSV rows</text>
+    <text x="636" y="102" class="s-t-m">FRP points</text>
+
+    <!-- stages -->
+    <rect x="16" y="124" width="728" height="46" rx="6" class="s-box"/>
+    <text x="30" y="145" class="s-t-b">1 · Spatial clip</text>
+    <text x="30" y="161" class="s-t-s">inside the 731-point boundary, or within the 2 km buffer (flagged “nearby”)</text>
+    <line x1="380" y1="170" x2="380" y2="210" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="194" class="s-t-m">detections in scope</text>
+
+    <rect x="16" y="214" width="728" height="46" rx="6" class="s-box"/>
+    <text x="30" y="235" class="s-t-b">2 · Deduplicate into SQLite</text>
+    <text x="30" y="251" class="s-t-s">INSERT OR IGNORE on uid — the database decides what is new, not a payload diff</text>
+    <line x1="380" y1="260" x2="380" y2="300" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="284" class="s-t-m">all detections in the 8760 h window</text>
+
+    <rect x="16" y="304" width="728" height="46" rx="6" class="s-box-hi"/>
+    <text x="30" y="325" class="s-t-b">3 · Cluster into fire events</text>
+    <text x="30" y="341" class="s-t-s">single linkage in space and time: 3.5 km, 8 h</text>
+    <line x1="380" y1="350" x2="380" y2="390" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="374" class="s-t-m">events</text>
+
+    <rect x="16" y="394" width="728" height="46" rx="6" class="s-box"/>
+    <text x="30" y="415" class="s-t-b">4 · Enrich</text>
+    <text x="30" y="431" class="s-t-s">nearest settlement + bearing, wind and humidity, spread-risk label</text>
+    <line x1="380" y1="440" x2="380" y2="480" class="s-line" marker-end="url(#a3)"/>
+    <text x="392" y="464" class="s-t-m">current events</text>
+
+    <rect x="16" y="484" width="728" height="46" rx="6" class="s-box-hi"/>
+    <text x="30" y="505" class="s-t-b">5 · Diff against the previous cycle</text>
+    <text x="30" y="521" class="s-t-s">new · intensified · grew · corroborated · reignited · extinguished</text>
+
+    <!-- fan to outputs -->
+    <polyline points="380,530 380,552 132,552 132,574" class="s-line" marker-end="url(#a3)"/>
+    <polyline points="380,530 380,574" class="s-line" marker-end="url(#a3)"/>
+    <polyline points="380,530 380,552 628,552 628,574" class="s-line" marker-end="url(#a3)"/>
+
+    <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
+    <text x="30" y="602" class="s-t-b">6 · Notify + SMS</text>
+    <text x="30" y="618" class="s-t-s">rate-limited per event</text>
+    <text x="30" y="633" class="s-t-m">and kind, 25 min</text>
+
+    <rect x="264" y="580" width="232" height="62" rx="6" class="s-box"/>
+    <text x="278" y="602" class="s-t-b">7 · Publish: menu bar</text>
+    <text x="278" y="618" class="s-t-s">title, list, submenus</text>
+    <text x="278" y="633" class="s-t-m">rebuilt every cycle</text>
+
+    <rect x="512" y="580" width="232" height="62" rx="6" class="s-box"/>
+    <text x="526" y="602" class="s-t-b">7 · Publish: map</text>
+    <text x="526" y="618" class="s-t-s">snapshot.json + HTML</text>
+    <text x="526" y="633" class="s-t-m">refreshes in place, 60 s</text>
+  </svg>

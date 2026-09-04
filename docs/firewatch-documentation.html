@@ -286,11 +286,22 @@ recorded in the database:</p>
 
 <figure>
   <div class="figscroll">
-  <svg viewBox="0 0 960 252" role="img" aria-label="Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat MTG recorded sixteen observations between 10:50 and 16:30. The three VIIRS satellites recorded five, MODIS three and Sentinel-3 two, spread thinly across the day with a seven hour twenty minute gap between 00:41 and 08:01.">
+  <svg viewBox="0 0 960 252" role="img" aria-label="Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat is geostationary and watches continuously, taking 144 looks a day, one every ten minutes; sixteen of them detected this fire, between 10:50 and 16:30. The polar satellites pass only when they are overhead: three VIIRS platforms detected it five times, MODIS three and Sentinel-3 twice, and between 00:41 and 08:01 no polar satellite passed at all. Meteosat kept watching through that window, but a fire under roughly five megawatts is below what its four kilometre pixels can see.">
     <defs>
       <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
               markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
     </defs>
+    <!-- Legend. The chart plots detections, and without saying so the empty hours
+         on the Meteosat lane read as hours when nothing was watching - which is the
+         opposite of what a geostationary satellite does. -->
+    <g>
+      <rect x="100" y="9" width="26" height="11" rx="5.5" fill="var(--mtg)" fill-opacity="0.15"/>
+      <line x1="103" y1="14.5" x2="123" y2="14.5" stroke="var(--mtg)" stroke-opacity="0.55"
+            stroke-width="1.2" stroke-dasharray="1 4.7"/>
+      <text x="134" y="18" class="s-t-s">Meteosat watching: 144 looks a day, one every 10 min</text>
+      <circle cx="452" cy="14.5" r="4" class="s-fill-mtg"/>
+      <text x="464" y="18" class="s-t-s">a look that detected this fire</text>
+    </g>
     <!-- lanes -->
     <text x="92" y="56" class="s-t-b" text-anchor="end">Meteosat MTG</text>
     <text x="92" y="70" class="s-t-s" text-anchor="end">geostationary</text>
@@ -299,7 +310,11 @@ recorded in the database:</p>
     <text x="92" y="156" class="s-t-b" text-anchor="end">Sentinel-3</text>
     <line x1="100" y1="34" x2="100" y2="196" class="s-dash"/>
     <line x1="920" y1="34" x2="920" y2="196" class="s-dash"/>
-    <!-- MTG: 16 observations -->
+    <!-- MTG's continuous watch. Drawn before the dots so they sit on top of it. -->
+    <rect x="100" y="44" width="820" height="16" rx="8" fill="var(--mtg)" fill-opacity="0.15"/>
+    <line x1="101" y1="52" x2="919" y2="52" stroke="var(--mtg)" stroke-opacity="0.5"
+          stroke-width="1.2" stroke-dasharray="1 4.7"/>
+    <!-- MTG: 16 of those looks detected the fire -->
     <g class="s-fill-mtg">
       <circle cx="470" cy="52" r="4"/><circle cx="481" cy="52" r="4"/>
       <circle cx="487" cy="52" r="4"/><circle cx="498" cy="52" r="4"/>
@@ -310,7 +325,7 @@ recorded in the database:</p>
       <circle cx="624" cy="52" r="4"/><circle cx="647" cy="52" r="4"/>
       <circle cx="652" cy="52" r="4"/><circle cx="664" cy="52" r="4"/>
     </g>
-    <text x="676" y="56" class="s-t-m">16 looks</text>
+    <text x="676" y="56" class="s-t-m">16 detections</text>
     <!-- VIIRS: 5 -->
     <g class="s-fill-firms">
       <circle cx="112" cy="92" r="4"/><circle cx="123" cy="92" r="4"/>
@@ -334,7 +349,7 @@ recorded in the database:</p>
     <line x1="123" y1="172" x2="123" y2="184" class="s-line-hi"/>
     <line x1="374" y1="172" x2="374" y2="184" class="s-line-hi"/>
     <text x="248" y="194" class="s-t-s" text-anchor="middle"
-      style="fill:var(--accent);font-weight:600">7 h 20 m with nobody looking</text>
+      style="fill:var(--accent);font-weight:600">7 h 20 m with no polar satellite overhead</text>
     <!-- axis -->
     <line x1="100" y1="212" x2="920" y2="212" class="s-line" marker-end="url(#a1)"/>
     <g class="s-t-m" text-anchor="middle">
@@ -348,10 +363,13 @@ recorded in the database:</p>
   </svg>
   </div>
   <figcaption><b>One geostationary feed saw the fire more times in six hours than
-  every polar satellite managed all day.</b> Meteosat produced 16 observations
-  between 10:50 and 16:30; the five polar passes were scattered, and between 00:41
-  and 08:01 no satellite looked at Zavidovići at all. Continuity is the thing the
-  polar feeds cannot provide at this latitude.</figcaption>
+  every polar satellite managed all day.</b> Meteosat took 144 looks that day and
+  detected the fire in 16 of them, between 10:50 and 16:30; the polar satellites
+  managed ten looks between them, scattered, and between 00:41 and 08:01 none of
+  them was overhead at all. Meteosat was still watching through that window &mdash;
+  but this fire peaked at 10.5 MW, and a fire much below roughly 5 MW is under what
+  its 4 km pixels can resolve. Continuity is the thing the polar feeds cannot
+  provide at this latitude; sensitivity is what they bring in return.</figcaption>
 </figure>
 
 <p>Cadence is only half of it. A satellite seeing a fire is not the same as you
@@ -774,7 +792,7 @@ lifecycle so notifications carry information rather than repeating themselves.</
 
 <figure>
   <div class="figscroll">
-  <svg viewBox="0 32 780 214" role="img" aria-label="State machine for a fire event. A first detection while the fire is still burning enters the Active state and raises a new alert; a first detection that is already stale is recorded silently. From Active, no detection for four hours moves to Quiet and raises extinguished. From Quiet, a fresh detection returns to Active and raises reignited. While Active, three self-transitions raise grew, intensified and corroborated alerts.">
+  <svg viewBox="0 32 780 214" role="img" aria-label="State machine for a fire event. A first detection while the fire is still burning enters the Active state and raises a new alert; a first detection that is already stale is recorded silently. From Active, no detection for five hours moves to Quiet and raises extinguished. From Quiet, a fresh detection returns to Active and raises reignited. While Active, three self-transitions raise grew, intensified and corroborated alerts.">
     <defs>
       <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5"
               markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
@@ -785,11 +803,11 @@ lifecycle so notifications carry information rather than repeating themselves.</
 
     <rect x="256" y="112" width="152" height="68" rx="8" class="s-box-hi"/>
     <text x="332" y="141" class="s-t-b" text-anchor="middle">ACTIVE</text>
-    <text x="332" y="159" class="s-t-s" text-anchor="middle">seen within 4 h</text>
+    <text x="332" y="159" class="s-t-s" text-anchor="middle">seen within 5 h</text>
 
     <rect x="574" y="112" width="152" height="68" rx="8" class="s-box"/>
     <text x="650" y="141" class="s-t-b" text-anchor="middle">QUIET</text>
-    <text x="650" y="159" class="s-t-s" text-anchor="middle">nothing for 4 h+</text>
+    <text x="650" y="159" class="s-t-s" text-anchor="middle">nothing for 5 h+</text>
 
     <line x1="146" y1="140" x2="248" y2="140" class="s-line-hi" marker-end="url(#a5)"/>
     <text x="197" y="132" class="s-t-m" text-anchor="middle" style="fill:var(--accent)">new</text>

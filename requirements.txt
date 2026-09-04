@@ -1,0 +1,13 @@
+# What the running system needs. Two packages, both pure-Python wheels.
+#
+# certifi is not optional convenience: some Python builds ship no CA bundle, so
+# stdlib HTTPS fails with CERTIFICATE_VERIFY_FAILED while requests works. This is
+# also why nothing in firewatch/ uses urllib.
+requests>=2.28
+certifi
+
+# Only `python3 -m firewatch buffer` needs these, and it is a build-time command
+# that regenerates a committed artifact. They are deliberately imported inside
+# geo.build_buffer() so the running app never needs them - do not add them above.
+#   shapely>=2.0
+#   pyproj>=3.4

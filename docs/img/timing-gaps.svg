@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 252" width="960" height="252" role="img" aria-label="Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat is geostationary and watches continuously, taking 144 looks a day, one every ten minutes; sixteen of them detected this fire, between 10:50 and 16:30. The polar satellites pass only when they are overhead: three VIIRS platforms detected it five times, MODIS three and Sentinel-3 twice, and between 00:41 and 08:01 no polar satellite passed at all. Meteosat kept watching through that window, but a fire under roughly five megawatts is below what its four kilometre pixels can see.">
+<title>Timeline of satellite observations over Zavidovici on 20 August 2026. Meteosat is geostationary and watches continuously, taking 144 looks a day, one every ten minutes; sixteen of them detected this fire, between 10:50 and 16:30. The polar satellites pass only when they are overhead: three VIIRS platforms detected it five times, MODIS three and Sentinel-3 twice, and between 00:41 and 08:01 no polar satellite passed at all. Meteosat kept watching through that window, but a fire under roughly five megawatts is below what its four kilometre pixels can see.</title>
+<style>
+  .s-box{fill:#e7ecee; stroke:#cfd9dd; stroke-width:1}
+  .s-box-hi{fill:#f6e3da; stroke:#bf4318; stroke-width:1.4}
+  .s-line{stroke:#6a7b84; stroke-width:1.4; fill:none}
+  .s-line-hi{stroke:#bf4318; stroke-width:1.8; fill:none}
+  .s-dash{stroke:#6a7b84; stroke-width:1.2; fill:none; stroke-dasharray:4 3}
+  .s-t{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px}
+  .s-t-b{fill:#111a1f; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:12.5px; font-weight:600}
+  .s-t-s{fill:#6a7b84; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:10.5px}
+  .s-t-m{fill:#3b4a53; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px}
+  .s-fill-mtg{fill:#0b6a88}
+  .s-fill-firms{fill:#8a6008}
+  .s-fill-s3{fill:#8a1c6f}
+  .s-str-mtg{stroke:#0b6a88}
+  .s-arrow{fill:#6a7b84}
+  .s-poly{fill:#0b6a88; fill-opacity:.1; stroke:#0b6a88; stroke-width:1.6}
+  .s-buf{fill:none; stroke:#bf4318; stroke-width:1.2; stroke-dasharray:5 4}
+</style>
+<rect x="0" y="0" width="960" height="252" fill="#f2f5f6"/>
+    <defs>
+      <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="s-arrow"/></marker>
+    </defs>
+    <!-- Legend. The chart plots detections, and without saying so the empty hours
+         on the Meteosat lane read as hours when nothing was watching - which is the
+         opposite of what a geostationary satellite does. -->
+    <g>
+      <rect x="100" y="9" width="26" height="11" rx="5.5" fill="#0b6a88" fill-opacity="0.15"/>
+      <line x1="103" y1="14.5" x2="123" y2="14.5" stroke="#0b6a88" stroke-opacity="0.55"
+            stroke-width="1.2" stroke-dasharray="1 4.7"/>
+      <text x="134" y="18" class="s-t-s">Meteosat watching: 144 looks a day, one every 10 min</text>
+      <circle cx="452" cy="14.5" r="4" class="s-fill-mtg"/>
+      <text x="464" y="18" class="s-t-s">a look that detected this fire</text>
+    </g>
+    <!-- lanes -->
+    <text x="92" y="56" class="s-t-b" text-anchor="end">Meteosat MTG</text>
+    <text x="92" y="70" class="s-t-s" text-anchor="end">geostationary</text>
+    <text x="92" y="96" class="s-t-b" text-anchor="end">VIIRS ×3</text>
+    <text x="92" y="128" class="s-t-b" text-anchor="end">MODIS</text>
+    <text x="92" y="156" class="s-t-b" text-anchor="end">Sentinel-3</text>
+    <line x1="100" y1="34" x2="100" y2="196" class="s-dash"/>
+    <line x1="920" y1="34" x2="920" y2="196" class="s-dash"/>
+    <!-- MTG's continuous watch. Drawn before the dots so they sit on top of it. -->
+    <rect x="100" y="44" width="820" height="16" rx="8" fill="#0b6a88" fill-opacity="0.15"/>
+    <line x1="101" y1="52" x2="919" y2="52" stroke="#0b6a88" stroke-opacity="0.5"
+          stroke-width="1.2" stroke-dasharray="1 4.7"/>
+    <!-- MTG: 16 of those looks detected the fire -->
+    <g class="s-fill-mtg">
+      <circle cx="470" cy="52" r="4"/><circle cx="481" cy="52" r="4"/>
+      <circle cx="487" cy="52" r="4"/><circle cx="498" cy="52" r="4"/>
+      <circle cx="504" cy="52" r="4"/><circle cx="510" cy="52" r="4"/>
+      <circle cx="521" cy="52" r="4"/><circle cx="527" cy="52" r="4"/>
+      <circle cx="533" cy="52" r="4"/><circle cx="538" cy="52" r="4"/>
+      <circle cx="550" cy="52" r="4"/><circle cx="590" cy="52" r="4"/>
+      <circle cx="624" cy="52" r="4"/><circle cx="647" cy="52" r="4"/>
+      <circle cx="652" cy="52" r="4"/><circle cx="664" cy="52" r="4"/>
+    </g>
+    <text x="676" y="56" class="s-t-m">16 detections</text>
+    <!-- VIIRS: 5 -->
+    <g class="s-fill-firms">
+      <circle cx="112" cy="92" r="4"/><circle cx="123" cy="92" r="4"/>
+      <circle cx="483" cy="92" r="4"/><circle cx="504" cy="92" r="4"/>
+      <circle cx="513" cy="92" r="4"/>
+    </g>
+    <text x="527" y="96" class="s-t-m">5</text>
+    <!-- MODIS: 3 -->
+    <g class="s-fill-firms">
+      <circle cx="374" cy="124" r="4"/><circle cx="578" cy="124" r="4"/>
+      <circle cx="754" cy="124" r="4"/>
+    </g>
+    <text x="768" y="128" class="s-t-m">3</text>
+    <!-- S3: 2 -->
+    <g class="s-fill-s3">
+      <circle cx="394" cy="152" r="4"/><circle cx="798" cy="152" r="4"/>
+    </g>
+    <text x="812" y="156" class="s-t-m">2</text>
+    <!-- gap bracket -->
+    <line x1="123" y1="178" x2="374" y2="178" class="s-line-hi"/>
+    <line x1="123" y1="172" x2="123" y2="184" class="s-line-hi"/>
+    <line x1="374" y1="172" x2="374" y2="184" class="s-line-hi"/>
+    <text x="248" y="194" class="s-t-s" text-anchor="middle"
+      style="fill:#bf4318;font-weight:600">7 h 20 m with no polar satellite overhead</text>
+    <!-- axis -->
+    <line x1="100" y1="212" x2="920" y2="212" class="s-line" marker-end="url(#a1)"/>
+    <g class="s-t-m" text-anchor="middle">
+      <text x="100" y="232">00</text><text x="203" y="232">03</text>
+      <text x="305" y="232">06</text><text x="408" y="232">09</text>
+      <text x="510" y="232">12</text><text x="613" y="232">15</text>
+      <text x="715" y="232">18</text><text x="818" y="232">21</text>
+      <text x="920" y="232">24</text>
+    </g>
+    <text x="510" y="248" class="s-t-s" text-anchor="middle">hours UTC · 20 August 2026</text>
+  </svg>
