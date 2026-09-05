@@ -13,20 +13,38 @@ COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
 
 
 @lru_cache(maxsize=1)
-def boundary_ring() -> tuple[tuple[float, float], ...]:
-    """Outer ring of the municipality as ((lon, lat), ...), closed."""
+def boundary_rings() -> tuple[tuple[tuple[float, float], ...], ...]:
+    """Every ring of the boundary, each as ((lon, lat), ...), closed.
+
+    Taking `coordinates[0]` and calling it "the outer ring" is right for exactly
+    one input shape, a single-part Polygon. For a MultiPolygon that index is a
+    whole *polygon*, and the unpack below raises ValueError - but it raises from
+    inside bbox_padded(), which every fetch path calls, so all three sources
+    report [FAIL], per-source isolation swallows it, and the cycle still exits 0
+    and renders a map that can never show a fire. A municipality is usually one
+    polygon and never hits this; anything with an enclave, an exclave or an
+    island is not. Measured against Bosnia and Herzegovina, OSM relation
+    2528142, which Nominatim returns as two parts.
+
+    Holes are flattened into the same list deliberately. The even-odd tests
+    below toggle containment on every crossing, so an inner ring switches it
+    back off exactly as it should, and the distance test wants every vertex
+    regardless of which ring it came from.
+    """
     fc = json.loads(BOUNDARY_GEOJSON.read_text())
-    ring = fc["features"][0]["geometry"]["coordinates"][0]
-    return tuple((float(x), float(y)) for x, y in ring)
+    geom = fc["features"][0]["geometry"]
+    polys = (geom["coordinates"] if geom["type"] == "MultiPolygon"
+             else [geom["coordinates"]])
+    return tuple(tuple((float(x), float(y)) for x, y in ring)
+                 for poly in polys for ring in poly)
 
 
 @lru_cache(maxsize=1)
 def bbox() -> tuple[float, float, float, float]:
-    """(min_lon, min_lat, max_lon, max_lat) of the municipality."""
-    r = boundary_ring()
-    xs = [p[0] for p in r]
-    ys = [p[1] for p in r]
-    return min(xs), min(ys), max(xs), max(ys)
+    """(min_lon, min_lat, max_lon, max_lat) of the whole boundary."""
+    pts = [p for ring in boundary_rings() for p in ring]
+    return (min(p[0] for p in pts), min(p[1] for p in pts),
+            max(p[0] for p in pts), max(p[1] for p in pts))
 
 
 def bbox_padded(km: float) -> tuple[float, float, float, float]:
@@ -39,16 +57,16 @@ def bbox_padded(km: float) -> tuple[float, float, float, float]:
 
 
 def point_in_boundary(lat: float, lon: float) -> bool:
-    """Ray-casting test against the municipality outline (even-odd rule)."""
-    ring = boundary_ring()
+    """Ray-casting test against the boundary outline (even-odd rule)."""
     inside = False
-    for i in range(len(ring) - 1):
-        x1, y1 = ring[i]
-        x2, y2 = ring[i + 1]
-        if (y1 > lat) != (y2 > lat):
-            x_int = x1 + (lat - y1) * (x2 - x1) / (y2 - y1)
-            if lon < x_int:
-                inside = not inside
+    for ring in boundary_rings():
+        for i in range(len(ring) - 1):
+            x1, y1 = ring[i]
+            x2, y2 = ring[i + 1]
+            if (y1 > lat) != (y2 > lat):
+                x_int = x1 + (lat - y1) * (x2 - x1) / (y2 - y1)
+                if lon < x_int:
+                    inside = not inside
     return inside
 
 
@@ -74,7 +92,8 @@ def compass(deg: float) -> str:
 
 def distance_to_boundary_km(lat: float, lon: float) -> float:
     """Approximate great-circle distance to the nearest boundary vertex."""
-    return min(haversine_km(lat, lon, y, x) for x, y in boundary_ring())
+    return min(haversine_km(lat, lon, y, x)
+               for ring in boundary_rings() for x, y in ring)
 
 
 @lru_cache(maxsize=1)

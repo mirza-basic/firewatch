@@ -524,8 +524,12 @@ def cmd_place() -> int:
     print(f"  language     : {p['language']}   timezone: {p['timezone']}")
     print(f"  town centre  : {place.TOWN_LAT:.6f}, {place.TOWN_LON:.6f}")
     print(f"  bbox         : {s_:.4f},{w:.4f} .. {n:.4f},{e:.4f}")
+    rings = geo.boundary_rings()
+    # Ring count is worth printing only when there is more than one: a boundary
+    # arriving as several parts is exactly the case that used to break the clip.
+    parts = f", {len(rings)} rings" if len(rings) > 1 else ""
     print(f"  boundary     : {BOUNDARY_GEOJSON.name}"
-          f" ({len(geo.boundary_ring())} vertices)")
+          f" ({sum(len(r) for r in rings)} vertices{parts})")
     print(f"  settlements  : {SETTLEMENTS_JSON.name} ({len(geo.settlements())})")
     print(f"  nearby band  : {BUFFER_GEOJSON.name}"
           f" ({CFG['nearby_buffer_km']:g} km)"
