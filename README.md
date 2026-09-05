@@ -163,9 +163,11 @@ no credentials:
 To run it for your own town: fork it and **keep it public** — a private repo bills Actions
 minutes and needs a paid plan for Pages. Set four repository secrets: `FIRMS_MAP_KEY`
 ([free, arrives in seconds](https://firms.modaps.eosdis.nasa.gov/api/map_key/), and
-optional — without it the other two feeds carry the cycle), `HTTPSMS_API_KEY`,
-`HTTPSMS_FROM`, and `FIREWATCH_SMS_TO`, recipients being a secret because a public repo
-would publish the numbers. Set **Workflow permissions** to read/write and **Pages source**
+optional — without it the other two feeds carry the cycle), `HTTPSMS_API_KEY`
+([your **account** key](https://httpsms.com/settings) — not the phone key the Android
+gateway app signs in with; [FORK.md](FORK.md#setting-up-the-sms-gateway) has the whole
+setup), `HTTPSMS_FROM`, and `FIREWATCH_SMS_TO`, recipients being a secret because a
+public repo would publish the numbers. Set **Workflow permissions** to read/write and **Pages source**
 to *GitHub Actions*, run `poll` once from the Actions tab, then point a cron service at:
 
     POST https://api.github.com/repos/<you>/<repo>/actions/workflows/poll.yml/dispatches

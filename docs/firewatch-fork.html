@@ -638,8 +638,9 @@ discovered &mdash; so this will not text anybody.</p>
       <td class="wrap-ok">VIIRS and MODIS are skipped and reported as <code>[----]</code>,
         not as a failure. Meteosat and Sentinel-3 carry the cycle</td></tr>
     <tr><td class="mono">HTTPSMS_API_KEY</td>
-      <td class="wrap-ok"><a href="https://httpsms.com">httpsms.com</a> settings &mdash; your
-        own Android phone is the gateway</td>
+      <td class="wrap-ok">Your <strong>account</strong> key, from
+        <a href="https://httpsms.com/settings">httpsms.com/settings</a> &mdash; not the
+        phone key the app signs in with. Setup below</td>
       <td class="wrap-ok">No SMS. Everything else runs</td></tr>
     <tr><td class="mono">HTTPSMS_FROM</td>
       <td class="wrap-ok">The gateway phone's own number, E.164 (<code>+387&hellip;</code>)</td>
@@ -649,6 +650,70 @@ discovered &mdash; so this will not text anybody.</p>
       <td class="wrap-ok">No SMS</td></tr>
   </tbody>
 </table>
+</div>
+
+<h3>Setting up the httpSMS gateway</h3>
+
+<p>httpSMS is not a sending service &mdash; there is no per-message fee and no shared
+short code. An Android phone <em>you own</em> is the gateway: the API queues a message,
+your phone sends it over its own SIM, and the alert arrives from your own number at
+whatever your carrier charges. An old handset on a charger with a cheap prepaid SIM is
+the whole hardware requirement.</p>
+
+<ol class="stages">
+  <li>
+    <h3>Create the account</h3>
+    <p>Sign up at <a href="https://httpsms.com">httpsms.com</a>.</p>
+  </li>
+  <li>
+    <h3>Install the app on the gateway phone</h3>
+    <p>The Android app is distributed as an APK, from
+    <a href="https://apk.httpsms.com/HttpSms.apk"><code>apk.httpsms.com/HttpSms.apk</code></a>
+    or the
+    <a href="https://github.com/NdoleStudio/httpsms/releases/latest">project's GitHub
+    releases</a>. Put it on the phone that holds the SIM you want alerts to come
+    from.</p>
+  </li>
+  <li>
+    <h3>Sign the app in with a <em>phone</em> API key</h3>
+    <p>At <a href="https://httpsms.com/phone-api-keys">httpsms.com/phone-api-keys</a>,
+    create a key, click <strong>VIEW</strong>, and scan the QR code it shows with the app.
+    A phone API key exists only for the app: it sends heartbeats and registers received
+    messages and sent, failed and delivered events. One phone number is associated with a
+    key at a time &mdash; signing in with a different key disassociates the previous
+    one.</p>
+  </li>
+  <li>
+    <h3>Take the <em>account</em> API key for FireWatch</h3>
+    <p>From <a href="https://httpsms.com/settings">httpsms.com/settings</a>. That is the
+    one that goes in the <code>HTTPSMS_API_KEY</code> secret, and
+    <code>HTTPSMS_FROM</code> is the gateway phone's own number in E.164
+    (<code>+387&hellip;</code>), matching the number the app registered.</p>
+  </li>
+</ol>
+
+<div class="note crit">
+  <span class="lbl">The two keys are not interchangeable, and the wrong one fails late</span>
+  <p>The key the app signs in with and the key FireWatch sends with are different
+  credentials from different pages. A phone API key is scoped to the app's own traffic;
+  the full API &mdash; which is what <code>POST /v1/messages/send</code> is &mdash; needs
+  the account key from the settings page. Paste the phone key into
+  <code>HTTPSMS_API_KEY</code> and nothing complains at configuration time:
+  <code>sms-status</code> reports the key as <em>found</em>, because it only checks that
+  one is present. You find out when the first fire does not text anybody.</p>
+  <p>Run the <code>test-sms</code> workflow with the <em>send</em> box ticked once, before
+  you rely on it. It is the only check that exercises the whole path.</p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">The gateway phone is now part of the alerting system</span>
+  <p>Everything upstream of it is somebody else's uptime problem; this part is yours. The
+  phone has to stay powered, on the network, and with the app running &mdash; Android's
+  battery optimisation will happily stop a background app on a handset that has been
+  sitting on a shelf for a week, and the failure is silent from FireWatch's side, which
+  sees only that httpSMS accepted the message. A 200 from the API means <em>accepted</em>,
+  not <em>sent</em>. Exclude the app from battery optimisation, keep it on the charger, and
+  send yourself a test message occasionally.</p>
 </div>
 
 <div class="note warn">

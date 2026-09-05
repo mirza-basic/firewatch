@@ -381,7 +381,15 @@ independent of the desktop notification — `mark_notified` fires if *either*
 succeeded, so a failed notification never suppresses the SMS.
 
 - The API key comes from `HTTPSMS_API_KEY` or the macOS Keychain (service
-  `firewatch-httpsms`), never `config.json`.
+  `firewatch-httpsms`), never `config.json`. It must be the **account** key from
+  <https://httpsms.com/settings>, not the *phone* API key from
+  <https://httpsms.com/phone-api-keys> that the Android app signs in with (QR code) -
+  that one is scoped to the app's own traffic and cannot call `/v1/messages/send`. The
+  wrong key fails late and quietly: `ready()` only checks that a key is *present*, so
+  `sms-status` says `found` and the first real fire is what tells you. The gateway app
+  is an APK (<https://apk.httpsms.com/HttpSms.apk>), not a Play Store install, and a 200
+  from httpSMS means *accepted*, not sent - the phone still has to be awake, online and
+  not battery-optimised into the background.
 - **Alerts are written in Bosnian** (`sms_language`, "bs" or "en"). `SMS_TEXT`
   holds both wordings, `COMPASS_BS` translates the bearing, and `_place()` rebuilds
   the location from `place_parts` rather than reusing the English `place` string —
