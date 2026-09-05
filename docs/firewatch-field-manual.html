@@ -414,8 +414,31 @@ your carrier charges, with no third-party sending fees.</p>
 <ol class="stages">
   <li>
     <h3>Set up the gateway</h3>
-    <p>Install the httpSMS app on an Android phone, sign in, and copy the API key it
-    shows you. That phone's number becomes <code>sms_from</code>.</p>
+    <p>Create an account at <a href="https://httpsms.com">httpsms.com</a>, then install the
+    Android app on the phone holding the SIM you want alerts to come from &mdash; it ships
+    as an APK, from
+    <a href="https://apk.httpsms.com/HttpSms.apk"><code>apk.httpsms.com/HttpSms.apk</code></a>
+    or <a href="https://github.com/NdoleStudio/httpsms/releases/latest">GitHub
+    releases</a>. Sign it in by creating a key at
+    <a href="https://httpsms.com/phone-api-keys">httpsms.com/phone-api-keys</a>, clicking
+    <strong>VIEW</strong>, and scanning the QR code with the app. That phone's number
+    becomes <code>sms_from</code>.</p>
+    <div class="note crit">
+      <span class="lbl">Two keys, and the wrong one fails late</span>
+      <p>The key the app signs in with is a <em>phone</em> API key, scoped to the app's own
+      traffic &mdash; heartbeats, received messages, delivery events. FireWatch calls the
+      full API and needs the <strong>account</strong> key from
+      <a href="https://httpsms.com/settings">httpsms.com/settings</a> instead. Paste the
+      phone key into <code>HTTPSMS_API_KEY</code> and nothing complains:
+      <code>sms-status</code> reports the key as <em>found</em>, because it only checks that
+      one is present. You find out when the first fire does not text anybody, so send a
+      real <code>test-sms</code> once before relying on it.</p>
+    </div>
+    <p>The phone is now part of the alerting system: it has to stay powered, on the network
+    and with the app running. Android's battery optimisation will stop a background app on
+    a handset that has been idle for a week, and the failure is invisible from here &mdash;
+    a 200 from httpSMS means the message was <em>accepted</em>, not sent. Exclude the app
+    from battery optimisation and leave it on a charger.</p>
   </li>
   <li>
     <h3>Store the key in the Keychain</h3>

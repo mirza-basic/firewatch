@@ -346,7 +346,15 @@ independent of the desktop notification — `mark_notified` fires if *either*
 succeeded, so a failed notification never suppresses the SMS.
 
 - The API key comes from `HTTPSMS_API_KEY` or the macOS Keychain (service
-  `firewatch-httpsms`), never `config.json`.
+  `firewatch-httpsms`), never `config.json`. It must be the **account** key from
+  <https://httpsms.com/settings>, not the *phone* API key from
+  <https://httpsms.com/phone-api-keys> that the Android app signs in with (QR code) -
+  that one is scoped to the app's own traffic and cannot call `/v1/messages/send`. The
+  wrong key fails late and quietly: `ready()` only checks that a key is *present*, so
+  `sms-status` says `found` and the first real fire is what tells you. The gateway app
+  is an APK (<https://apk.httpsms.com/HttpSms.apk>), not a Play Store install, and a 200
+  from httpSMS means *accepted*, not sent - the phone still has to be awake, online and
+  not battery-optimised into the background.
 - **Alerts are written in Bosnian** (`sms_language`, "bs" or "en"). `SMS_TEXT`
   holds both wordings, `COMPASS_BS` translates the bearing, and `_place()` rebuilds
   the location from `place_parts` rather than reusing the English `place` string —
@@ -358,8 +366,15 @@ succeeded, so a failed notification never suppresses the SMS.
   alert cost two segments. What survives is what you act on — what changed, where,
   how hot, and coordinates that work with no signal. Verified across every stored
   event × every sending kind × the longest settlement name × absurd values
-  (1234.5 MW, 99.9 km, 100% RH): max 153 characters, always one segment. Adding a
-  line back will break that, so measure before you do.
+  (1234.5 MW, 99.9 km, 100% RH): max 158 characters, always one segment - two
+  characters of headroom. Adding a line back will break that, so measure before you
+  do, and `sms.worst_case()` is how rather than by hand: it builds that same worst
+  alert against the live settlement list and the live map URL, and `sms-status` and
+  the `test-sms` workflow both print it with the headroom left. The URL is a line of
+  the message, so a longer settlement name or a longer `FIREWATCH_PUBLIC_URL` spends
+  that headroom without anyone deciding to. English wording is written out in
+  `SMS_TEXT` rather than falling back to raw keys, and fits with a character less to
+  spare than Bosnian.
 - **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
   because one non-GSM character switches the whole message to UCS-2, dropping a
   segment from 160 characters to 70. `segments()` reports the real cost. `Đ` is the
