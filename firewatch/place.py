@@ -47,7 +47,7 @@ FALLBACK = {
             "title": "FireWatch Zavidovići",
             "area": "Grad Zavidovići",
             "of": "of Zavidovići",
-            "in": "in Grad Zavidovići",
+            "in": "in Zavidovići",
             "near": "near Zavidovići",
             "outside": "outside municipality",
         },
