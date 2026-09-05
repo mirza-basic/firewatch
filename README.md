@@ -6,8 +6,21 @@ Near-live wildfire monitoring for **Grad (opština) Zavidovići** — 560 km² o
 in central Bosnia. Three satellite feeds, clustered into tracked fires, alerting by SMS in
 Bosnian and drawing a map that updates itself.
 
-Nothing here is specific to Zavidovići: point it at your own municipality and it runs
-there instead, on GitHub Actions and Pages, which for a public repository costs nothing.
+The system is not specific to Zavidovići — this branch is. Point it at your own
+municipality and it runs there instead, on GitHub Actions and Pages, which for a public
+repository costs nothing.
+
+> ### Forking? Start from [`fork-template`](../../tree/fork-template), not `main`
+>
+> Same system, with every mention of this municipality moved out of the code and into one
+> file. Re-pointing it is `python3 -m firewatch setup "Općina Kakanj"` instead of an edit to
+> `config.py`, and the map URL is derived from your repository instead of written down.
+> **[FORK.md](../../blob/fork-template/FORK.md)** is the whole procedure — four steps.
+>
+> `main` is this deployment, and it says so in the code. Fork it and two things follow that
+> nothing will tell you about: every detection is still clipped against Zavidovići's
+> outline, and both workflows still carry *this* repository's Pages URL — which stays a
+> valid, working URL, so every SMS your fork sends links to the map above.
 
 ## Why
 
@@ -160,15 +173,16 @@ no credentials:
     python3 -m firewatch poll                       # a real cycle, printed
     python3 -m firewatch map                        # opens the map it just built
 
-To run it for your own town: fork it and **keep it public** — a private repo bills Actions
-minutes and needs a paid plan for Pages. Set four repository secrets: `FIRMS_MAP_KEY`
+To run it for your own town, fork the [`fork-template`](../../tree/fork-template) branch —
+not `main` — and **keep it public**: a private repo bills Actions minutes and needs a paid
+plan for Pages. Set four repository secrets: `FIRMS_MAP_KEY`
 ([free, arrives in seconds](https://firms.modaps.eosdis.nasa.gov/api/map_key/), and
 optional — without it the other two feeds carry the cycle), `HTTPSMS_API_KEY`
 ([your **account** key](https://httpsms.com/settings) — not the phone key the Android
 gateway app signs in with), `HTTPSMS_FROM`, and `FIREWATCH_SMS_TO`, recipients being a
-secret because a public repo would publish the numbers. Set **Workflow permissions** to read/write and **Pages source**
-to *GitHub Actions*, put your Pages URL in `FIREWATCH_PUBLIC_URL` in **both** workflow
-files, run `poll` once from the Actions tab, then point a cron service at:
+secret because a public repo would publish the numbers. Set **Workflow permissions** to
+read/write and **Pages source** to *GitHub Actions*, run `poll` once from the Actions tab,
+then point a cron service at:
 
     POST https://api.github.com/repos/<you>/<repo>/actions/workflows/poll.yml/dispatches
     Authorization: Bearer <token>      # fine-grained PAT, Actions: read and write
@@ -176,15 +190,23 @@ files, run `poll` once from the Actions tab, then point a cron service at:
 
     {"ref":"main"}                     # required: an empty body is 422, success is 204
 
+The map URL that goes into every SMS is handled differently on the two branches, and this
+is the one that fails without erroring: `fork-template` computes
+`https://<owner>.github.io/<repo>` and prints what it resolved, while on `main` it is a
+literal in **both** workflow files which you have to replace with your own.
+
 Ten to fifteen minutes is the sweet spot; faster buys nothing against a feed that
 publishes every ten. One caveat worth checking before you start: Meteosat sees roughly
 **60°W to 60°E**. Outside that arc everything still works, but you lose the fast feed and
 alerts arrive around three hours late instead of forty minutes.
 
 **Then give it your own geography.** Every detection is clipped against Zavidovići's
-outline, so a fork left alone watches Bosnia whoever owns it. Three files in `data/` define
-the place — build-time artifacts you generate once locally and commit, so Nominatim and
-Overpass are never called at runtime:
+outline, so a fork left alone watches Bosnia whoever owns it. On
+[`fork-template`](../../tree/fork-template) that is two commands — `setup "Općina Kakanj"`
+fetches the boundary and the settlements, `buffer` draws the band, and a `data/place.json`
+names all three — and the rest of this section is what `main` makes you do by hand instead.
+Either way they are build-time artifacts you generate once locally and commit, so Nominatim
+and Overpass are never called at runtime:
 
 | File | What it is | How you get it |
 |---|---|---|
@@ -219,6 +241,13 @@ has every command and every setting.
 
 `[range]` is `24h | 3d | 7d | 30d | 1y` — rolling windows over stored history, free of API
 traffic but only as deep as what is stored, so run `backfill` once. Python 3.14 in CI.
+
+## Branches
+
+    main            this deployment: watches Zavidovići, and names it in config.py
+                    and in both workflow files
+    fork-template   the same system with the place in one file (data/place.json) and
+                    the map URL derived from the repository — fork this one
 
 ## Layout
 

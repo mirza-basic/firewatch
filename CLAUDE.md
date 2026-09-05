@@ -519,6 +519,27 @@ Notifications go through `osascript` (attributed to *Script Editor*, click does
 nothing) unless `terminal-notifier` is installed, in which case notifications become
 clickable links to Google Maps. `notify.backend()` reports which is active.
 
+## Branches
+
+`main` is this deployment and names Zavidovići in code: `config.py` hardcodes the three
+`data/` filenames and `TOWN_LAT`/`TOWN_LON`, and both workflow files carry a literal
+`FIREWATCH_PUBLIC_URL`.
+
+**`fork-template` is the branch anyone adapting this should start from**, and it is where
+work on adaptability belongs. It adds `place.py` and `setup.py`, moves every place-specific
+string into `data/place.json`, derives the Pages URL from `github.repository`, and carries
+`FORK.md`. Porting a fork-template change back to `main` is usually wrong — main is
+deliberately the concrete instance, not the template.
+
+One known gap on that branch: `setup.fetch_boundary` accepts `Polygon` *and*
+`MultiPolygon`, but `geo.boundary_ring()` reads `coordinates[0]` and assumes Polygon, so a
+MultiPolygon boundary (a country, or anything with an enclave or island) raises
+`ValueError: too many values to unpack` on every fetch path through `geo.bbox_padded`. Per-
+source isolation swallows it: all three feeds report `[FAIL]`, the cycle still exits 0 and
+renders a correct-looking map that will never show a fire. Verified 2026-09-05 against
+`Bosna i Hercegovina` (OSM relation 2528142, 2 parts). `Općina Trnovo` is a plain Polygon
+and runs clean, which is why municipality-scale forks do not hit it.
+
 ## Repo conventions
 
 - `firewatch/` is the system. `fire-detection-zavidovici.sh` and
