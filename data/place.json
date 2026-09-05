@@ -1,0 +1,27 @@
+{
+  "id": "zavidovici",
+  "boundary": "zavidovici.geojson",
+  "settlements": "settlements.json",
+  "buffer": "zavidovici-buffer.geojson",
+  "town": { "lat": 44.4388706, "lon": 18.1458239 },
+  "timezone": "Europe/Sarajevo",
+  "language": "bs",
+  "names": {
+    "en": {
+      "title": "FireWatch Zavidovići",
+      "area": "Grad Zavidovići",
+      "of": "of Zavidovići",
+      "in": "in Grad Zavidovići",
+      "near": "near Zavidovići",
+      "outside": "outside municipality"
+    },
+    "bs": {
+      "title": "FireWatch Zavidovići",
+      "area": "Grad Zavidovići",
+      "of": "od Zavidovića",
+      "in": "u općini Zavidovići",
+      "near": "blizu Zavidovića",
+      "outside": "izvan općine"
+    }
+  }
+}

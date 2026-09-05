@@ -2,6 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## This branch
+
+`fork-template`. Same system as `main`, with the place moved out of the code:
+`data/place.json` is the only file that names a municipality, `python3 -m firewatch
+setup "<Admin name>"` writes it, and the workflows derive the Pages URL from the
+repository instead of carrying a literal. `FORK.md` is the front door;
+`docs/firewatch-fork.html` is the walkthrough.
+
+Two things follow for anyone working on this branch:
+
+* **Nothing in `firewatch/` may name a place again.** Names come from
+  `place.name(key, lang)` server-side and from the injected `PLACE` object in the
+  map's JS, where `t()` fills `{area}`, `{of}`, `{in}` and `{outside}` before the
+  caller's own vars. A literal added back is invisible until somebody forks.
+* **`data/place.json` still says `zavidovici`**, because this branch is a working
+  instance of the same thing it is a template for. `place.is_default()` is that
+  test, and `python3 -m firewatch place` prints it. Do not "fix" it by blanking
+  the profile - a template that cannot run is a template nobody can check.
+
 ## What this is
 
 FireWatch Zavidovići — near-live wildfire monitoring for the municipality of Grad
@@ -31,6 +50,8 @@ python3 -m firewatch serve [host:port] [--no-poll]   # poll + serve the map over
 python3 -m firewatch backfill [days]  # deep history fetch (default 30, ~5 min)
 python3 -m firewatch history [n]      # raw detections from SQLite
 python3 -m firewatch quota            # FIRMS transaction usage (free call)
+python3 -m firewatch place            # which municipality is configured, and from where
+python3 -m firewatch setup "<Name>"   # re-point at another one (Nominatim + Overpass)
 python3 -m firewatch test-notify
 
 # tests
@@ -139,8 +160,10 @@ run again — nothing re-fetches history on its own.
 
 `data/zavidovici.geojson` (boundary, OSM relation 2528292),
 `data/settlements.json` (413 places) and `data/zavidovici-buffer.geojson` (the
-drawn "nearby" band) are **build-time artifacts, committed to the repo**. Nominatim
-and Overpass are never called at runtime. Regenerating the first two means
+drawn "nearby" band) are **build-time artifacts, committed to the repo**, and
+`data/place.json` names all three - `config.py` reads the paths from it rather than
+spelling them. Nominatim and Overpass are never called at runtime; `setup.py` is the
+only module that calls them at all, and only when you run `setup`. Regenerating the first two means
 re-querying those services; Overpass is flaky and needs mirror fallback and retries.
 
 The buffer band is regenerated with `python3 -m firewatch buffer [km]`, which is the
@@ -256,6 +279,18 @@ These all cost real debugging time. Most are silent failures.
     SMS. Below a feed's latency, that feed can only ever alert when it lands on the
     fast half of its distribution.
 
+18. **A database carries a place, and only says so if it was created after the
+    stamp.** `store` writes `meta.place_id` when it first sees an *empty* database.
+    It deliberately does not stamp one that already holds detections: a fork clones
+    a repository whose committed database is full of the original municipality's
+    fires and only then re-points the place, so stamping there would assert the
+    wrong thing in exactly the case the stamp exists for. Guessing from geometry
+    was tried and dropped - a fork usually starts from a *neighbouring*
+    municipality, whose 2 km bands overlap, and 35 of Zavidovići's 198 detections
+    fall inside Kakanj's clip. So `place` reports the out-of-scope *count*, which
+    is a fact, and leaves the verdict to the reader. `reclip --apply` clears and
+    re-stamps.
+
 ## Landmine: FIRMS from a CI runner
 
 Two distinct failures, both seen on GitHub Actions, both looking like "FIRMS is
@@ -358,8 +393,15 @@ succeeded, so a failed notification never suppresses the SMS.
   alert cost two segments. What survives is what you act on — what changed, where,
   how hot, and coordinates that work with no signal. Verified across every stored
   event × every sending kind × the longest settlement name × absurd values
-  (1234.5 MW, 99.9 km, 100% RH): max 153 characters, always one segment. Adding a
-  line back will break that, so measure before you do.
+  (1234.5 MW, 99.9 km, 100% RH): max 158 characters, always one segment. Adding a
+  line back will break that, so measure before you do - and `sms.worst_case()` is
+  how, rather than by hand. It builds that same worst alert against the live
+  settlement list and the live map URL, and `sms-status` and the `test-sms` workflow
+  both print it with the headroom left. The URL is what makes this a fork concern:
+  it is a line of the message, so `https://some-longer-org-name.github.io/
+  firewatch-kakanj-monitoring` pushes the same alert to 170 characters and two
+  segments, measured. English wording is written out in `SMS_TEXT` now rather than
+  falling back to raw keys, and fits with a character less to spare than Bosnian.
 - **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
   because one non-GSM character switches the whole message to UCS-2, dropping a
   segment from 160 characters to 70. `segments()` reports the real cost. `Đ` is the
@@ -436,11 +478,16 @@ this repo is public and `sms_to` in `config.json` would publish real phone numbe
 workflow logs the recipient *count*, never the numbers, since GitHub masks an exact secret
 value and not the individual numbers inside a comma-separated one.
 
-Three settings in the repo itself, all of which fail silently when wrong: **Workflow
-permissions** must be read/write or the state push fails; **Pages source** must be
-*GitHub Actions* and not a branch; and `FIREWATCH_PUBLIC_URL` is hardcoded in **both**
-workflow files - left pointing at someone else's site it is still a valid, working URL,
-so every SMS quietly links to the wrong map.
+Two settings in the repo itself, both of which fail silently when wrong: **Workflow
+permissions** must be read/write or the state push fails, and **Pages source** must be
+*GitHub Actions* and not a branch.
+
+`FIREWATCH_PUBLIC_URL` used to be a third, hardcoded in both workflow files - left
+pointing at the repository you forked from it is still a valid, working URL, so every
+SMS quietly links to the wrong map. On this branch both workflows derive it from
+`github.repository` (lowercased, with the `<owner>.github.io` case handled) and print
+what they resolved. The repository *variable* `FIREWATCH_PUBLIC_URL` overrides it, for
+a custom domain.
 
 ## Publishing the map
 

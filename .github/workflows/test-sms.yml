@@ -31,9 +31,24 @@ jobs:
       # records - and these runners have no IPv6 route. Without this the send fails
       # with "[Errno 101] Network is unreachable", exactly as FIRMS did.
       FIREWATCH_FORCE_IPV4: "1"
-      FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
     steps:
       - uses: actions/checkout@v4
+
+      # Derived exactly as poll.yml derives it, so this previews the link a real
+      # alert would carry rather than one written down twice and drifting.
+      - name: Resolve the public URL
+        run: |
+          url="${{ vars.FIREWATCH_PUBLIC_URL }}"
+          if [ -z "$url" ]; then
+            owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            repo="${GITHUB_REPOSITORY#*/}"
+            if [ "$(echo "$repo" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then
+              url="https://$owner.github.io"
+            else
+              url="https://$owner.github.io/$repo"
+            fi
+          fi
+          echo "FIREWATCH_PUBLIC_URL=$url" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
@@ -60,6 +75,13 @@ jobs:
           print(f"sender set  : {bool(sms.sender())}")
           print(f"map link    : {sms.map_url()}")
           print(f"cost        : {len(text)} chars, {sms.segments(text)} segment(s)")
+          # The number a fork cannot guess: the longest alert this place can
+          # produce, with this repository's URL in it. The link is part of the
+          # message, so a longer owner/repository name spends the headroom that
+          # keeps an alert inside one segment.
+          w = sms.worst_case()
+          print(f"worst alert : {w['chars']} chars, {w['segments']} segment(s),"
+                f" {w['headroom']} to spare  [{w['kind']}, \"{w['place']}\"]")
           print("---- message ----")
           print(text)
           print("-----------------")

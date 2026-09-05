@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import place
+
 PKG_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = PKG_DIR.parent
 DATA_DIR = PROJECT_DIR / "data"
@@ -79,12 +81,15 @@ MAP_PATH = SUPPORT_DIR / "fire-map.html"
 # of place for it too: every file here is rewritten from the snapshot each cycle.
 PUBLIC_DIR = _public_dir()
 
-BOUNDARY_GEOJSON = DATA_DIR / "zavidovici.geojson"
-SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
+# Which municipality this instance watches, and what the files describing it are
+# called, both come from data/place.json - see place.py. Nothing below this line
+# names a town.
+BOUNDARY_GEOJSON = place.BOUNDARY_FILE
+SETTLEMENTS_JSON = place.SETTLEMENTS_FILE
 # The "nearby" band drawn on the map: everything within nearby_buffer_km of the
 # outline. Like the two files above it is a build-time artifact - see
 # geo.build_buffer() - so the running app needs neither shapely nor pyproj.
-BUFFER_GEOJSON = DATA_DIR / "zavidovici-buffer.geojson"
+BUFFER_GEOJSON = place.BUFFER_FILE
 
 # No FIRMS key is committed to this repository, deliberately. One used to be, which
 # made a fresh clone work immediately at the cost of every clone sharing one key and
@@ -205,11 +210,15 @@ DEFAULTS = {
     # whose packets were being dropped stalled 90 s per dataset - six minutes to
     # discover FIRMS was unreachable.
     "connect_timeout": 10,
-    "user_agent": "firewatch-zavidovici/1.0 (+https://github.com/) contact: local",
+    # Nominatim and Overpass ask for a real one; the feeds do not care. Left empty
+    # it is built from the place id, so a fork identifies itself as itself.
+    "user_agent": f"firewatch-{place.PLACE['id']}/1.0"
+                  " (+https://github.com/) contact: local",
 }
 
-# Reference point for bearings/distances: Zavidovići town centre.
-TOWN_LAT, TOWN_LON = 44.4388706, 18.1458239
+# Reference point for every bearing and distance "of town". Set by `setup` from
+# the coordinates Nominatim returns for the boundary relation.
+TOWN_LAT, TOWN_LON = place.TOWN_LAT, place.TOWN_LON
 
 
 class Config(dict):

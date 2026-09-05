@@ -30,6 +30,7 @@ import subprocess
 
 import requests
 
+from . import place
 from .config import CFG, keychain_secret
 
 log = logging.getLogger("firewatch.sms")
@@ -200,7 +201,18 @@ SMS_TEXT = {
         "test": "FIREWATCH TEST - nema požara, provjera dostave SMS-a",
     },
     "en": {
-        "kind": {}, "sev": {}, "risk": {},
+        # Filled in, not left empty: a fork outside Bosnia sends these, and the
+        # bare-key fallback below produces "FIRE INTENSIFIED" and "MODERATE" -
+        # readable, but nobody chose the words. Kept short and upper-case for the
+        # same reason the Bosnian set is: the first line is what gets read on a
+        # lock screen, and every character competes with the coordinates.
+        "kind": {"new": "NEW FIRE", "reignited": "BURNING AGAIN",
+                 "intensified": "INTENSIFYING", "grew": "SPREADING",
+                 "extinguished": "OUT", "corroborated": "CONFIRMED"},
+        "sev": {"low": "LOW", "moderate": "MODERATE", "high": "HIGH",
+                "severe": "SEVERE", "unknown": "UNKNOWN"},
+        "risk": {"elevated": "elevated", "high": "high", "extreme": "extreme",
+                 "moderate": "moderate", "unknown": "unknown"},
         "peak": "peak", "now": "now", "det": "det", "of_town": "of town",
         "outside": "OUTSIDE municipality", "wind": "Wind", "rh": "RH ",
         "risk_word": "risk", "map": "Map", "sample": "Sample",
@@ -216,7 +228,15 @@ COMPASS_BS = {"N": "S", "NNE": "SSI", "NE": "SI", "ENE": "ISI", "E": "I",
 
 
 def _lang() -> tuple[str, dict]:
-    code = str(CFG.get("sms_language") or "bs").lower()
+    """The alert language, and its wordings.
+
+    Defaults to the place's own language rather than a hard-coded one, so a fork
+    that ran `setup` texts in the language it configured without a second setting.
+    A language with no wording set here falls back to English - the map can be
+    translated by adding one dict to I18N, this cannot, and silently sending
+    Bosnian to a Spanish municipality would be worse than sending English.
+    """
+    code = str(CFG.get("sms_language") or place.PLACE.get("language") or "en").lower()
     return code, SMS_TEXT.get(code, SMS_TEXT["en"])
 
 
@@ -307,6 +327,45 @@ def alert_text(alert: dict) -> str:
         text = _compose(ev, code, T, kind, sev, peak, latest,
                         cut.rstrip(' ,-"\'') or name[:3], url)
     return text
+
+
+def worst_case(code: str | None = None) -> dict:
+    """The longest alert this deployment can produce, and what it costs.
+
+    "An alert is four lines and one segment" is a measured claim, not a structural
+    one, and two things a fork changes move it: the longest settlement name in
+    data/settlements.json, and the length of the published URL - every character of
+    "https://owner.github.io/repository" is spent before a word of the fire is.
+    Rather than leave that to be discovered by a phone bill, this builds the worst
+    alert the data allows and reports the headroom, and `sms-status` prints it.
+
+    The event is synthetic on purpose: absurd values (1234.5 MW peak, 99.9 km,
+    100% humidity, extreme risk) with the longest real place name, so the answer
+    holds for fires that have not happened yet.
+    """
+    from . import geo
+    names = [p["n"] for p in geo.settlements()] or [""]
+    longest = max(names, key=lambda n: len(ascii_only(n)))
+    code = (code or _lang()[0])
+    ev = {
+        "lat": -44.4444, "lon": -18.8888,
+        "max_frp": 1234.5, "latest_frp": 999.9, "severity": "severe",
+        "place": f"99.9 km NNW of {longest}",
+        "place_parts": {"name": longest, "km": 99.9, "dir": "NNW"},
+        "weather": {"speed": 123.4, "from": "WNW", "humidity": 100},
+        "risk": "extreme",
+    }
+    saved = CFG.get("sms_language")
+    CFG["sms_language"] = code
+    try:
+        texts = {k: alert_text({"event": ev, "kind": k, "detail": ""})
+                 for k in CFG["sms_kinds"] or ["new"]}
+    finally:
+        CFG["sms_language"] = saved
+    kind, text = max(texts.items(), key=lambda kv: len(kv[1]))
+    return {"language": code, "kind": kind, "text": text, "chars": len(text),
+            "segments": segments(text), "headroom": ONE_SEGMENT - len(text),
+            "place": longest, "url": map_url() or ""}
 
 
 def test_text() -> str:

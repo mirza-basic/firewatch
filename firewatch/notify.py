@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 
+from . import place
 from .config import CFG
 
 log = logging.getLogger("firewatch.notify")
@@ -93,7 +94,7 @@ def alert_text(alert: dict) -> tuple[str, str, str]:
     ev = alert["event"]
     kind = alert["kind"]
     icon = ICONS.get(kind, "🔥")
-    where = "in Zavidovići" if ev["inside"] else "near Zavidovići"
+    where = place.name("in") if ev["inside"] else place.name("near")
     title = f"{icon} {TITLES.get(kind, kind)} {where}"
     subtitle = ev["place"]
     bits = [alert.get("detail", "")]

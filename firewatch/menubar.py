@@ -22,7 +22,7 @@ from pathlib import Path
 import rumps
 
 from . import events as ev_mod
-from . import expose, mapgen, notify, poller, sms, sources
+from . import expose, mapgen, notify, place, poller, sms, sources
 from .config import CFG, LOG_PATH, MAP_PATH, SUPPORT_DIR
 
 log = logging.getLogger("firewatch.menubar")
@@ -210,11 +210,11 @@ class FireWatchApp(rumps.App):
         det_txt = (f"{shown} of {e['n_det']} detections" if shown != e["n_det"]
                    else f"{e['n_det']} detections")
         parent.add(_info(f"{det_txt} · {', '.join(e['sources'])}"))
-        parent.add(_info(f"{e['dist_town_km']} km {e['dir_town']} of Zavidovići"))
+        parent.add(_info(f"{e['dist_town_km']} km {e['dir_town']} {place.name('of')}"))
         parent.add(_info(f"Footprint: {e['extent_km']} km across"))
         parent.add(_info(f"First seen: {e['first_ts'][5:16].replace('T', ' ')}Z"))
         if not e.get("inside"):
-            parent.add(_info("⚠︎ outside municipality boundary"))
+            parent.add(_info(f"⚠︎ {place.name('outside')} boundary"))
         w = e.get("weather")
         if w:
             parent.add(_info(f"{w['temp']}°C · RH {w['humidity']}%"))
@@ -313,7 +313,7 @@ class FireWatchApp(rumps.App):
 
     def test_notify(self, _=None):
         notify.send("🔥 FireWatch test", "Notifications are working",
-                    subtitle="Grad Zavidovići", sound=CFG["sound_update"])
+                    subtitle=place.name("area"), sound=CFG["sound_update"])
 
     def test_sms(self, _=None):
         """Confirm, then send the test message to every configured recipient.

@@ -474,105 +474,52 @@ publish nothing.</p>
 <!-- ==================== 05 ==================== -->
 <h2 id="place"><span class="num">05</span> Point it at your municipality</h2>
 
-<p class="lede">Two data files and four constants define the place. Both files are
-build-time artifacts committed to the repository, so Nominatim and Overpass are never
-called while FireWatch is running &mdash; you generate them once, locally, and commit
-the result.</p>
+<p class="lede">One command. It fetches the boundary and the settlement list, writes
+<code>data/place.json</code>, and that file is the only thing in the repository that
+names a place &mdash; the map title, the notification wording, the reference point every
+distance is measured from and the SMS all read it. No module needs editing.</p>
 
-<p>Do this part on your own machine. You need Python with <code>requests</code>:</p>
+<p>Do this on your own machine, in your clone. You need Python with
+<code>requests</code>:</p>
 
-<pre><code>python3 -m pip install requests certifi</code></pre>
+<pre><code>python3 -m pip install requests certifi
+
+python3 -m firewatch setup "Op&#263;ina Kakanj"</code></pre>
+
+<p>Search the <em>administrative</em> name, not the town. "Kakanj" is a place node with a
+Point geometry and no area to clip against; "Op&#263;ina Kakanj" is the boundary relation you
+actually want. If several relations match, all of them are printed and
+<code>--index N</code> picks one.</p>
+
+<pre><code>  Looking up 'Op&#263;ina Kakanj' ...
+  Op&#263;ina Kakanj, Zeni&#269;ko-dobojski kanton, Federacija Bosne i Hercegovine, ...
+  relation 2528213 &middot; centre 44.175492, 18.142017 &middot; id kakanj
+  Fetching settlements within 25 km ...
+  https://overpass-api.de/api/interpreter: 506 places
+  wrote kakanj.geojson (601 vertices)
+  wrote kakanj-settlements.json (506 places)
+  wrote place.json</code></pre>
+
+<p>Useful flags: <code>--lang bs</code> sets the language the map opens in (it ships with
+English and Bosnian), <code>--radius 25</code> the settlement search radius in km,
+<code>--id</code> the short name used for filenames, <code>--force</code> to overwrite an
+existing profile.</p>
+
+<div class="note crit">
+  <span class="lbl">Two ways this fails that look exactly like success</span>
+  <p><strong>A regional Overpass mirror answers 200 and returns nothing.</strong>
+  <code>overpass.osm.ch</code> is a Switzerland-only extract: it answers HTTP 200 with
+  <code>{"elements": []}</code> for anywhere else, indistinguishable from "no settlements
+  here". An empty list would label every fire with bare coordinates, so <code>setup</code>
+  treats it as a failed request and tries the next mirror &mdash; and if none answer, writes
+  nothing and tells you to run it again. That is not a bug to work around; run it again.</p>
+  <p><strong>A half-written place.</strong> Overpass fails often enough that this matters:
+  everything is fetched before anything is written. A run that dies at the settlement step
+  leaves your repository exactly as it was, rather than holding one place's outline and
+  another's profile.</p>
+</div>
 
 <ol class="stages">
-  <li>
-    <h3>Fetch the boundary</h3>
-    <p>Search for the <em>administrative</em> name, not the town. "Kakanj" returns the
-    town node with a Point geometry; "Op&#263;ina Kakanj" returns the boundary relation you
-    actually want.</p>
-<pre><code>import json, requests
-
-NAME = "Op&#263;ina Kakanj"          <span class="c"># the administrative name</span>
-OUT  = "data/kakanj.geojson"
-
-r = requests.get("https://nominatim.openstreetmap.org/search",
-                 params={"q": NAME, "format": "json", "polygon_geojson": 1, "limit": 8},
-                 headers={"User-Agent": "firewatch-setup/1.0"}, timeout=60)
-hits = [h for h in r.json()
-        if h["osm_type"] == "relation" and h["class"] == "boundary"
-        and h.get("geojson", {}).get("type") in ("Polygon", "MultiPolygon")]
-if not hits:
-    raise SystemExit("no boundary relation - try the administrative name")
-
-h = hits[0]
-print(h["display_name"])
-print("TOWN_LAT, TOWN_LON =", h["lat"] + ",", h["lon"])   <span class="c"># keep these</span>
-
-json.dump({"type": "FeatureCollection", "features": [{
-    "type": "Feature",
-    "properties": {"name": NAME, "admin_level": 6,
-                   "source": f"OpenStreetMap relation {h['osm_id']}",
-                   "licence": "ODbL 1.0"},
-    "geometry": h["geojson"]}]},
-    open(OUT, "w"), ensure_ascii=False)</code></pre>
-    <p>Nominatim asks for a real <code>User-Agent</code> and at most one request a second.
-    You are calling it once, ever.</p>
-  </li>
-
-  <li>
-    <h3>Fetch the settlements</h3>
-    <p>These are what turn coordinates into <em>"7.0 km ESE of Kamenica"</em>. Use a radius
-    comfortably wider than the municipality &mdash; places just outside it are what name a
-    fire over the border.</p>
-<pre><code>import json, requests
-
-LAT, LON, RADIUS = 44.1754925, 18.1420167, 25000     <span class="c"># from step 1</span>
-Q = (f'[out:json][timeout:90];'
-     f'(node["place"~"^(city|town|village|hamlet)$"](around:{RADIUS},{LAT},{LON}););'
-     f'out body;')
-
-<span class="c"># Global mirrors only, and retry rather than fall back to a regional one.</span>
-for url in ("https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter"):
-    try:
-        r = requests.post(url, data={"data": Q}, timeout=120)
-        elements = r.json().get("elements", []) if r.ok else []
-    except Exception as exc:
-        print(url, "failed:", exc); continue
-    if elements:
-        break
-else:
-    raise SystemExit("empty result - do NOT accept this, run it again")
-
-places = [{"n": e["tags"]["name"], "k": e["tags"]["place"],
-           "lat": e["lat"], "lon": e["lon"]}
-          for e in elements if e.get("tags", {}).get("name")]
-json.dump(places, open("data/settlements.json", "w"), ensure_ascii=False)
-print(len(places), "places")</code></pre>
-    <div class="note crit">
-      <span class="lbl">A regional mirror answers 200 and returns nothing</span>
-      <p>Overpass mirrors are flaky, so a retry is genuinely needed &mdash; but choose where
-      you retry. <code>overpass.osm.ch</code> is a <strong>Switzerland-only extract</strong>:
-      it answers HTTP 200 with <code>{"elements": []}</code> for anywhere else, which is
-      indistinguishable from "no settlements here". A naive fallback loop lands on it,
-      writes an empty <code>settlements.json</code>, and every fire is then labelled by bare
-      coordinates. Treat an empty result as a failure, never as an answer.</p>
-    </div>
-  </li>
-
-  <li>
-    <h3>Point the code at the new files</h3>
-    <p>Four constants in <code>firewatch/config.py</code>:</p>
-<pre><code>BOUNDARY_GEOJSON = DATA_DIR / "kakanj.geojson"
-SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
-BUFFER_GEOJSON   = DATA_DIR / "kakanj-buffer.geojson"
-
-<span class="c"># Reference point for bearings and distances: the town centre.</span>
-TOWN_LAT, TOWN_LON = 44.1754925, 18.1420167</code></pre>
-    <p>Use the coordinates Nominatim printed for the relation. Everything the map, the
-    menu bar and the SMS say about direction and distance "of town" is measured from
-    this one point.</p>
-  </li>
-
   <li>
     <h3>Rebuild the map band</h3>
 <pre><code>python3 -m pip install shapely pyproj
@@ -583,13 +530,46 @@ python3 -m firewatch buffer</code></pre>
     <code>requests</code> and <code>certifi</code>. Skip this and the map simply draws no
     band &mdash; the page omits it rather than drawing a confident line in the wrong place.</p>
   </li>
+
+  <li>
+    <h3>Set the timezone, and the name forms if you are not in English</h3>
+    <p><code>setup</code> writes <code>"timezone": "UTC"</code>, because it cannot know
+    yours, and the map stamps every time in it. Set it to a real zone.</p>
+    <p>The name forms it cannot generate either, and it says so rather than guessing.
+    English is written correctly; any other language is seeded with the English wording
+    and needs four strings, once:</p>
+<pre><code>"names": {
+  "bs": {
+    "title":   "FireWatch Kakanj",      <span class="c">// tab and header</span>
+    "area":    "Op&#263;ina Kakanj",         <span class="c">// as a heading says it</span>
+    "of":      "od Kaknja",             <span class="c">// after a distance: "6 km SI od Kaknja"</span>
+    "in":      "u op&#263;ini Kakanj",       <span class="c">// locative</span>
+    "outside": "izvan op&#263;ine"           <span class="c">// a detection over the border</span>
+  }
+}</code></pre>
+    <p>Wrong-but-obvious beats wrong-but-plausible: a generated genitive reads as broken
+    Bosnian to the only people who will read it. Four lines is cheaper than a rule that is
+    right most of the time.</p>
+  </li>
+
+  <li>
+    <h3>Check it</h3>
+<pre><code>python3 -m firewatch place</code></pre>
+    <p>Prints the live profile, where it was loaded from, the bounding box, the vertex and
+    settlement counts, whether the band matches the configured buffer distance, and how much
+    stored history falls outside the new clip. The poll workflow runs this every cycle, for
+    one reason: a fork that never ran <code>setup</code> is still watching Zavidovi&#263;i, and
+    the symptom &mdash; an empty map, no alerts &mdash; reads as a broken feed or a missing key.</p>
+  </li>
 </ol>
 
 <div class="note good">
-  <span class="lbl">This procedure has been run end to end</span>
-  <p>Following exactly these steps against a neighbouring municipality produced a
-  601-vertex boundary, 506 settlements, a correctly built 2 km band, a spatial clip that
-  accepted the town centre and rejected a point 30 km away, and a rendered map.</p>
+  <span class="lbl">This has been run end to end</span>
+  <p><code>setup "Opcina Kakanj"</code> against a neighbouring municipality produced a
+  601-vertex boundary, 506 settlements, a correctly built 2 km band, and a full poll cycle
+  &mdash; all three feeds queried against the new bounding box, and a rendered map titled
+  <em>FireWatch Kakanj</em> saying <em>"Ni&#353;ta nije detektovano u op&#263;ini Kakanj niti u krugu
+  od 2 km u ovom periodu."</em></p>
 </div>
 
 <!-- ==================== 06 ==================== -->
@@ -600,6 +580,14 @@ Zavidovi&#263;i boundary and are meaningless to you &mdash; and if you leave the
 map is a map of someone else's fires.</p>
 
 <pre><code>rm state/firewatch.db state/.detections</code></pre>
+
+<p>If you would rather keep the history than delete it &mdash; the two municipalities may
+overlap, and the feeds will not serve 400 days again &mdash;
+<code>python3 -m firewatch reclip</code> shows exactly which detections the new clip
+rejects and where they are, and <code>--apply</code> removes them after copying the
+database. Either way <code>python3 -m firewatch place</code> is the check: it reports how
+much stored history falls outside the configured clip, and the poll workflow prints it
+every cycle.</p>
 
 <div class="tw">
 <table>
@@ -679,21 +667,40 @@ discovered &mdash; so this will not text anybody.</p>
 <!-- ==================== 08 ==================== -->
 <h2 id="url"><span class="num">08</span> The map URL</h2>
 
-<p>Your Pages address is <code>https://&lt;you&gt;.github.io/&lt;repo&gt;</code>, and it is
-written into <strong>two workflow files</strong>. Change both:</p>
-
-<pre><code><span class="c">.github/workflows/poll.yml</span>
-      FIREWATCH_PUBLIC_URL: https://&lt;you&gt;.github.io/&lt;repo&gt;
-
-<span class="c">.github/workflows/test-sms.yml</span>
-      FIREWATCH_PUBLIC_URL: https://&lt;you&gt;.github.io/&lt;repo&gt;</code></pre>
+<p class="lede">Nothing to do. Both workflows derive it from the repository they are
+running in &mdash; <code>https://&lt;owner&gt;.github.io/&lt;repo&gt;</code>, lowercased,
+and the bare domain if your repository is named <code>&lt;owner&gt;.github.io</code>.
+The step prints what it resolved, so you can read it off the first run's log.</p>
 
 <div class="note crit">
-  <span class="lbl">Miss this and your alerts point at someone else's fires</span>
-  <p>The map link is resolved at send time. On a laptop it comes from the local ngrok
-  agent; on a host there is none, so <code>FIREWATCH_PUBLIC_URL</code> is the only source.
-  Left unchanged it is a valid, working URL &mdash; pointing at the original
-  Zavidovi&#263;i map. Nothing errors. Every SMS you send just quietly links to Bosnia.</p>
+  <span class="lbl">Why this is derived and not written down</span>
+  <p>It used to be a literal in both workflow files, and it was the fork mistake that
+  cannot be seen. The map link is resolved at send time; on a host there is no ngrok agent,
+  so <code>FIREWATCH_PUBLIC_URL</code> is the only source. Left pointing at the repository
+  you copied from it is still a <em>valid, working</em> URL. Nothing errors, no run turns
+  red, and every SMS you send quietly links to someone else's fires.</p>
+</div>
+
+<p>Set the repository <strong>variable</strong> <code>FIREWATCH_PUBLIC_URL</code> (Settings
+&rarr; Secrets and variables &rarr; Actions &rarr; <em>Variables</em>, not Secrets) only if
+you serve the map somewhere else &mdash; a custom domain, or your own host. A variable set
+there wins over the derived value in both workflows.</p>
+
+<div class="note">
+  <span class="lbl">The URL is part of the message, and the message is 160 characters</span>
+  <p>An alert is four lines and one segment, and the map link is one of those lines &mdash;
+  every character of <code>https://owner.github.io/repository</code> is spent before a word
+  of the fire is. With this repository's own URL the longest alert it can produce lands at
+  158 characters, two short of a second segment. A longer owner or repository name spends
+  that headroom: measured against
+  <code>https://some-longer-org-name.github.io/firewatch-kakanj-monitoring</code> the same
+  alert reaches 170 and costs two segments, every time, for the life of the deployment.</p>
+  <p>You do not have to discover this from a phone bill. Both
+  <code>python3 -m firewatch sms-status</code> and the <code>test-sms</code> workflow print
+  the worst alert this place can produce &mdash; longest settlement name, absurd values, your
+  URL &mdash; with its character count and the headroom left:</p>
+<pre><code>  worst alert  : 158 chars, 2 to spare - fits  (lang bs, reignited, "Ekolo&#353;ko izleti&#353;te &#8222;Ontario&#8221;")</code></pre>
+  <p>If it says otherwise, a shorter repository name is the cheapest fix.</p>
 </div>
 
 <h3>Then decide what triggers it</h3>
@@ -750,6 +757,18 @@ external trigger &mdash; one moving part at a time:</p>
       <td class="wrap-ok">Both jobs, <code>poll</code> and <code>publish</code></td>
       <td class="wrap-ok">A red <em>publish</em> is almost always Pages still set to
         "Deploy from a branch" &mdash; §04</td></tr>
+    <tr><td class="wrap-ok">The <em>Show the configured place</em> step names your
+      municipality</td>
+      <td class="wrap-ok">Your <code>id</code>, your bounding box, your settlement count,
+      and <code>0 outside this clip</code></td>
+      <td class="wrap-ok">"This is the template's own place" means <code>setup</code> never
+        ran, or its output was never committed. A large <em>outside this clip</em> count
+        means the original database is still there &mdash; §06</td></tr>
+    <tr><td class="wrap-ok">The <em>Resolve the public URL</em> step</td>
+      <td class="wrap-ok">Prints <code>map + SMS link:</code> followed by <em>your</em>
+        Pages address</td>
+      <td class="wrap-ok">If it is not yours, a repository variable is overriding it
+        &mdash; §08</td></tr>
     <tr><td class="wrap-ok">The poll log names your places</td>
       <td class="wrap-ok">Settlements you recognise</td>
       <td class="wrap-ok">Bare coordinates mean <code>settlements.json</code> is empty
@@ -853,26 +872,35 @@ working as designed.</p>
 <!-- ==================== 11 ==================== -->
 <h2 id="bosnian"><span class="num">11</span> What stays Bosnian</h2>
 
-<p>None of this breaks anything, and all of it is visible. Fix it when you have the
-patience:</p>
+<p>Less than it used to be. <code>setup</code> and <code>data/place.json</code> take care
+of the place names, the reference point, the timezone and the language the map opens in,
+in every module at once. What is left is the <em>language</em>, which is a different
+question from the place:</p>
 
 <div class="tw">
 <table>
-  <thead><tr><th>What</th><th>Where</th></tr></thead>
+  <thead><tr><th>What</th><th>Where</th><th>Matters if</th></tr></thead>
   <tbody>
-    <tr><td class="wrap-ok">The strings "Zavidovi&#263;i" and "Grad Zavidovi&#263;i" in the interface</td>
-      <td class="mono">mapgen.py, menubar.py,<br>notify.py, __main__.py</td></tr>
     <tr><td class="wrap-ok">The map's second language &mdash; a full Bosnian translation
-      including Slavic plural rules. Replace the <code>bs</code> block, or delete it and
-      keep English only</td>
-      <td class="mono">mapgen.py &rarr; I18N</td></tr>
-    <tr><td class="wrap-ok">The map opens in Bosnian by default</td>
-      <td class="mono">mapgen.py</td></tr>
-    <tr><td class="wrap-ok">The timezone, <code>Europe/Sarajevo</code></td>
-      <td class="mono">enrich.py, mapgen.py</td></tr>
-    <tr><td class="wrap-ok">SMS wording &mdash; <code>sms_language</code> is <code>bs</code>
-      or <code>en</code>, and both wordings already exist</td>
-      <td class="mono">config.py, sms.py</td></tr>
+      including Slavic plural rules and the <code>-a &rarr; -e</code> genitive applied to
+      settlement names. Replace the <code>bs</code> block, or delete it and keep English
+      only</td>
+      <td class="mono">mapgen.py &rarr; I18N</td>
+      <td class="wrap-ok">you are not in the region</td></tr>
+    <tr><td class="wrap-ok">SMS wording. <code>sms_language</code> follows
+      <code>place.json</code>, and both Bosnian and English wordings are written out in
+      full &mdash; a third language means a third block</td>
+      <td class="mono">sms.py &rarr; SMS_TEXT</td>
+      <td class="wrap-ok">you want alerts in a third language</td></tr>
+    <tr><td class="wrap-ok">Compass bearings are computed in English letters and
+      translated for display (<code>NE &rarr; SI</code>)</td>
+      <td class="mono">mapgen.py, sms.py</td>
+      <td class="wrap-ok">the same</td></tr>
+    <tr><td class="wrap-ok">The documentation you are reading, and everything in
+      <code>docs/</code>, describes Zavidovi&#263;i by name</td>
+      <td class="mono">docs/</td>
+      <td class="wrap-ok">you publish the docs with your map &mdash; the build script does,
+      by default</td></tr>
   </tbody>
 </table>
 </div>
@@ -880,11 +908,11 @@ patience:</p>
 <div class="note">
   <span class="lbl">If you add a third language</span>
   <p>Alert text is transliterated to ASCII before sending, because one non-GSM character
-  switches the whole SMS to UCS-2 and drops the segment from 160 characters to 70. An
-  alert currently measures at most 153 characters &mdash; one segment &mdash; across every
-  stored event, every alert kind and the longest settlement name. If your place names are
-  longer than Bosnian ones, or your wording is, measure before you assume it still
-  fits.</p>
+  switches the whole SMS to UCS-2 and drops the segment from 160 characters to 70. Add
+  your block to <code>SMS_TEXT</code>, then run <code>python3 -m firewatch sms-status</code>:
+  it builds the longest alert your place can produce &mdash; longest settlement name, absurd
+  values, your map URL &mdash; and prints the headroom. The Bosnian and English wordings both
+  fit in one segment here with two characters to spare, which is not much to lend.</p>
 </div>
 
 <footer>

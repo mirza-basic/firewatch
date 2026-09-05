@@ -22,6 +22,20 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
+# Read rather than imported: this script runs on a runner that installs only
+# requests and certifi, and it has no business importing the package to learn one
+# name. A missing or unreadable profile just leaves the index page unnamed.
+def _area() -> str:
+    import json
+    try:
+        pl = json.loads((ROOT / "data" / "place.json").read_text(encoding="utf-8"))
+        return pl["names"][pl.get("language", "en")]["area"]
+    except Exception:
+        try:
+            return pl["names"]["en"]["area"]
+        except Exception:
+            return "your municipality"
+
 # Held back from the public site. Drop a name from this set to publish it.
 #
 # The Sentinel-3 plan describes work that has not been built and is not scheduled.
@@ -94,7 +108,7 @@ def index(public: pathlib.Path, pages) -> None:
     <header class="mast">
       <div class="eyebrow">Documentation</div>
       <h1>FireWatch</h1>
-      <p class="standfirst">Near-live wildfire monitoring for Grad Zavidovi&#263;i, from
+      <p class="standfirst">Near-live wildfire monitoring for {html.escape(_area())}, from
       Meteosat, NASA FIRMS and Sentinel-3. <a href="../">The live map is here.</a></p>
     </header>
     <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:2px">

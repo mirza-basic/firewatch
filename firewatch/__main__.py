@@ -1,5 +1,8 @@
 """Command line entry points.
 
+    python3 -m firewatch setup "<Municipality>"  point this instance at a place
+    python3 -m firewatch place       show which place is configured, and from where
+
     python3 -m firewatch menubar     run the menu bar app (default)
     python3 -m firewatch poll        one cycle, print a report, exit
     python3 -m firewatch watch       headless loop, notifications only
@@ -35,7 +38,7 @@ from pathlib import Path
 from . import events as ev_mod
 from . import expose as expose_mod
 from . import sms as sms_mod
-from . import mapgen, notify, poller, sources, store
+from . import mapgen, notify, place, poller, sources, store
 from .config import CFG, MAP_PATH, SNAPSHOT_PATH
 
 
@@ -51,7 +54,7 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
     n_act = sum(1 for e in evs if e["status"] == "active")
     n_det = sum(len(e.get("series", [])) for e in evs)
 
-    print(f"\nFireWatch Zavidovići · {snap.get('generated_at')}")
+    print(f"\n{place.name('title')} · {snap.get('generated_at')}")
     print(f"  Range: {label}  (since {snap.get('range_cutoffs', {}).get(rng, '?')})")
     print(f"  {n_act} active · {len(evs)} in range · {n_det} detections")
     counts = snap.get("range_counts", {})
@@ -263,7 +266,7 @@ def cmd_history(n: int = 40) -> int:
 
 def cmd_test_notify() -> int:
     ok = notify.send("🔥 FireWatch test", "Notifications are working",
-                     subtitle="Grad Zavidovići", sound=CFG["sound_update"])
+                     subtitle=place.name("area"), sound=CFG["sound_update"])
     print(f"backend={notify.backend()} delivered={ok}")
     return 0 if ok else 1
 
@@ -282,7 +285,17 @@ def cmd_sms_status() -> int:
     print(f"  api key      : {'found' if sms_mod.api_key() else 'not found'}")
     print(f"  alert kinds  : {', '.join(CFG['sms_kinds'])}")
     print(f"  max chars    : {CFG['sms_max_chars']}")
-    print(f"  map url      : {sms_mod.map_url() or '(map not published)'}\n")
+    print(f"  map url      : {sms_mod.map_url() or '(map not published)'}")
+    # The one number a fork needs and cannot guess: how close the longest alert
+    # this place can produce comes to spilling into a second segment. The URL is
+    # part of the message, so a longer owner/repository name spends this headroom.
+    w = sms_mod.worst_case()
+    fit = "fits" if w["segments"] == 1 else f"COSTS {w['segments']} SEGMENTS"
+    print(f"  worst alert  : {w['chars']} chars, {w['headroom']} to spare - {fit}"
+          f"  (lang {w['language']}, {w['kind']}, \"{w['place']}\")")
+    if w["headroom"] < 0:
+        print("                 shorten FIREWATCH_PUBLIC_URL, or accept two segments")
+    print()
     return 0
 
 
@@ -435,7 +448,11 @@ def cmd_reclip(apply: bool = False) -> int:
         gone = store.out_of_scope(con)
         km = CFG["nearby_buffer_km"]
         total = store.stats(con)["detections"]
+        was = store.place_mismatch(con)
         print(f"\n  spatial clip: inside the boundary, or within {km} km of it")
+        if was:
+            print(f"  this database was filled for {was!r}, now configured as"
+                  f" {place.PLACE['id']!r}")
         if not gone:
             print(f"  all {total} stored detections are in scope - nothing to do\n")
             return 0
@@ -460,6 +477,10 @@ def cmd_reclip(apply: bool = False) -> int:
         backup = DB_PATH.with_suffix(f".db.bak-{store.utcnow():%Y%m%dT%H%M%S}")
         shutil.copy2(DB_PATH, backup)
         n = store.delete_detections(con, [d["uid"] for d in gone])
+        # Whatever survived the clip belongs to the configured place, so this
+        # database is now that place's - the warning in `place` and `poll` has
+        # been acted on and should stop.
+        store.adopt_place(con)
         print(f"\n  backup:  {backup}")
         print(f"  deleted: {n} detections")
         print("  events rebuild on the next cycle; run `poll` to do it now\n")
@@ -483,6 +504,85 @@ def _graceful_stop() -> None:
         signal.signal(signal.SIGTERM, handler)
     except ValueError:
         pass            # not on the main thread; nothing to install
+
+
+def cmd_place() -> int:
+    """Print the live place profile.
+
+    Exists because the failure it catches is silent: a fork that has not run
+    `setup` is still watching Zavidovici, and the symptom - an empty map, no
+    alerts - looks exactly like a broken feed or a missing key. The poll workflow
+    runs this on every cycle for the same reason.
+    """
+    from . import geo
+    from .config import BOUNDARY_GEOJSON, BUFFER_GEOJSON, CFG, SETTLEMENTS_JSON
+    p = place.PLACE
+    w, s_, e, n = geo.bbox()
+    band = geo.load_buffer()
+    print(f"\n  id           : {p['id']}")
+    print(f"  profile      : {place.source()}")
+    print(f"  language     : {p['language']}   timezone: {p['timezone']}")
+    print(f"  town centre  : {place.TOWN_LAT:.6f}, {place.TOWN_LON:.6f}")
+    print(f"  bbox         : {s_:.4f},{w:.4f} .. {n:.4f},{e:.4f}")
+    print(f"  boundary     : {BOUNDARY_GEOJSON.name}"
+          f" ({len(geo.boundary_ring())} vertices)")
+    print(f"  settlements  : {SETTLEMENTS_JSON.name} ({len(geo.settlements())})")
+    print(f"  nearby band  : {BUFFER_GEOJSON.name}"
+          f" ({CFG['nearby_buffer_km']:g} km)"
+          if band else
+          f"  nearby band  : {BUFFER_GEOJSON.name} MISSING or built for another"
+          f" distance - run `buffer`")
+    for lang, forms in p["names"].items():
+        print(f"  names[{lang}]    : {forms['area']} | {forms['of']} | {forms['in']}")
+    if place.is_default():
+        print("\n  This is the template's own place. If you forked this to watch")
+        print("  somewhere else, run:  python3 -m firewatch setup \"<Municipality>\"")
+    from . import store
+    con = store.connect()
+    try:
+        was = store.place_mismatch(con)
+        n = store.stats(con)["detections"]
+        # Reported as a count, not a verdict. Some out-of-scope history is normal
+        # for a long-lived instance; a fork that kept the original repository's
+        # database sees nearly all of it here, which is the tell.
+        out = len(store.out_of_scope(con)) if n else 0
+    finally:
+        con.close()
+    print(f"  history      : {n} detections, {out} outside this clip")
+    if was:
+        print(f"\n  This database is stamped {was!r}, not {p['id']!r}.")
+    if out:
+        print("  Clear what no longer belongs:  python3 -m firewatch reclip --apply")
+    print()
+    return 0
+
+
+def cmd_setup(argv: list[str]) -> int:
+    """Fetch a new municipality's boundary and settlements, and write place.json."""
+    from . import setup as setup_mod
+    query, opts = None, {}
+    rest = list(argv)
+    while rest:
+        a = rest.pop(0)
+        if a == "--id" and rest:
+            opts["place_id"] = rest.pop(0)
+        elif a in ("--lang", "--language") and rest:
+            opts["lang"] = rest.pop(0).lower()
+        elif a in ("--radius", "--radius-km") and rest:
+            opts["radius_km"] = float(rest.pop(0))
+        elif a == "--index" and rest:
+            opts["index"] = int(rest.pop(0))
+        elif a == "--force":
+            opts["force"] = True
+        elif not a.startswith("-"):
+            query = a if query is None else f"{query} {a}"
+    if not query:
+        print('\n  python3 -m firewatch setup "<Municipality>"'
+              " [--id X] [--lang bs] [--radius 25] [--index 0] [--force]\n"
+              "\n  Search the administrative name, not the town:"
+              ' "Opcina Kakanj", not "Kakanj".\n')
+        return 2
+    return setup_mod.run(query, **opts)
 
 
 def cmd_serve(argv: list[str]) -> int:
@@ -550,6 +650,10 @@ def main(argv: list[str]) -> int:
         from .menubar import main as ui_main
         ui_main()
         return 0
+    if cmd == "setup":
+        return cmd_setup(argv[1:])
+    if cmd == "place":
+        return cmd_place()
     if cmd == "poll":
         return cmd_poll(argv[1] if len(argv) > 1 else None)
     if cmd == "watch":

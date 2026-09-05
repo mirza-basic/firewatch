@@ -166,8 +166,7 @@ minutes and needs a paid plan for Pages. Set four repository secrets: `FIRMS_MAP
 optional — without it the other two feeds carry the cycle), `HTTPSMS_API_KEY`,
 `HTTPSMS_FROM`, and `FIREWATCH_SMS_TO`, recipients being a secret because a public repo
 would publish the numbers. Set **Workflow permissions** to read/write and **Pages source**
-to *GitHub Actions*, put your Pages URL in `FIREWATCH_PUBLIC_URL` in **both** workflow
-files, run `poll` once from the Actions tab, then point a cron service at:
+to *GitHub Actions*, run `poll` once from the Actions tab, then point a cron service at:
 
     POST https://api.github.com/repos/<you>/<repo>/actions/workflows/poll.yml/dispatches
     Authorization: Bearer <token>      # fine-grained PAT, Actions: read and write
@@ -181,28 +180,31 @@ publishes every ten. One caveat worth checking before you start: Meteosat sees r
 alerts arrive around three hours late instead of forty minutes.
 
 **Then give it your own geography.** Every detection is clipped against Zavidovići's
-outline, so a fork left alone watches Bosnia whoever owns it. Three files in `data/` define
-the place — build-time artifacts you generate once locally and commit, so Nominatim and
-Overpass are never called at runtime:
+outline, so a fork left alone watches Bosnia whoever owns it. One command changes that:
 
-| File | What it is | How you get it |
-|---|---|---|
-| `zavidovici.geojson` | the **municipality polygon** — a 731-point outline every detection is tested against | Nominatim, searching the *administrative* name ("Općina Kakanj", not "Kakanj") for the boundary relation |
-| `zavidovici-buffer.geojson` | the **2 km buffer polygon**, drawn as the dashed band and used to flag fires just over the border | `python3 -m firewatch buffer` — the one command needing `shapely` and `pyproj` |
-| `settlements.json` | 413 named places, which turn coordinates into "7.0 km ESE of Kamenica" | Overpass, within a radius wider than the municipality |
+    python3 -m firewatch setup "Općina Kakanj"    # the ADMINISTRATIVE name, not the town
+    python3 -m firewatch buffer                   # the dashed band; needs shapely + pyproj
+    python3 -m firewatch place                    # check what it did
 
-Then four constants in `firewatch/config.py` point at them — `BOUNDARY_GEOJSON`,
-`BUFFER_GEOJSON`, `SETTLEMENTS_JSON`, and `TOWN_LAT`/`TOWN_LON`, the town centre every
-"of town" distance and bearing is measured from. Delete `state/firewatch.db` too, or you
-inherit Bosnia's fire history.
+`setup` fetches the municipality polygon from Nominatim and the settlement list — the
+names that turn coordinates into "7.0 km ESE of Kamenica" — from Overpass, and writes
+`data/place.json`. That file is the only thing in the repository that names a place: the
+map title, the reference point every "of town" bearing is measured from, the notification
+wording, the timezone and the language the map opens in all read it. Both are build-time
+artifacts, committed, so neither service is ever called at runtime. Delete
+`state/firewatch.db` too, or you inherit Bosnia's fire history — `place` tells you how much
+of it is still there.
 
-Two of those steps fail silently, which is why the written procedure is worth following:
-change the buffer without rebuilding the polygon and the map omits the band rather than
-drawing it wrong, and an Overpass regional mirror can return an empty settlement list,
-leaving every fire labelled by bare coordinates. Both are covered, with the scripts, in
+The steps that fail silently are the reason the written procedure is still worth reading:
+an Overpass regional mirror answers HTTP 200 with an empty settlement list, which would
+label every fire by bare coordinates (`setup` treats that as a failed request, never an
+answer), and changing the buffer distance without rebuilding the band makes the map omit it
+rather than draw it wrong. Both, and the SMS segment budget your repository name eats into,
+are covered in
 **[Point it at your municipality](https://mirza-basic.github.io/firewatch/docs/firewatch-fork.html#place)**
 — run end to end against a neighbouring municipality: a 601-vertex boundary, 506
-settlements, and a clip that accepted the town centre and rejected a point 30 km away. The
+settlements, a built band, and a full cycle against the new bounding box. [FORK.md](FORK.md)
+is the short path; the
 [field manual](https://mirza-basic.github.io/firewatch/docs/firewatch-field-manual.html#relocate)
 has every command and every setting.
 
@@ -213,6 +215,8 @@ has every command and every setting.
     python3 -m firewatch map                rebuild and open the HTML map
     python3 -m firewatch backfill [days]    deep history fetch (default 30)
     python3 -m firewatch quota              FIRMS usage (a free call)
+    python3 -m firewatch place              which municipality is configured
+    python3 -m firewatch setup "<Name>"     re-point it at another one
     python3 -m firewatch test-sms
     python3 tests_events.py                 clustering + alert-logic tests
 

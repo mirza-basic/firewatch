@@ -7,6 +7,7 @@ import time
 import requests
 
 from . import geo
+from . import place
 from .config import CFG
 
 log = logging.getLogger("firewatch.enrich")
@@ -31,7 +32,10 @@ def weather(lat: float, lon: float) -> dict | None:
             params={"latitude": f"{lat:.4f}", "longitude": f"{lon:.4f}",
                     "current": "temperature_2m,relative_humidity_2m,"
                                "wind_speed_10m,wind_direction_10m,wind_gusts_10m",
-                    "timezone": "Europe/Sarajevo"},
+                    # Only labels the timestamps in the response; the values
+                    # themselves are for the coordinates, not the zone. Still worth
+                    # following place.json rather than naming a city here.
+                    "timezone": place.PLACE["timezone"]},
             headers={"User-Agent": CFG["user_agent"]}, timeout=30)
         cur = r.json().get("current", {})
         if not cur:

@@ -13,6 +13,11 @@
 #   HTTPSMS_FROM      optional, the gateway phone number
 #   FIREWATCH_SMS_TO  optional, comma-separated recipients. This is why it exists:
 #                     a phone number must not be committed to a public repository.
+#
+# Nothing in this file names a place or a URL. The municipality comes from
+# data/place.json (`python3 -m firewatch setup`), and the map link is derived from
+# the repository below - so a fork that runs setup and sets its secrets needs no
+# edit here at all.
 
 name: poll
 
@@ -53,12 +58,34 @@ jobs:
       # died with "[Errno 101] Network is unreachable" after ~90s of retries, while
       # Meteosat and Sentinel-3 (A records only) worked fine.
       FIREWATCH_FORCE_IPV4: "1"
-      # The address an SMS should point at. Without this, map_url() asks the local
-      # ngrok agent - which does not exist here - and the alert loses its map link,
-      # the one line you most want when a fire notification arrives.
-      FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
     steps:
       - uses: actions/checkout@v4
+
+      # The address an SMS should point at. Without it, map_url() asks the local
+      # ngrok agent - which does not exist here - and the alert loses its map link,
+      # the one line you most want when a fire notification arrives.
+      #
+      # Derived, not written down. A hardcoded URL is the fork mistake that cannot
+      # be seen: left pointing at the repository this was copied from it is still a
+      # valid, working, wrong map, and every SMS quietly links to someone else's
+      # fires. Set the repository variable FIREWATCH_PUBLIC_URL (Settings >
+      # Secrets and variables > Actions > Variables) only for a custom domain.
+      - name: Resolve the public URL
+        run: |
+          url="${{ vars.FIREWATCH_PUBLIC_URL }}"
+          if [ -z "$url" ]; then
+            owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            repo="${GITHUB_REPOSITORY#*/}"
+            # A repository named <owner>.github.io is served at the domain root;
+            # everything else lives under /<repo>/.
+            if [ "$(echo "$repo" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then
+              url="https://$owner.github.io"
+            else
+              url="https://$owner.github.io/$repo"
+            fi
+          fi
+          echo "FIREWATCH_PUBLIC_URL=$url" >> "$GITHUB_ENV"
+          echo "map + SMS link: $url"
 
       - uses: actions/setup-python@v5
         with:
@@ -67,6 +94,13 @@ jobs:
       # Two dependencies, not four: rumps and pyobjc are the macOS menu bar and
       # nothing here imports them.
       - run: python3 -m pip install --quiet requests certifi
+
+      # Which municipality this instance is watching, printed before anything is
+      # fetched. A fork that never ran `setup` is still clipping to Zavidovici, and
+      # every symptom of that - an empty map, no alerts, no SMS - reads as a broken
+      # feed or a missing key. One line in the log settles it.
+      - name: Show the configured place
+        run: python3 -m firewatch place
 
       - name: Poll
         env:
@@ -118,7 +152,7 @@ jobs:
             for attempt in 1 2 3; do
               if git push 2>/dev/null; then pushed=1; break; fi
               echo "push rejected (attempt $attempt), rebasing onto origin/main"
-              git pull --rebase --autostash -q origin main || break
+              git pull --rebase --autostash -q origin "${{ github.ref_name }}" || break
             done
             if [ "$pushed" -ne 1 ]; then
               echo "::error::could not push state - the next run may re-alert on the same fire"

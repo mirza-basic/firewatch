@@ -5,6 +5,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+from . import place
 from .config import DB_PATH, ensure_dirs
 
 SCHEMA = """
@@ -96,6 +97,61 @@ def _migrate(con: sqlite3.Connection) -> None:
     con.commit()
 
 
+PLACE_KEY = "place_id"
+
+
+def _stamp_place(con: sqlite3.Connection) -> None:
+    """Record which municipality this database holds detections for.
+
+    Re-pointing an instance at another place - which is the whole of forking this
+    repository - leaves every stored detection outside the new clip, and nothing
+    about that is visible: the map is empty because the old fires are filtered
+    out, the new area has none yet, and it reads as a broken feed. The stamp is
+    what lets `place`, `poll` and `reclip` say so instead.
+
+    Deliberately not self-healing. Deleting rows because a config file changed is
+    the wrong default when the file might have changed by mistake - and retention
+    is 400 days, so what goes is not coming back from the feeds. `reclip --apply`
+    does it, on purpose, after a backup.
+    """
+    row = con.execute("SELECT v FROM meta WHERE k=?", (PLACE_KEY,)).fetchone()
+    if row is not None:
+        return
+    # Only an empty database. Stamping one that already holds detections would
+    # assert something unknown - and would assert it wrongly in exactly the case
+    # this exists for, since a fork clones a repository whose committed database
+    # is full of the original municipality's fires and only then re-points the
+    # place. Those are answered geometrically in place_mismatch() instead.
+    if con.execute("SELECT 1 FROM detections LIMIT 1").fetchone() is None:
+        con.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (PLACE_KEY, place.PLACE["id"]))
+        con.commit()
+
+
+def place_mismatch(con: sqlite3.Connection) -> str | None:
+    """The place this database was stamped for, when it is not the configured one.
+
+    Only ever answers from the stamp. Guessing from geometry was tried and is
+    wrong: a fork usually starts from a *neighbouring* municipality, whose
+    boundaries touch, so a third of one place's history legitimately falls inside
+    the other's clip - 35 of 198 for the two this was measured against. "Mostly
+    outside" would be a threshold with nothing behind it. Databases predating the
+    stamp answer None here, and `place` reports the out-of-scope count instead,
+    which is a fact rather than an inference.
+    """
+    row = con.execute("SELECT v FROM meta WHERE k=?", (PLACE_KEY,)).fetchone()
+    if row is None:
+        return None
+    return row["v"] if row["v"] != place.PLACE["id"] else None
+
+
+def adopt_place(con: sqlite3.Connection) -> None:
+    """Re-stamp after the old place's detections have been cleared out."""
+    con.execute("INSERT INTO meta(k, v) VALUES(?, ?)"
+                " ON CONFLICT(k) DO UPDATE SET v = excluded.v",
+                (PLACE_KEY, place.PLACE["id"]))
+    con.commit()
+
+
 def connect() -> sqlite3.Connection:
     ensure_dirs()
     con = sqlite3.connect(DB_PATH, timeout=30)
@@ -103,6 +159,7 @@ def connect() -> sqlite3.Connection:
     con.execute("PRAGMA journal_mode=WAL")
     con.executescript(SCHEMA)
     _migrate(con)
+    _stamp_place(con)
     return con
 
 

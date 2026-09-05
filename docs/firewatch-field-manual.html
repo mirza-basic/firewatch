@@ -463,127 +463,98 @@ message.</p>
 
 <!-- ==================== 07 ==================== -->
 <h2 id="relocate"><span class="num">05</span> Watching somewhere else</h2>
-<p class="lede">Nothing about the pipeline is specific to Bosnia. Pointing FireWatch at a
-different municipality means replacing two data files and four constants &mdash; and the
-whole procedure below has been run end to end against a different municipality to confirm
-it works.</p>
+<p class="lede">Nothing about the pipeline is specific to Bosnia, and nothing in
+<code>firewatch/</code> names a municipality. One file does &mdash;
+<code>data/place.json</code> &mdash; and one command writes it.</p>
 
-<p>Two files in <code>data/</code> define the place. Both are build-time artifacts
-committed to the repository, so Nominatim and Overpass are never called while FireWatch is
-running:</p>
+<pre><code>python3 -m firewatch setup "Op&#263;ina Kakanj"     <span class="c"># the ADMINISTRATIVE name</span>
+python3 -m firewatch buffer                    <span class="c"># the drawn band</span>
+python3 -m firewatch place                     <span class="c"># check what it did</span></code></pre>
 
+<p>Search the administrative name, not the town: "Kakanj" is a place node with a Point
+geometry and no area to clip against, while "Op&#263;ina Kakanj" is the boundary relation.
+Several matches are printed and <code>--index N</code> picks one. Other flags:
+<code>--lang</code> (the language the map opens in), <code>--radius</code> (settlement
+search, km, default 25), <code>--id</code> (the short name used for filenames),
+<code>--force</code>.</p>
+
+<h3>What it writes</h3>
 <div class="tw">
 <table>
   <thead><tr><th>File</th><th>Holds</th><th>Comes from</th></tr></thead>
   <tbody>
-    <tr><td class="mono">zavidovici.geojson</td><td>The municipality outline, one polygon</td><td>Nominatim</td></tr>
-    <tr><td class="mono">settlements.json</td><td>Named places, for "4 km SSE of Vozuća"</td><td>Overpass</td></tr>
-    <tr><td class="mono">zavidovici-buffer.geojson</td><td>The band drawn on the map</td><td>Generated locally</td></tr>
+    <tr><td class="mono">&lt;id&gt;.geojson</td><td class="wrap-ok">The municipality
+      outline, one polygon, tested against every detection</td><td>Nominatim</td></tr>
+    <tr><td class="mono">&lt;id&gt;-settlements.json</td><td class="wrap-ok">Named places,
+      for "4 km SSE of Vozu&#263;a"</td><td>Overpass</td></tr>
+    <tr><td class="mono">&lt;id&gt;-buffer.geojson</td><td class="wrap-ok">The band drawn
+      on the map</td><td class="wrap-ok"><code>firewatch buffer</code>, locally</td></tr>
+    <tr><td class="mono">place.json</td><td class="wrap-ok">Names the three above, plus
+      the town centre, timezone, language, and the name forms every module renders</td>
+      <td class="wrap-ok"><code>firewatch setup</code></td></tr>
   </tbody>
 </table>
 </div>
 
+<p>All four are build-time artifacts, committed to the repository, so Nominatim and
+Overpass are never called while FireWatch is running. <code>setup.py</code> is the only
+module that calls them at all.</p>
+
+<div class="note crit">
+  <span class="lbl">A regional mirror answers 200 and returns nothing</span>
+  <p>Overpass mirrors are flaky &mdash; on one run two of three returned 502 and 504 &mdash;
+  so a fallback list is genuinely needed, but the fallbacks matter.
+  <code>overpass.osm.ch</code> is a Switzerland-only extract: it answers HTTP 200 with
+  <code>{"elements": []}</code> for anywhere else, indistinguishable from "no settlements
+  here", and an empty list would label every fire with bare coordinates.
+  <code>setup</code> uses global mirrors only, treats an empty result as a failed request
+  rather than an answer, and if none answer it writes nothing and tells you to run it
+  again. It also fetches everything before writing anything, so a run that dies at the
+  settlement step leaves the repository exactly as it was rather than holding one place's
+  outline and another's profile.</p>
+</div>
+
+<h3>The two things it cannot do for you</h3>
 <ol class="stages">
   <li>
-    <h3>Find the boundary</h3>
-    <p>Nominatim returns the administrative relation <em>and</em> its polygon in one
-    call. Search for the administrative name, not the town &mdash; searching "Kakanj"
-    returns the town node with a Point geometry, while "Općina Kakanj" returns the
-    boundary relation you actually want.</p>
-    <pre><code>curl -s -H 'User-Agent: firewatch-setup/1.0' \
-  'https://nominatim.openstreetmap.org/search?q=Op%C4%87ina+Kakanj&format=json&polygon_geojson=1&limit=8' \
-  | python3 -m json.tool | head -40</code></pre>
-    <p>Take the hit whose <code>osm_type</code> is <code>relation</code>, whose
-    <code>class</code> is <code>boundary</code>, and whose <code>geojson.type</code> is
-    <code>Polygon</code> or <code>MultiPolygon</code>. Wrap its geometry in a
-    FeatureCollection and save it over <code>data/&lt;place&gt;.geojson</code>:</p>
-    <pre><code>{"type":"FeatureCollection","features":[{
-  "type":"Feature",
-  "properties":{"name":"Općina Kakanj","admin_level":6,
-                "source":"OpenStreetMap relation 2528213","licence":"ODbL 1.0"},
-  "geometry": <span class="c">&lt;the geojson object from Nominatim&gt;</span>
-}]}</code></pre>
+    <h3>The timezone</h3>
+    <p><code>setup</code> writes <code>"timezone": "UTC"</code> because it cannot know
+    yours. It labels the weather call and stamps every time on the map, and it is one
+    line in <code>place.json</code>.</p>
   </li>
   <li>
-    <h3>Fetch the settlements</h3>
-    <p>Overpass, centred on the town, with a radius comfortably wider than the
-    municipality &mdash; places just outside it are what name a fire over the border:</p>
-    <pre><code>[out:json][timeout:90];
-(node["place"~"^(city|town|village|hamlet)$"](around:25000,LAT,LON););
-out body;</code></pre>
-    <p>Reshape each element to the four keys FireWatch reads &mdash; <code>n</code> name,
-    <code>k</code> kind, <code>lat</code>, <code>lon</code> &mdash; and save as
-    <code>data/settlements.json</code>:</p>
-    <pre><code>[{"n":"Banovići","k":"town","lat":44.40888,"lon":18.52924}, …]</code></pre>
-    <div class="note crit">
-      <span class="lbl">A regional mirror answers 200 and returns nothing</span>
-      <p>Overpass mirrors are flaky &mdash; on a recent run two of three were returning
-      502 and 504 &mdash; so a fallback list is genuinely needed. But choose the fallbacks
-      carefully. <code>overpass.osm.ch</code> is a <strong>Switzerland-only extract</strong>:
-      it answers <code>HTTP 200</code> with <code>{"elements": []}</code> for anywhere
-      else, which is indistinguishable from "no settlements here". A naive retry loop
-      lands on it, writes an empty <code>settlements.json</code>, and every fire is then
-      labelled by bare coordinates. Use global mirrors &mdash;
-      <code>overpass-api.de</code> and <code>overpass.kumi.systems</code> &mdash; retry
-      rather than fall back to a regional one, and treat an empty result as failure.</p>
-    </div>
-  </li>
-  <li>
-    <h3>Point the code at the new place</h3>
-    <p>Four constants in <code>firewatch/config.py</code>:</p>
-    <pre><code>BOUNDARY_GEOJSON = DATA_DIR / "kakanj.geojson"
-SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
-BUFFER_GEOJSON   = DATA_DIR / "kakanj-buffer.geojson"
-
-<span class="c"># Reference point for bearings and distances: the town centre.</span>
-TOWN_LAT, TOWN_LON = 44.1754925, 18.1420167</code></pre>
-    <p>Use the <code>lat</code> and <code>lon</code> Nominatim returned for the relation
-    &mdash; everything the interface says about direction and distance "of town" is
-    measured from this point.</p>
-  </li>
-  <li>
-    <h3>Rebuild the map band</h3>
-    <pre><code>python3 -m firewatch buffer</code></pre>
-    <p>This is the only command that needs <code>shapely</code> and <code>pyproj</code>
-    (<code>python3 -m pip install shapely pyproj</code>). They are imported inside that
-    one function, so the running app still needs only its four dependencies. Skip this
-    step and the map simply draws no band.</p>
-  </li>
-  <li>
-    <h3>Fix the language and timezone</h3>
-    <p>Three things are still Bosnian. None will break anything, but all three are
-    visible:</p>
-    <ul>
-      <li><strong>Place names in the interface</strong> &mdash; the strings
-      "Zavidovići" and "Grad Zavidovići" in <code>mapgen.py</code>,
-      <code>menubar.py</code>, <code>notify.py</code> and <code>__main__.py</code>.</li>
-      <li><strong>The second language.</strong> The map ships a Bosnian/English toggle
-      with full translations including Slavic plural rules. Replace the <code>bs</code>
-      block in <code>mapgen.py</code>'s <code>I18N</code> object, or delete it and keep
-      English only.</li>
-      <li><strong>The timezone</strong> &mdash; <code>Europe/Sarajevo</code> appears in
-      <code>enrich.py</code> (the weather call) and <code>mapgen.py</code> (timestamps on
-      the map).</li>
-    </ul>
-  </li>
-  <li>
-    <h3>Start clean and verify</h3>
-    <p>The database holds detections clipped to the <em>old</em> boundary, which are now
-    meaningless. Delete it and let FireWatch rebuild:</p>
-    <pre><code>rm ~/Library/Application\ Support/FireWatch/firewatch.db
-python3 -m firewatch poll
-python3 -m firewatch backfill 30</code></pre>
-    <p>The poll report should name settlements you recognise. If fires come back labelled
-    with bare coordinates, <code>settlements.json</code> did not load &mdash; see the
-    Overpass warning above.</p>
+    <h3>The name forms, if you are not working in English</h3>
+    <p>They cannot be generated. Bosnian wants a genitive after "od"
+    (<em>Kakanj &rarr; od Kaknja</em>) and a locative after "u" (<em>u op&#263;ini
+    Kakanj</em>); a guessed rule produces text that reads as broken to the only people
+    who will read it. English is written correctly, any other language is seeded with the
+    English wording, and <code>setup</code> says which four strings need a human:
+    <code>area</code> as a heading says it, <code>of</code> after a distance and bearing,
+    <code>in</code> as a locative, <code>outside</code> for a detection over the
+    border.</p>
   </li>
 </ol>
 
+<h3>Start clean and verify</h3>
+<p>The database holds detections clipped to the <em>old</em> boundary.
+<code>python3 -m firewatch place</code> reports how many of them fall outside the new one;
+<code>reclip</code> shows exactly which and where, and <code>--apply</code> removes them
+after copying the database first. Deleting it outright works too, and loses the lot:</p>
+<pre><code>python3 -m firewatch reclip            <span class="c"># dry run</span>
+python3 -m firewatch reclip --apply    <span class="c"># or: rm the database</span>
+python3 -m firewatch poll
+python3 -m firewatch backfill 30</code></pre>
+<p>The poll report should name settlements you recognise. Fires labelled with bare
+coordinates mean the settlement list did not load &mdash; see the Overpass warning
+above.</p>
+
 <div class="note good">
   <span class="lbl">Verified</span>
-  <p>Following exactly these steps against a neighbouring municipality produced a
-  601-vertex boundary, 506 settlements, a correctly built 2 km band, a spatial clip that
-  accepted the town centre and rejected a point 30 km away, and a rendered map.</p>
+  <p><code>setup "Opcina Kakanj"</code> against a neighbouring municipality produced a
+  601-vertex boundary, 506 settlements, a correctly built 2 km band, and a full poll cycle
+  &mdash; all three feeds queried against the new bounding box, and a rendered map titled
+  <em>FireWatch Kakanj</em>. The Overpass guard fired for real on one attempt when both
+  mirrors timed out: nothing was written.</p>
 </div>
 
 <!-- ==================== 09 ==================== -->

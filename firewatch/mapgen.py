@@ -19,13 +19,18 @@ import os
 import shutil
 from pathlib import Path
 
-from . import geo
+from . import geo, place
 from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR
 
+
+def html_escape(s: str) -> str:
+    """The title lands in <title> and in an element's text, never in an attribute."""
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 TEMPLATE = r"""<!doctype html>
-<html lang="en"><head>
+<html lang="__LANG__"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FireWatch Zavidovići</title>
+<title>__TITLE__</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -257,7 +262,7 @@ TEMPLATE = r"""<!doctype html>
   <div id="side">
     <header>
       <button id="drawer-close" aria-label="Close fire list">&times;</button>
-      <h1><span class="dot" id="hdot"></span><span id="htitle">FireWatch Zavidovići</span></h1>
+      <h1><span class="dot" id="hdot"></span><span id="htitle">__TITLE__</span></h1>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
       <div class="status" id="hchips"></div>
@@ -293,11 +298,16 @@ const SRC = {mtg:{c:"#4cc9f0",n:"Meteosat MTG (10 min)"},
 const SEVC = {low:"#ffa726",moderate:"#fb8c00",high:"#f4511e",severe:"#d81b3c",unknown:"#8b98a5"};
 
 // ---- localisation ----------------------------------------------------------
+// The only place-specific text on this page. It comes from data/place.json, per
+// language, because the forms are not assemblable from a bare name: Bosnian wants
+// a genitive after "od" and a locative after "u". Strings below reference them as
+// {area}, {of}, {in} and {outside}, and t() fills them in before anything else.
+const PLACE = __PLACE__;
 // Bosnian plurals need three forms, so counted strings are arrays [one,few,many]
 // and plural() picks by the Slavic rule. English uses [one, other, other].
 const I18N = {
   en: {
-    sub:"Grad Zavidovići · updated {t}", noActive:"No active fires",
+    sub:"{area} · updated {t}", noActive:"No active fires",
     activeFires:["{n} active fire","{n} active fires","{n} active fires"],
     firesNoneActive:["{n} fire, none active","{n} fires, none active","{n} fires, none active"],
     detections:"detections", ok:"ok", fail:"fail",
@@ -308,10 +318,10 @@ const I18N = {
     sev_low:"low", sev_moderate:"moderate", sev_high:"high", sev_severe:"severe",
     sev_unknown:"unknown", st_active:"active", st_quiet:"quiet",
     noFires:"No fires · {range}",
-    nothing:"Nothing detected in or within {km} km of Grad Zavidovići in this period.",
+    nothing:"Nothing detected {in} or within {km} km of it in this period.",
     peak:"peak", now:"now", latest:"latest", lastSeen:"Last seen", started:"Started",
-    extent:"Extent", weather:"Weather", note:"Note", outside:"outside municipality",
-    ofTown:"of town", ofZav:"of Zavidovići", ofN:"of {n}", across:"across",
+    extent:"Extent", weather:"Weather", note:"Note", outside:"{outside}",
+    ofTown:"of town", ofZav:"{of}", ofN:"of {n}", across:"across",
     placeOf:"{km} km {dir} of {name}",
     spread:"{risk} spread risk", risk_elevated:"elevated", risk_high:"high",
     risk_extreme:"extreme", risk_moderate:"moderate", risk_unknown:"unknown",
@@ -337,7 +347,7 @@ const I18N = {
     zoneNote:"kept, flagged nearby"
   },
   bs: {
-    sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
+    sub:"{area} · ažurirano {t}", noActive:"Nema aktivnih požara",
     activeFires:["{n} aktivan požar","{n} aktivna požara","{n} aktivnih požara"],
     firesNoneActive:["{n} požar, nijedan aktivan","{n} požara, nijedan aktivan",
                      "{n} požara, nijedan aktivan"],
@@ -349,10 +359,10 @@ const I18N = {
     sev_low:"nizak", sev_moderate:"umjeren", sev_high:"visok", sev_severe:"ekstreman",
     sev_unknown:"nepoznato", st_active:"aktivan", st_quiet:"mirno",
     noFires:"Nema požara · {range}",
-    nothing:"Ništa nije detektovano u općini Zavidovići niti u krugu od {km} km u ovom periodu.",
+    nothing:"Ništa nije detektovano {in} niti u krugu od {km} km u ovom periodu.",
     peak:"maks.", now:"sada", latest:"zadnje", lastSeen:"Zadnje viđeno", started:"Počelo",
-    extent:"Raspon", weather:"Vrijeme", note:"Napomena", outside:"izvan općine",
-    ofTown:"od grada", ofZav:"od Zavidovića", ofN:"od {n}", across:"u širini",
+    extent:"Raspon", weather:"Vrijeme", note:"Napomena", outside:"{outside}",
+    ofTown:"od grada", ofZav:"{of}", ofN:"od {n}", across:"u širini",
     placeOf:"{km} km {dir} od {name}",
     spread:"rizik širenja: {risk}", risk_elevated:"povišen", risk_high:"visok",
     risk_extreme:"ekstreman", risk_moderate:"umjeren", risk_unknown:"nepoznat",
@@ -382,11 +392,11 @@ const I18N = {
 const COMPASS_BS = {N:"S",NNE:"SSI",NE:"SI",ENE:"ISI",E:"I",ESE:"IJI",SE:"JI",SSE:"JJI",
   S:"J",SSW:"JJZ",SW:"JZ",WSW:"ZJZ",W:"Z",WNW:"ZSZ",NW:"SZ",NNW:"SSZ"};
 
-// Bosnian by default: this map is for Grad Zavidovići, and the people who need it
-// in an emergency read Bosnian. English is one click away in the header.
+// The place's own language by default (place.json "language"): the people who need
+// this map in an emergency read it, and English is one click away in the header.
 // A reader's own choice still wins - the toggle writes fw_lang and that is checked
-// first - so switching to English is remembered on that device.
-let LANG = "bs";
+// first - so switching languages is remembered on that device.
+let LANG = "__LANG__";
 try {
   const saved = localStorage.getItem("fw_lang");
   if(saved && I18N[saved]) LANG = saved;
@@ -403,6 +413,10 @@ function t(key, vars){
   let v = (I18N[LANG] || I18N.en)[key];
   if(v === undefined) v = I18N.en[key];
   if(Array.isArray(v)) v = v[plural(vars && vars.n != null ? vars.n : 1)] || v[0];
+  // Place names first: a name form can contain no placeholder of its own, so the
+  // caller's vars still resolve afterwards.
+  const P = PLACE[LANG] || PLACE.en || {};
+  for(const k in P) v = v.split("{"+k+"}").join(P[k]);
   if(vars) for(const k in vars) v = v.split("{"+k+"}").join(vars[k]);
   return v;
 }
@@ -543,12 +557,12 @@ const MONTHS = {
   en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
   bs:["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"]
 };
-const _sarajevo = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Sarajevo",
+const _localTz = new Intl.DateTimeFormat("en-GB",{timeZone:"__TZ__",
   year:"numeric",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",
   hour12:false});
 function tlParts(ts){
   const p = {};
-  for(const part of _sarajevo.formatToParts(new Date(ts))) p[part.type] = part.value;
+  for(const part of _localTz.formatToParts(new Date(ts))) p[part.type] = part.value;
   return p;
 }
 const monName = mm => (MONTHS[LANG] || MONTHS.en)[parseInt(mm, 10) - 1];
@@ -1570,11 +1584,16 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
     # distance; the page then simply omits the band rather than drawing a
     # confident line in the wrong place. `python3 -m firewatch buffer` rebuilds it.
     band = geo.load_buffer()
+    lang = place.PLACE.get("language", "en")
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(snapshot, ensure_ascii=False))
             .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":")))
             .replace("__BUFFER__", json.dumps(band, separators=(",", ":")))
-            .replace("__DATA_JS__", data_path_for(out).name))
+            .replace("__DATA_JS__", data_path_for(out).name)
+            .replace("__PLACE__", json.dumps(place.PLACE["names"], ensure_ascii=False))
+            .replace("__TITLE__", html_escape(place.name("title", lang)))
+            .replace("__LANG__", lang)
+            .replace("__TZ__", place.PLACE["timezone"]))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     write_data(snapshot, out)
