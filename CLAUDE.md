@@ -531,14 +531,17 @@ string into `data/place.json`, derives the Pages URL from `github.repository`, a
 `FORK.md`. Porting a fork-template change back to `main` is usually wrong — main is
 deliberately the concrete instance, not the template.
 
-One known gap on that branch: `setup.fetch_boundary` accepts `Polygon` *and*
-`MultiPolygon`, but `geo.boundary_ring()` reads `coordinates[0]` and assumes Polygon, so a
-MultiPolygon boundary (a country, or anything with an enclave or island) raises
-`ValueError: too many values to unpack` on every fetch path through `geo.bbox_padded`. Per-
-source isolation swallows it: all three feeds report `[FAIL]`, the cycle still exits 0 and
-renders a correct-looking map that will never show a fire. Verified 2026-09-05 against
-`Bosna i Hercegovina` (OSM relation 2528142, 2 parts). `Općina Trnovo` is a plain Polygon
-and runs clean, which is why municipality-scale forks do not hit it.
+**A boundary can arrive as several rings, and `geo.py` is the only thing that knows it.**
+Nominatim returns a MultiPolygon for anything with an enclave, an exclave or an island - a
+country, some counties - and `geo.boundary_rings()` flattens every ring of every part,
+holes included, because the even-odd containment test toggles per crossing. Read one ring
+and the rest of the place silently stops existing. The older `boundary_ring()` did exactly
+that (`coordinates[0]`, which for a MultiPolygon is a whole polygon) and the ValueError it
+raised came from inside `bbox_padded()` - so all three feeds reported `[FAIL]`, per-source
+isolation swallowed it, the cycle exited 0, and the map rendered correctly and stayed empty
+for ever. Fixed on both branches 2026-09-05, found against `Bosna i Hercegovina` (OSM
+relation 2528142, 2 parts). A municipality is one polygon, so nothing at that scale ever
+exercised it.
 
 ## Repo conventions
 
