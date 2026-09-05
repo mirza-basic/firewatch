@@ -118,7 +118,7 @@ jobs:
             for attempt in 1 2 3; do
               if git push 2>/dev/null; then pushed=1; break; fi
               echo "push rejected (attempt $attempt), rebasing onto origin/main"
-              git pull --rebase --autostash -q origin main || break
+              git pull --rebase --autostash -q origin "${{ github.ref_name }}" || break
             done
             if [ "$pushed" -ne 1 ]; then
               echo "::error::could not push state - the next run may re-alert on the same fire"

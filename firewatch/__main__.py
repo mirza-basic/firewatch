@@ -282,7 +282,17 @@ def cmd_sms_status() -> int:
     print(f"  api key      : {'found' if sms_mod.api_key() else 'not found'}")
     print(f"  alert kinds  : {', '.join(CFG['sms_kinds'])}")
     print(f"  max chars    : {CFG['sms_max_chars']}")
-    print(f"  map url      : {sms_mod.map_url() or '(map not published)'}\n")
+    print(f"  map url      : {sms_mod.map_url() or '(map not published)'}")
+    # How close the longest alert this place can produce comes to spilling into a
+    # second segment. The URL is part of the message, so a longer settlement name or
+    # a longer published URL spends this headroom without anyone deciding to.
+    w = sms_mod.worst_case()
+    fit = "fits" if w["segments"] == 1 else f"COSTS {w['segments']} SEGMENTS"
+    print(f"  worst alert  : {w['chars']} chars, {w['headroom']} to spare - {fit}"
+          f"  (lang {w['language']}, {w['kind']}, \"{w['place']}\")")
+    if w["headroom"] < 0:
+        print("                 shorten FIREWATCH_PUBLIC_URL, or accept two segments")
+    print()
     return 0
 
 

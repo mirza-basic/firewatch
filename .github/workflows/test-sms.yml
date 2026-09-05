@@ -60,6 +60,12 @@ jobs:
           print(f"sender set  : {bool(sms.sender())}")
           print(f"map link    : {sms.map_url()}")
           print(f"cost        : {len(text)} chars, {sms.segments(text)} segment(s)")
+          # The longest alert this place can produce, with this repository's URL
+          # in it. The link is part of the message, so a longer settlement name or
+          # a longer URL spends the headroom that keeps an alert in one segment.
+          w = sms.worst_case()
+          print(f"worst alert : {w['chars']} chars, {w['segments']} segment(s),"
+                f" {w['headroom']} to spare  [{w['kind']}, \"{w['place']}\"]")
           print("---- message ----")
           print(text)
           print("-----------------")
