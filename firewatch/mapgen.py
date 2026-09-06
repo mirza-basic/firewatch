@@ -125,6 +125,7 @@ TEMPLATE = r"""<!doctype html>
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.7}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
   .legend-toggle{display:none}
+  .leaflet-bar a.eye{display:flex;align-items:center;justify-content:center}
   .imgnote{background:rgba(21,26,33,.94);padding:6px 10px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.5;
     max-width:230px}
@@ -336,6 +337,7 @@ const I18N = {
     animate:"Animate", pause:"Pause", speed:"Playback speed",
     step:"Timeline step", u_min:"min", u_hour:"hour", u_day:"day", u_week:"week",
     zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain",
+    hideFires:"Hide fire markers", showFires:"Show fire markers",
     imFire:"Meteosat fire temperature", imGeo:"Meteosat GeoColour",
     imTrue:"Meteosat true colour", imHrfi:"Meteosat visible 0.6 km",
     imIr:"Meteosat thermal IR", imViirs:"VIIRS true colour 250 m",
@@ -388,6 +390,7 @@ const I18N = {
     animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
     step:"Korak vremenske ose", u_min:"min", u_hour:"sat", u_day:"dan", u_week:"sedm.",
     zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren",
+    hideFires:"Sakrij oznake požara", showFires:"Prikaži oznake požara",
     imFire:"Meteosat temperatura vatre", imGeo:"Meteosat GeoColour",
     imTrue:"Meteosat prave boje", imHrfi:"Meteosat vidljivi 0,6 km",
     imIr:"Meteosat termalni IR", imViirs:"VIIRS prave boje 250 m",
@@ -871,6 +874,69 @@ const detLayer = L.layerGroup().addTo(map);
 const evLayer  = L.layerGroup().addTo(map);
 const trail    = L.layerGroup().addTo(map);
 let selected = null;
+
+// Hide every fire graphic, so the imagery underneath can be read. The markers
+// are drawn to be impossible to miss - a pulsing ring, a footprint circle and a
+// halo per event - which is right until you have put a 250 m satellite frame
+// under them and want to look at the smoke.
+//
+// It removes the three *groups* from the map rather than clearing them or
+// hiding a pane. drawEvents() and drawDets() rebuild their contents from
+// scratch every refresh and on every zoom; clearing would last until the next
+// tick, and a detached group keeps accepting children that simply are not
+// shown, so the state survives without any of the draw paths knowing about it.
+// The sidebar list deliberately stays - hiding the map graphics should not cost
+// you the answer to "what is burning".
+//
+// Deliberately *not* remembered, unlike the language choice. Hiding the markers
+// is a momentary "let me look under them", not a preference, and this is a fire
+// monitor: a reload or a cycle that brings a new fire must not deliver it
+// invisibly. So the state resets to visible on load and whenever fresh data
+// lands - see applyData.
+let markersOn = true;
+
+function applyMarkers(){
+  [evLayer, detLayer, trail].forEach(g => {
+    if(markersOn) { if(!map.hasLayer(g)) g.addTo(map); }
+    else if(map.hasLayer(g)) map.removeLayer(g);
+  });
+  if(eyeEl){
+    eyeEl.innerHTML = markersOn ? EYE_ON : EYE_OFF;
+    eyeEl.title = t(markersOn ? "hideFires" : "showFires");
+    eyeEl.setAttribute("aria-pressed", markersOn ? "false" : "true");
+  }
+}
+
+// Inline SVG rather than an emoji: there is no eye-with-a-slash emoji that
+// renders the same way across platforms, and the pair has to read as one
+// control in two states.
+const EYE_ON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M1.6 12S5.3 5 12 5s10.4 7 10.4 7-3.7 7-10.4 7S1.6 12 1.6 12z"/>' +
+  '<circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M9.9 5.2A9.8 9.8 0 0 1 12 5c6.7 0 10.4 7 10.4 7a18 18 0 0 1-3.2 4.1"/>' +
+  '<path d="M6.4 6.5A17.6 17.6 0 0 0 1.6 12S5.3 19 12 19a9.9 9.9 0 0 0 4.2-.9"/>' +
+  '<path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>';
+
+let eyeEl = null;
+const eyeBtn = L.control({position:"topleft"});
+eyeBtn.onAdd = () => {
+  const d = L.DomUtil.create("div","leaflet-bar");
+  eyeEl = L.DomUtil.create("a","eye",d);
+  eyeEl.href = "#";
+  eyeEl.setAttribute("role","button");
+  L.DomEvent.on(eyeEl,"click",e => {
+    L.DomEvent.preventDefault(e);
+    L.DomEvent.stopPropagation(e);
+    markersOn = !markersOn;
+    applyMarkers();
+  });
+  applyMarkers();
+  return d;
+};
+eyeBtn.addTo(map);
 
 const MONTHS = {
   en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
@@ -1767,6 +1833,7 @@ function rebuildControls(){
     {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
     {position:"topright"}).addTo(map);
   zoomBtn.remove(); zoomBtn.addTo(map);
+  eyeBtn.remove(); eyeBtn.addTo(map);
   imgCtl.remove(); imgCtl.addTo(map);
   syncImagery(sliderTime());
   mCtl.remove(); mCtl.addTo(map);
@@ -1817,6 +1884,10 @@ function applyData(d){
   if(d.generated_at === DATA.generated_at) return false;   // nothing new
   const at = sliderTime();                                 // remember the moment shown
   DATA = d;
+  // Past the generated_at guard above, so this is genuinely new data - never a
+  // quiet cycle. Markers come back on: whatever the reader was looking at
+  // underneath, a fire that has just changed outranks it.
+  if(!markersOn){ markersOn = true; applyMarkers(); }
   // A new scene can arrive with any refresh. s2Sync rebuilds the layer control
   // when it does, which is safe here only because it never touches the view -
   // no fitBounds, no setView, no flyTo.
@@ -1827,7 +1898,7 @@ function applyData(d){
   renderRange(); renderHeader(); drawEvents(); renderList();
   setSliderTime(at);
   drawDets(sliderTime());
-  if(wasOpen && markerById[wasOpen]){
+  if(wasOpen && markersOn && markerById[wasOpen]){
     // openPopup() auto-pans to fit the popup, which would nudge the view the
     // reader chose. Suppress it for this programmatic restore only - a popup the
     // reader opens by clicking still pans normally.

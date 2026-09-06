@@ -103,6 +103,22 @@ roughly 5 MW, so a fire can go `quiet` on schedule while burning unchanged. That
 why `extinguished` is informational and silent — it is news about the feed, not about
 the forest.
 
+**The eye button detaches the three marker groups, it does not clear them.**
+`drawEvents` and `drawDets` rebuild their contents on every refresh, zoom and
+range change, so clearing would last until the next tick; a `LayerGroup` removed
+from the map keeps accepting children that are simply not drawn, which is why the
+hidden state survives without any draw path knowing about it. The one thing that
+does need to know is the popup restore in `applyData` - `openPopup()` on a
+detached marker is a no-op, so it is gated on the toggle.
+
+**Hidden is not a preference and is deliberately not persisted.** It resets on
+load and whenever `applyData` accepts fresh data, because a cycle that brings a
+new fire must not deliver it invisibly. The reset sits *after* the
+`generated_at` guard, so a quiet cycle - which is most of them, once a minute -
+leaves the reader's view alone. Persisting it in `localStorage` next to
+`fw_lang` is the obvious move and the wrong one: it would let someone hide the
+markers, close the tab, and reopen a map that never shows a fire again.
+
 The map opens in **Bosnian**, unconditionally — there is no `navigator.language`
 sniff. A reader's own choice wins: the EN/BS toggle writes `fw_lang` to
 `localStorage` and that is checked first, so switching to English is remembered per

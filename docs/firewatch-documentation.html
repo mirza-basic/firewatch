@@ -1128,6 +1128,16 @@ terrain puts the fire, its smoke plume and the ground it is burning in a single
 frame. It works because Fire Temperature RGB is black everywhere except the
 fire, so it is blended rather than laid over: the blend can only lighten, and
 therefore cannot hide the imagery beneath it.</p>
+<p>An eye button on the left hides every fire graphic at once &mdash; event
+circles, footprints, detection dots and the trail &mdash; because the markers are
+drawn to be impossible to miss, which is exactly wrong once you have put a
+satellite frame underneath and want to look at the smoke. The sidebar list stays
+either way, so hiding the map graphics never costs you the answer to what is
+burning. It is deliberately not remembered: reloading the page brings the
+markers back, and so does any cycle that carries new data. Hiding them is a
+momentary look underneath, not a preference &mdash; on a fire monitor, a fire
+that has just changed outranks whatever you were studying beneath it. A cycle
+that finds nothing new leaves your view alone.</p>
 <p>Sentinel-2 is the one tier rendered on this side rather than in your browser,
 and needs a free Copernicus account. Sentinel Hub takes its credential as an
 instance id <em>in the URL</em>, so a browser-side layer would publish a
