@@ -31,6 +31,8 @@ python3 -m firewatch serve [host:port] [--no-poll]   # poll + serve the map over
 python3 -m firewatch backfill [days]  # deep history fetch (default 30, ~5 min)
 python3 -m firewatch history [n]      # raw detections from SQLite
 python3 -m firewatch quota            # FIRMS transaction usage (free call)
+python3 -m firewatch imagery [--force]   # render the newest Sentinel-2 scene
+python3 -m firewatch set-cdse-key       # store a Copernicus client in the Keychain
 python3 -m firewatch test-notify
 
 # tests
@@ -72,6 +74,7 @@ geo.py       clip to the real municipality polygon (+2 km buffer → "nearby")
 store.py     INSERT OR IGNORE by uid → returns ONLY never-seen detections
 events.py    cluster detections into fire events (single linkage, 3.5 km / 8 h)
 enrich.py    nearest settlement, wind, spread risk (active events only)
+imagery.py   newest Sentinel-2 scene; renders one PNG per *new* scene only
 events.diff  compare with stored events → alert records
 notify.py    deliver, rate-limited per (event, kind)
              then write snapshot.json + regenerate fire-map.html
@@ -255,6 +258,149 @@ These all cost real debugging time. Most are silent failures.
     reported first, 2.4-3.7 h earlier and from `reignited` to `new`, for one fewer
     SMS. Below a feed's latency, that feed can only ever alert when it lands on the
     fast half of its distribution.
+
+## Satellite imagery on the map
+
+The three basemaps are all archival - Esri World Imagery is months to years old -
+so none of them can show a fire that is burning. Three tiers of real imagery sit
+in the layer control, and the ordering is counter-intuitive: **the fast layer is
+the coarse one.**
+
+| Tier | Source | Key? | Resolution here | Cadence |
+|---|---|---|---|---|
+| Meteosat MTG | `view.eumetsat.int/geoserver/wms` | none | ~1.7 × 1.3 km | 10 min, ~25 min behind |
+| VIIRS / HLS | `gibs.earthdata.nasa.gov` WMTS | none | 250 m / 30 m | daily, 4-5 h behind |
+| Sentinel-2 | CDSE Sentinel Hub | **yes** | ~11 m | ~2-3 days here |
+
+The first two are fetched by the reader's browser from keyless services and add
+no dependency. Note the WMS host is the *same GeoServer* `sources.py` already
+polls for FRP features - the imagery was one query away the whole time.
+
+**What you can actually see is smoke, not flame.** Measured against the real
+2026-09-05 event at 44.354/18.225 (FIRMS 3.7 + 5.3 MW, Sentinel-3 15.4 + 16.5 MW):
+the VIIRS 250 m true-colour frame showed a clear grey plume drifting SE, while
+the VIIRS SWIR fire-band combo - the one documented to saturate red on sub-pixel
+flame - showed *nothing*. At this municipality's fire sizes the plume is the
+signal. `mtg_fd:rgb_firetemperature` is the exception: it rendered two
+unmistakable red hotspots at 20:40Z that evening.
+
+Zavidovići sits at a ~54° viewing zenith from 0°E, so `1/cos θ ≈ 1.7` inflates
+every MTG figure: FDHSI solar 1 km → ~1.7 × 1.3 km, thermal 2 km → ~3.4 × 2.6 km.
+That last number is an independent justification for `cluster_radius_km = 3.5`.
+
+**Sentinel-2 is rendered here and published as a picture, never as a tile layer**
+(`imagery.py`). Sentinel Hub takes its credential as an *instance id in the URL
+path*, so a browser-side layer would write a quota-bearing credential into
+`fire-map.html` - a file this repo publishes to GitHub Pages and through ngrok.
+There is no keyless form; a made-up instance id answers 400. Server-side
+rendering is also the only shape that works on Pages, where there is nothing to
+proxy through. The catalogue half *is* keyless (CDSE OData), which is why the
+"is there a new scene?" question is asked every cycle and the pixels are bought
+only when the answer changes.
+
+**There is no usable Sentinel-3 imagery layer**, which is worth writing down
+because the capabilities document strongly implies otherwise. Checked
+2026-09-06: GIBS carries **zero** Sentinel-3 imagery (only orbit tracks).
+`copernicus:sentinel3a/b_olci_l1_rgb_fullres` return a blank frame - mean 255,
+standard deviation 0 - at every time tried, and their advertised abstract is the
+*Meteosat FCI* one ("cannot be made directly from FCI because it lacks a Green
+band") carrying a 10-minute cadence that no polar orbiter has. Only
+`copernicus:daily_sentinel3ab_olci_l1_rgb_fulres` has real pixels, and measuring
+its repeated scanlines puts it at **~650 m per source pixel**, so it is strictly
+worse than the VIIRS 250 m layer already on the map and, being a daily composite,
+adds no time diversity either. `copernicus:sentinel_slstr_frp` answers
+**`LayerNotDefined`** on every endpoint despite being advertised, and
+`copernicus:sentinel3a_slstr_level2_frp` returns near-empty tiles with a time
+dimension stuck at 2026-06-11. Even a working FRP layer would only redraw, as a
+picture, the Sentinel-3 detections the map already plots as real points with FRP
+values from the WFS feed. **Treat this server's capabilities as advertising, not
+as fact - measure the pixels.**
+
+A keyless 10 m route does exist if the credential ever becomes unwelcome:
+Element84 Earth Search STAC plus the unsigned, non-requester-pays
+`sentinel-cogs` bucket. It costs a real imaging dependency - parsing TIFF tile
+offsets and inflating DEFLATE - which is why it was not taken.
+
+## Landmines: imagery
+
+18. **EUMETView answers a bad `time` with HTTP 200 and `text/xml`.** An
+    out-of-archive timestamp returns `ServiceException code="InvalidDimensionValue"`
+    in ~470 bytes; Leaflet draws nothing and the reader sees a blank map with no
+    error anywhere. Third instance of this project's 200-means-nothing-wrong
+    trap, after landmines 3 and 5.
+19. **`rgb_truecolour` and `vis06_hrfi` need *two* separate guards, and
+    conflating them gets both wrong.** They have a daily publication hole from
+    00:00Z to 01:50Z, first frame at 02:00Z, reproduced on two separate days -
+    while capabilities advertise an unbroken `PT10M` series. Ask inside it and
+    you get the landmine-18 exception. **That hole is not darkness**: the same
+    layers answer 200 at 20:00Z and 22:00Z with the sun 27-38° below the
+    horizon. So `dayFrom` (minutes into the UTC day) handles availability.
+
+    But those night frames are *useless*, and in two different disguises:
+    `rgb_truecolour` returns a **fully transparent** tile, so the reader sees
+    the basemap and assumes the layer never loaded, while `vis06_hrfi` returns
+    an **opaque black rectangle**. Neither is an error. Hence `needsSun` and a
+    solar-elevation test, measured against pixel brightness: at +7.5° the frame
+    reads 31/255 mean, at +2.2° it is 1.0, below the horizon it is blank - so
+    the cutoff is `SUN_MIN_DEG = 3`, above the horizon rather than on it.
+
+    **Only the geostationary visible layers carry `needsSun`.** The GIBS layers
+    are daily composites built from a daytime overpass, so they are perfectly
+    readable at midnight; flagging them would be wrong. And the sun test must
+    run on the *live* branch too - the default view is the live edge, so a
+    layer useless right now is the first one the reader meets.
+20. **Never send `exceptions=`.** Any value - `se_xml`, `se_inimage`,
+    `se_blank` - makes their proxy answer **502 with an empty body**, so the
+    usual OGC trick of requesting a transparent error tile makes it worse.
+21. **Omitting `time` returns the newest frame** - byte-identical to
+    `time=current` - and an off-grid time snaps to nearest (`12:03` returned the
+    `12:00` bytes). So "latest" needs no GetCapabilities, which matters: that
+    document is 282 KB. Do **not** derive "latest" from the capabilities
+    `default` either - it read 14:00Z at 14:30 wall clock while 15:30Z answered
+    at 15:37.
+22. **A GIBS tile past its own `Level` is HTTP 400 XML, not a blank tile.**
+    `maxNativeZoom` is load-bearing, not an optimisation: without it the layer
+    vanishes the moment the reader zooms past z9.
+23. **Sub-daily `TIME` is silently ignored** by GIBS and Worldview daily
+    composites - `2026-09-05`, `…T11:49Z` and `…T20:49Z` return identical bytes.
+    Only the Meteosat tier is genuinely sub-daily.
+24. **The Sentinel-2 render is requested in EPSG:3857, not 4326.**
+    `L.imageOverlay` stretches its image linearly between two *projected*
+    corners, so an equirectangular image drifts vertically against the basemap -
+    a few hundred metres here, enough to put a fire on the wrong side of a ridge.
+25. **`imagery.py` writes to `SUPPORT_DIR`, never straight to `PUBLIC_DIR`.**
+    `PUBLIC_DIR` existing is exactly what `sync_public` reads as "the user asked
+    for this to be published", so creating it to hold a picture would quietly
+    start publishing the map. `sync_public` copies a **fixed file list**, so the
+    PNG had to be added to it - miss that and the local `file://` map looks
+    perfect while the published one, the URL in every SMS, shows an empty layer.
+26. **An empty GIBS day is an HTTP error per tile, not a blank tile.** HLS
+    revisits every ~5 days and lands days later, so "today" is normally empty
+    and every tile 400s. There is no way to know in advance, so the layer
+    listens for Leaflet's `tileerror` and reports it; `tileload` clears the
+    flag. The layers are also seeded with today's date rather than a
+    placeholder, because Leaflet starts fetching the moment a layer is added -
+    before the handler sets the real date - and a placeholder's errors would
+    land afterwards and raise a false "no scene" note.
+27. **Imagery exclusivity is per *group*, in code, not by Leaflet.** Base
+    layers get exclusivity and overlays get none, so `overlayadd` does it by
+    hand - but only within a group. `grp:"vis"` layers are alternatives;
+    `grp:"hot"` (Fire Temperature) stacks on top of any one of them, and
+    Sentinel-2 competes for the `vis` slot like any other visible layer rather
+    than clearing the map. Unavailable moments drop opacity to 0 rather than
+    removing the layer, because removing it fires `overlayremove`, unticks the
+    reader's own checkbox and loses the selection.
+28. **The thermal layer composites with `mix-blend-mode:screen`, and that is
+    load-bearing rather than decorative.** Fire Temperature RGB is near-black
+    everywhere except the fire - mean 3.4 of 255 over this municipality - so
+    screen discards its background entirely and leaves only the hot pixels on
+    top of the visible layer. Two useful consequences: **screen can only
+    lighten**, so the blended layer physically cannot obscure the imagery
+    underneath, which is exactly what stacking two rasters at 85% opacity does;
+    and a blended layer must run at **opacity 1**, because dimming it only dims
+    the hotspots - the background it contributes is already black. It lives in
+    its own pane (`imageryHot`, z-index 260) above `imagery` (250). A browser
+    that ignored `mix-blend-mode` would render it opaquely: ugly, not wrong.
 
 ## Landmine: FIRMS from a CI runner
 
@@ -477,8 +623,9 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
 ## State and configuration
 
 - `~/Library/Application Support/FireWatch/` — `firewatch.db` (SQLite: `detections`,
-  `events`, `notified`, `meta`), `snapshot.json`, `fire-map.html`, `firewatch.log`,
-  `stdout/stderr.log`.
+  `events`, `notified`, `meta`), `snapshot.json`, `fire-map.html`, `fire-s2.png`,
+  `firewatch.log`, `stdout/stderr.log`. The last rendered Sentinel-2 scene date
+  lives in `meta` under `imagery_s2`, which is what gates a re-render.
 - `~/Library/Caches/FireWatch/public/` — the only directory ever exposed publicly.
   Rewritten from the snapshot every cycle, so losing it costs nothing. It is *not*
   under Application Support, for the reason in landmine 12.
@@ -497,6 +644,15 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   instead of counting it down - otherwise an install deliberately running without
   FIRMS would report 503 for ever. Meteosat and Sentinel-3 need no credentials, so
   two of three feeds keep working.
+- **The Copernicus client resolves the same way**, through `cdse_credentials()`:
+  `CDSE_CLIENT` (`"<id>:<secret>"`) or `CDSE_CLIENT_ID`/`CDSE_CLIENT_SECRET` in the
+  environment, then the Keychain (service `firewatch-cdse`, set by `set-cdse-key`).
+  Never `config.json`. Both halves live in **one** Keychain item because `security`
+  holds one password per service, and splitting them would let an install pair an id
+  with the wrong secret - which fails as an opaque 401 at render time, long after the
+  mistake. `secrets()` adds the raw item *and* each half separately: the combined
+  string redacts the log line that carries it, but a traceback from the token POST
+  carries the **secret alone**, and only the split covers that.
 - `quota` prints the last four characters and the source, never the key.
   `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` uses it too.
 - **On macOS the key belongs in the Keychain, not the environment.** `launchd` does not
@@ -549,6 +705,10 @@ exercised it.
   `fire-detection-bih.sh` are standalone shell leftovers and
   `fire-detection-requraments` the hand-written spec — read them for context, leave
   them alone rather than extending them.
+- **A new map label needs both `I18N.en` and `I18N.bs`** or `t()` silently falls
+  back to the raw key and the reader sees `imFire` in the layer control. The layer
+  control itself is now built from one `overlays()` function, so it survives the
+  language-switch rebuild without a second edit - but the dictionaries are still two.
 - `docs/*.html` are self-contained documentation pages, also published as Claude
   artifacts. Update them when behaviour changes — particularly the "field notes" and
   "landmines" content, which is the part that goes stale invisibly.

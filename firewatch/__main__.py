@@ -13,6 +13,8 @@
     python3 -m firewatch serve [host:port] [--no-poll]   poll + serve the map over HTTP
     python3 -m firewatch quota       FIRMS transaction usage + which key is in use
     python3 -m firewatch set-firms-key  store a FIRMS key in the Keychain
+    python3 -m firewatch set-cdse-key   store a Copernicus client in the Keychain
+    python3 -m firewatch imagery [--force]  render the latest Sentinel-2 scene
     python3 -m firewatch expose      publish the map via ngrok, print the URL
     python3 -m firewatch unexpose    stop publishing (other tunnels untouched)
     python3 -m firewatch expose-status
@@ -36,7 +38,7 @@ from . import events as ev_mod
 from . import expose as expose_mod
 from . import sms as sms_mod
 from . import mapgen, notify, poller, sources, store
-from .config import CFG, MAP_PATH, SNAPSHOT_PATH
+from .config import CFG, MAP_PATH, SNAPSHOT_PATH, cdse_credentials
 
 
 def _print_snapshot(snap: dict, rng: str | None = None) -> None:
@@ -240,6 +242,70 @@ def cmd_set_firms_key() -> int:
     if source != "keychain":
         print("  note: something earlier in the order still wins"
               " (FIRMS_MAP_KEY in the environment)")
+    return 0
+
+
+def cmd_set_cdse_key() -> int:
+    """Store a Copernicus Data Space OAuth client in the Keychain.
+
+    Two values, one item: `security` holds a single password per service, and
+    keeping the halves in separate items would let an install end up with an id
+    from one client and a secret from another - which fails at render time with
+    an opaque 401, long after the mistake.
+    """
+    import getpass
+    import shutil
+    import subprocess
+
+    from .config import CDSE_KEYCHAIN_SERVICE, CDSE_SIGNUP_URL, cdse_credentials
+    if not shutil.which("security"):
+        print("  no macOS Keychain here - set CDSE_CLIENT='<id>:<secret>' in the"
+              " environment instead (systemd EnvironmentFile, or docker -e)")
+        return 1
+    print(f"  register a client at {CDSE_SIGNUP_URL}")
+    cid = input("  client id: ").strip()
+    sec = getpass.getpass("  client secret (not echoed): ").strip()
+    if not cid or not sec:
+        print("  need both halves")
+        return 1
+    r = subprocess.run(["security", "add-generic-password", "-U",
+                        "-a", "firewatch", "-s", CDSE_KEYCHAIN_SERVICE,
+                        "-w", f"{cid}:{sec}"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  keychain write failed: {r.stderr.strip()[:200]}")
+        return 1
+    _, _, source = cdse_credentials()
+    print(f"  stored. now resolving from: {source}")
+    if not CFG.get("imagery_s2_enabled"):
+        print("  note: imagery_s2_enabled is off, so nothing will render yet -"
+              " set it to true in config.json and restart")
+    return 0
+
+
+def cmd_imagery(force: bool = False) -> int:
+    """Look for a new Sentinel-2 scene, and render it if there is one."""
+    from . import imagery, store
+    scene = imagery.latest_scene()
+    if not scene:
+        print("  no usable Sentinel-2 scene found (catalogue empty, or all too cloudy)")
+        return 1
+    print(f"  newest scene: {scene['day']}  cloud {scene['cloud']}%  {scene['name'][:44]}")
+    if not CFG.get("imagery_s2_enabled"):
+        print("  imagery_s2_enabled is off - not rendering")
+        return 1
+    cid, _sec, src = cdse_credentials()
+    if not cid:
+        print(f"  no Copernicus credentials ({src}) - run `set-cdse-key`")
+        return 1
+    con = store.connect()
+    try:
+        rec = imagery.refresh(con, force=force)
+    finally:
+        con.close()
+    if not rec:
+        print("  render failed - see the log")
+        return 1
+    print(f"  {rec['day']}  {rec['px'][0]}x{rec['px'][1]} px  -> {rec['file']}")
     return 0
 
 
@@ -582,6 +648,10 @@ def main(argv: list[str]) -> int:
         return cmd_serve(argv[1:])
     if cmd == "buffer":
         return cmd_buffer(float(argv[1]) if len(argv) > 1 else None)
+    if cmd in ("set-cdse-key", "setcdsekey"):
+        return cmd_set_cdse_key()
+    if cmd == "imagery":
+        return cmd_imagery(force="--force" in argv)
     if cmd in ("set-firms-key", "setfirmskey"):
         return cmd_set_firms_key()
     if cmd == "quota":

@@ -528,7 +528,9 @@ the total:</p>
   Bosnia at 18&deg;E is not in its field of view; five days of queries returned zero
   rows. <strong>MSG</strong> (<code>msg_fes:fire</code>, 15 min) does cover Europe and
   is available as a WMS layer, but WMS returns pictures rather than queryable
-  features, and MTG already supersedes it.</p>
+  features, and MTG already supersedes it. That objection holds for
+  <em>detection</em> and only for detection &mdash; pictures are exactly what you
+  want once a fire is known, which is what the imagery layers on the map are for.</p>
 </div>
 
 <!-- ==================== 3 ==================== -->
@@ -1091,6 +1093,47 @@ with a double-click, <kbd>Enter</kbd> or <em>Done</em>; <kbd>Backspace</kbd> dro
 the last point and <kbd>Esc</kbd> puts the tool away. Measurements live in their
 own map pane, so the 60-second refresh &mdash; which rebuilds every fire layer from
 scratch &mdash; leaves them standing.</p>
+
+<p><strong>Satellite imagery.</strong> The three basemaps are all archival &mdash;
+Esri World Imagery is months to years old &mdash; so none of them can show a fire
+that is burning. Three tiers of live imagery sit in the layer control, and the
+ordering is counter-intuitive: <strong>the fast layer is the coarse
+one</strong>. Meteosat lands every 10 minutes at ~1.7 &times; 1.3 km here; NASA
+GIBS gives 250 m VIIRS and 30 m HLS once a day, 4&ndash;5 h behind; Sentinel-2
+gives ~11 m every 2&ndash;3 days. What you can actually see of a fire this size is
+the <em>smoke</em>, not the flame, which is why cadence beats resolution. Measured
+against the real event of 2026-09-05 at 44.354/18.225: the 250 m VIIRS frame showed
+a clear plume drifting south-east, while the VIIRS fire-band combo &mdash; the one
+meant to flag sub-pixel flame &mdash; showed nothing at all.
+<code>mtg_fd:rgb_firetemperature</code> was the exception, rendering two
+unmistakable red hotspots at 20:40Z that evening.</p>
+<p>A readout in the bottom-left names the layer and the frame you are looking at,
+because the timeline can read 12:03 while the frame is 12:00, and because a gap in
+an archive otherwise looks exactly like a clear sky. Scrubbing the timeline moves
+the Meteosat and GIBS imagery with it; Sentinel-2 is a single latest scene and says
+so. The readout also explains the two ways a layer can be present but useless. Both
+Meteosat <em>visible</em> layers go blind after sunset &mdash; true colour returns
+a transparent frame, so you would think it failed to load, and the 0.6&nbsp;km
+visible channel returns a black rectangle &mdash; so after dark they step aside
+and point you at fire temperature, which is thermal and works all night. And
+those same two layers have a daily publication hole between 00:00Z and 01:50Z,
+which is a different thing entirely: not darkness, since they answer perfectly at
+midnight local. The 30&nbsp;m layer, meanwhile, only images a given spot every
+few days, so on most dates there is simply no scene, and it says so instead of
+showing nothing.</p>
+<p>The layers are alternatives to one another with one deliberate exception:
+<strong>fire temperature stacks on top of any of them</strong>. That pairing is
+the reason the grouping exists &mdash; Meteosat hotspots composited onto VIIRS
+terrain puts the fire, its smoke plume and the ground it is burning in a single
+frame. It works because Fire Temperature RGB is black everywhere except the
+fire, so it is blended rather than laid over: the blend can only lighten, and
+therefore cannot hide the imagery beneath it.</p>
+<p>Sentinel-2 is the one tier rendered on this side rather than in your browser,
+and needs a free Copernicus account. Sentinel Hub takes its credential as an
+instance id <em>in the URL</em>, so a browser-side layer would publish a
+quota-bearing credential to everyone who opens the map. Instead the poller renders
+one image per new scene and the page places it as a georeferenced overlay. Without
+credentials the layer is simply absent; the other two tiers need none.</p>
 
 <h3>Command line</h3>
 <pre><code>python3 -m firewatch status 24h|3d|7d|30d|1y   current state for one range

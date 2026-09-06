@@ -195,6 +195,7 @@
     <li><a href="#nominatim">Nominatim</a></li>
     <li><a href="#overpass">Overpass</a></li>
     <li><a href="#tiles">Map tiles</a></li>
+    <li><a href="#imagery">Satellite imagery</a></li>
   </ul>
   <div class="grp">Cross-cutting</div>
   <ul>
@@ -717,7 +718,85 @@ out body;</pre>
 <h2 id="tiles">Map tiles <span class="tag build">browser only</span></h2>
 <p>The generated map loads Leaflet 1.9.4 from unpkg and raster tiles from
 OpenStreetMap, Esri World Imagery and OpenTopoMap. These are requested by
-<em>your browser</em> when you open the map, never by the poller.</p>
+<em>your browser</em> when you open the map, never by the poller. All three are
+<em>archival</em> — Esri World Imagery is months to years old — which is the gap
+the imagery layers below exist to fill.</p>
+
+<!-- ============ imagery ============ -->
+<h2 id="imagery">Satellite imagery <span class="tag nokey">no key</span> <span class="tag key">S2 only</span></h2>
+
+<p>Three tiers, and the ordering is counter-intuitive: <strong>the fast layer is
+the coarse one</strong>. What you can see of a fire this size is the smoke, not
+the flame, so cadence beats resolution.</p>
+
+<table>
+<thead><tr><th>Tier</th><th>Service</th><th>Key</th><th>Resolution here</th><th>Cadence</th></tr></thead>
+<tbody>
+<tr><td>Meteosat MTG</td><td>EUMETView WMS</td><td>none</td><td>~1.7 × 1.3 km</td><td>10 min, ~25 min behind</td></tr>
+<tr><td>VIIRS / HLS</td><td>NASA GIBS WMTS</td><td>none</td><td>250 m / 30 m</td><td>daily, 4–5 h behind</td></tr>
+<tr><td>Sentinel-2</td><td>CDSE Sentinel Hub</td><td><strong>yes</strong></td><td>~11 m</td><td>~2–3 days here</td></tr>
+</tbody>
+</table>
+
+<p>The first two are fetched by your browser from keyless services. The WMS host
+is the <em>same GeoServer</em> the WFS above already polls.</p>
+
+<h3>Meteosat, in the browser</h3>
+<pre><code>GET https://view.eumetsat.int/geoserver/wms
+  ?service=WMS&amp;version=1.1.1&amp;request=GetMap
+  &amp;layers=mtg_fd:rgb_firetemperature&amp;styles=
+  &amp;srs=EPSG:3857&amp;bbox=&lt;tile bbox in metres&gt;
+  &amp;width=256&amp;height=256&amp;format=image/png&amp;transparent=true
+  &amp;time=2026-09-05T20:40:00Z      <span class="cmt">omitted entirely for "latest"</span></code></pre>
+
+<p>Layers in use: <code>rgb_firetemperature</code> (active fire as a red mark,
+archive from 2025-08-05), <code>rgb_geocolour</code>, <code>rgb_truecolour</code>,
+<code>vis06_hrfi</code> (the sharpest — HRFI 0.5 km at nadir) and
+<code>ir105_hrfi</code>.</p>
+
+<p><strong>Three measured traps.</strong> Omitting <code>time</code> returns the
+newest frame, byte-identical to <code>time=current</code>, so "latest" needs no
+GetCapabilities — and you should not trust the capabilities <code>default</code>
+anyway: it read 14:00Z at 14:30 wall clock while 15:30Z answered at 15:37. An
+out-of-range time returns a <code>ServiceException</code> carrying
+<strong>HTTP 200 and <code>text/xml</code></strong>, which Leaflet renders as
+nothing at all. And <code>rgb_truecolour</code> and <code>vis06_hrfi</code> have a
+daily hole from 00:00Z to 01:50Z — a publication boundary, <em>not</em> darkness:
+both answer fine at 22:00Z with the sun 38° below the horizon. Darkness is a
+<em>separate</em> problem needing its own guard: after sunset those frames are
+valid and worthless, <code>rgb_truecolour</code> returning a fully transparent
+tile and <code>vis06_hrfi</code> an opaque black one.</p>
+
+<h3>GIBS, in the browser</h3>
+<pre><code>GET https://gibs.earthdata.nasa.gov/wmts/epsg3857/best
+  /VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/2026-09-05
+  /GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg</code></pre>
+
+<p>A tile past the layer's own <code>Level</code> is <strong>HTTP 400 XML</strong>,
+not a blank tile, so <code>maxNativeZoom</code> is load-bearing. Sub-daily
+<code>TIME</code> is silently ignored on these daily composites.</p>
+
+<h3>Sentinel-2, server-side only</h3>
+<p>Sentinel Hub takes its credential as an <em>instance id in the URL path</em>, so
+a browser-side layer would write a quota-bearing credential into
+<code>fire-map.html</code> — a file this project publishes. So the poller renders
+one PNG per new scene and the map places it with <code>L.imageOverlay</code>. The
+catalogue half is keyless, which is why the cheap question is asked every cycle
+and the expensive one only when the answer changes:</p>
+
+<pre><code><span class="cmt"># keyless: is there a new scene?</span>
+GET https://catalogue.dataspace.copernicus.eu/odata/v1/Products
+  ?$filter=Collection/Name eq 'SENTINEL-2' and contains(Name,'MSIL2A')
+    and OData.CSC.Intersects(area=geography'SRID=4326;POINT(18.15 44.45)')
+  &amp;$expand=Attributes&amp;$orderby=ContentDate/Start desc
+
+<span class="cmt"># keyed: buy the pixels</span>
+POST https://sh.dataspace.copernicus.eu/api/v1/process
+  Authorization: Bearer &lt;token from identity.dataspace.copernicus.eu&gt;</code></pre>
+
+<p>The render is requested in <strong>EPSG:3857</strong>, not 4326:
+<code>L.imageOverlay</code> stretches its image between two <em>projected</em>
+corners, so an equirectangular image drifts vertically against the basemap.</p>
 
 <!-- ============ errors ============ -->
 <h2 id="errors">Error handling</h2>
