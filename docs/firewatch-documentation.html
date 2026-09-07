@@ -1138,6 +1138,14 @@ markers back, and so does any cycle that carries new data. Hiding them is a
 momentary look underneath, not a preference &mdash; on a fire monitor, a fire
 that has just changed outranks whatever you were studying beneath it. A cycle
 that finds nothing new leaves your view alone.</p>
+<p>The basemap list carries a fourth option, <em>No basemap</em>, which draws
+nothing and leaves the near-black background. With no cartography competing, the
+fire layers are all that is left &mdash; and it reads best of all under the
+Meteosat fire temperature layer, whose blend over near-black is close to the raw
+layer, so the hotspots come through at full strength. It is a basemap choice
+rather than a checkbox because Leaflet's basemaps are a radio group: one is
+always selected, so there would otherwise be no way to untick your way to
+nothing.</p>
 <p>Sentinel-2 is the one tier rendered on this side rather than in your browser,
 and needs a free Copernicus account. Sentinel Hub takes its credential as an
 instance id <em>in the URL</em>, so a browser-side layer would publish a

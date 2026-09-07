@@ -721,6 +721,13 @@ exercised it.
   `fire-detection-bih.sh` are standalone shell leftovers and
   `fire-detection-requraments` the hand-written spec — read them for context, leave
   them alone rather than extending them.
+- **Both halves of the layer control are built by a function** - `bases()` and
+  `overlays()`. The control is destroyed and rebuilt on every language switch, and
+  the base list used to be written out at each of the two call sites, which is one
+  edit away from a base layer that vanishes the moment the reader presses BS.
+  `lNone` is an empty `L.layerGroup()`: a base layer and not a checkbox, because
+  Leaflet's base layers are a radio group, so there is no way to untick your way
+  to no basemap.
 - **A new map label needs both `I18N.en` and `I18N.bs`** or `t()` silently falls
   back to the raw key and the reader sees `imFire` in the layer control. The layer
   control itself is now built from one `overlays()` function, so it survives the

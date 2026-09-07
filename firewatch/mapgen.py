@@ -338,6 +338,7 @@ const I18N = {
     step:"Timeline step", u_min:"min", u_hour:"hour", u_day:"day", u_week:"week",
     zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain",
     hideFires:"Hide fire markers", showFires:"Show fire markers",
+    lNone:"No basemap",
     imFire:"Meteosat fire temperature", imGeo:"Meteosat GeoColour",
     imTrue:"Meteosat true colour", imHrfi:"Meteosat visible 0.6 km",
     imIr:"Meteosat thermal IR", imViirs:"VIIRS true colour 250 m",
@@ -391,6 +392,7 @@ const I18N = {
     step:"Korak vremenske ose", u_min:"min", u_hour:"sat", u_day:"dan", u_week:"sedm.",
     zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren",
     hideFires:"Sakrij oznake požara", showFires:"Prikaži oznake požara",
+    lNone:"Bez karte",
     imFire:"Meteosat temperatura vatre", imGeo:"Meteosat GeoColour",
     imTrue:"Meteosat prave boje", imHrfi:"Meteosat vidljivi 0,6 km",
     imIr:"Meteosat termalni IR", imViirs:"VIIRS prave boje 250 m",
@@ -493,6 +495,17 @@ const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Wo
 const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
   {maxZoom:17,attribution:"&copy; OpenTopoMap (CC-BY-SA)"});
 sat.addTo(map);          // satellite is the default: terrain and fuel are visible
+
+// "No basemap": an empty group, which Leaflet is happy to treat as a base layer
+// and which draws nothing at all. Selecting it leaves #map's own near-black
+// background, and that is the point - with no cartography competing, the fire
+// layers are all that is left. It reads especially well under
+// rgb_firetemperature, whose screen blend over near-black is close to the layer
+// untouched, so the hotspots come through at full strength.
+//
+// A base layer rather than a checkbox because Leaflet's base layers are a radio
+// group: one is always chosen, so there is no way to untick your way to nothing.
+const blank = L.layerGroup();
 
 // ------------------------------------------------------------------ imagery
 // All three basemaps above are archival - Esri World Imagery is months to
@@ -799,7 +812,12 @@ const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
 const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
   opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
 // A separate object each time: L.control.layers keeps a reference, so reusing one
-// across rebuilds would carry the old language's key with it.
+// across rebuilds would carry the old language's key with it. Both halves of the
+// control are built by a function for that reason - the base list used to be
+// written out at each of the two call sites, which is one edit away from a base
+// layer that disappears the moment the reader switches language.
+const bases = () => ({[t("lSat")]:sat, [t("lMap")]:osm,
+                      [t("lTopo")]:topo, [t("lNone")]:blank});
 // Imagery first, then the band: the control lists them in insertion order and
 // the imagery group is what a reader reaches for during a fire.
 const overlays = () => {
@@ -811,7 +829,7 @@ const overlays = () => {
 };
 
 let layersCtl = L.control.layers(
-  {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
+  bases(), overlays(),
   {position:"topright"}).addTo(map);
 
 // Brighter and slightly heavier than it needed to be on the pale street map -
@@ -1830,7 +1848,7 @@ function rebuildControls(){
   legend.remove(); legend.addTo(map);
   layersCtl.remove();
   layersCtl = L.control.layers(
-    {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
+    bases(), overlays(),
     {position:"topright"}).addTo(map);
   zoomBtn.remove(); zoomBtn.addTo(map);
   eyeBtn.remove(); eyeBtn.addTo(map);
