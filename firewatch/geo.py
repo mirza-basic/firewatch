@@ -151,6 +151,24 @@ def centroid(points: list[tuple[float, float]]) -> tuple[float, float]:
             sum(p[1] for p in points) / len(points))
 
 
+@lru_cache(maxsize=1)
+def forecast_point() -> tuple[float, float]:
+    """(lat, lon) to run a single-point forecast against - e.g. fire danger.
+
+    Deliberately not TOWN_LAT/TOWN_LON: that names the town itself, which is not
+    necessarily the geometric middle of the municipality around it. This is the
+    vertex-mean of the boundary outline instead, derived from whatever
+    BOUNDARY_GEOJSON is currently configured - so a fork that points that file at
+    a different place's outline moves this point with it, with nothing else to
+    update. Vertex-mean rather than a true area centroid, same approximation
+    `centroid()` already documents as fine at this scale, and for the same reason:
+    a municipality boundary traced from OSM has fairly even vertex spacing, so the
+    error against a true area centroid is well within the tens-of-kilometres grid
+    a service like EFFIS runs at anyway.
+    """
+    return centroid([(y, x) for ring in boundary_rings() for x, y in ring])
+
+
 # --------------------------------------------------------------------------- buffer
 
 @lru_cache(maxsize=1)

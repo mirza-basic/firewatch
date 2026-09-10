@@ -221,6 +221,15 @@ DEFAULTS = {
     # Skip a scene cloudier than this. Measured over 17 days here, 4 of 9 scenes
     # came in under 25% - so a stricter figure buys clarity and costs weeks.
     "imagery_s2_max_cloud": 40.0,
+    # Fire danger (Canadian FWI System), computed once or twice a day from
+    # Open-Meteo weather at geo.forecast_point() - see firedanger.py. Unlike
+    # imagery_s2 this needs no credential and costs one HTTP call a day, so it
+    # defaults on.
+    "fire_danger_enabled": True,
+    # Days of forecast shown past today, including today itself. EFFIS's own
+    # ECMWF-driven layer goes to 9; the weather forecast under it is markedly
+    # less reliable by then, so this stays below what the API would allow (16).
+    "fire_danger_forecast_days": 6,
 }
 
 # Reference point for bearings/distances: Zavidovići town centre.

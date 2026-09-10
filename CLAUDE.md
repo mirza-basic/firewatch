@@ -33,10 +33,12 @@ python3 -m firewatch history [n]      # raw detections from SQLite
 python3 -m firewatch quota            # FIRMS transaction usage (free call)
 python3 -m firewatch imagery [--force]   # render the newest Sentinel-2 scene
 python3 -m firewatch set-cdse-key       # store a Copernicus client in the Keychain
+python3 -m firewatch fire-danger [--force]  # today's + short-term Canadian FWI
 python3 -m firewatch test-notify
 
 # tests
 python3 tests_events.py               # 23 assertions, exits non-zero on failure
+python3 tests_fwi.py                  # FWI System vs. the official CFFDRS fixture
 ```
 
 `[range]` is `24h | 3d | 7d | 30d | 1y`.
@@ -49,6 +51,11 @@ no way to select a single test by name. It builds synthetic detections via a loc
 one case, comment out the others or copy the case into a scratch file. It writes to
 the real SQLite database only for the notification-cooldown case, which it cleans up
 after itself.
+
+`tests_fwi.py` is the same shape, but checks `firedanger.py`'s FWI System port
+against a fixed external ground truth rather than synthetic input: the official
+CFFDRS reference implementation's own published 48-day validation dataset. It
+makes no network calls.
 
 **The map's JavaScript has no automated tests, by decision.** `mapgen.py` emits ~1,900
 lines of JS that Python cannot reach. Testing it means jsdom + Leaflet under npm, and
@@ -418,6 +425,86 @@ offsets and inflating DEFLATE - which is why it was not taken.
     its own pane (`imageryHot`, z-index 260) above `imagery` (250). A browser
     that ignored `mix-blend-mode` would render it opaquely: ugly, not wrong.
 
+## Fire danger forecast (self-computed FWI)
+
+The three fire feeds report *detections* - something is already hot. `firedanger.py`
+answers a different question: how conducive today's weather is to fire at all,
+independent of whether one has started. It computes the Canadian Forest Fire
+Weather Index (FWI) System itself rather than calling EFFIS/GWIS, the free
+European product that already does this, for two measured reasons: EFFIS's own
+WMS (`maps.effis.emergency.copernicus.eu/effis`, layer `mf010.fwi`) is ~10 km
+resolution here - three or four flat-colored blocks across this whole
+municipality, confirmed by rendering it - and querying it for "today" returned
+an empty 200 response on two separate days while yesterday and the days on
+either side had real data, an EFFIS-side gap around the current date, not a
+sky that is briefly quiet.
+
+The six formulas (FFMC, DMC, DC, ISI, BUI, FWI) are a line-for-line port of the
+official NRCan reference implementation (`github.com/cffdrs/cffdrs_py`), not a
+reconstruction from memory. `tests_fwi.py` replays CFFDRS's own published
+48-day validation dataset (Van Wagner & Pickett 1985) through this module and
+checks every day's six outputs against the published numbers - a transcription
+mistake in a constant fails there rather than silently mis-rating a real fire
+day.
+
+**It is single-point, not spatial, and deliberately stays out of the map's
+layer control.** Danger-class colours sit in the same orange-red family as
+`SEVC` (fire severity, `mapgen.py:303`), so a colored dot on the map canvas
+would read as another fire, not a weather index. Instead it is a small panel
+next to the legend - collapsed to a one-line badge (the full "Fire danger
+today: X" phrase, not shortened) by default at every width, expanding on
+click - by reusing the exact `.legend`/`.legend-toggle`/`.legend-body` CSS
+rather than inventing a second collapse mechanism. Both panels used to stay
+permanently expanded on a desktop-sized screen and only collapse on a phone;
+that took up too much of the corner, so the collapse is now unconditional.
+`geo.forecast_point()` names one point; the panel shows a number for it, not a
+layer that implies coverage over an area it does not actually have.
+
+**Runs once, twice at most, a day - never per poll cycle.** FFMC/DMC/DC are a
+daily-timestep bookkeeping system: today's value depends on yesterday's, so
+recomputing every 4 minutes would repeat the same day's arithmetic ~140 times
+for nothing. `update()` is gated by `meta.fwi_gate` (today's date, plus whether
+local noon has passed) exactly like `imagery.refresh()` gates on scene date -
+cheap to check every cycle, rare to actually do work. It fires once for
+whichever cycle first runs after local midnight (today's entry built from
+forecast noon values, since the real noon has not happened yet) and once more
+after local noon (rebuilt from the now-actual observation) - a fetch-once-a-day
+design would otherwise show a stale, forecast-only number all afternoon.
+
+**Deliberately stateless across days.** Rather than persisting yesterday's
+FFMC/DMC/DC and bridging forward - which needs a separate cold-start path and a
+separate "gap too large to bridge" path - every run replays the *entire*
+fetched window from the standard startup values (FFMC=85, DMC=6, DC=15). One
+Open-Meteo call (`api.open-meteo.com/v1/forecast`, keyless) *asks* for
+`past_days=93`, one more than the documented 92-day cap so the earliest usable
+date still has a full 24h behind it for the rain sum. **What actually comes
+back reaches less far than that**, measured 2026-09-10: the hourly series does
+span the full 93 days, but the earliest ~28 of them have temp/RH/wind all
+`null` - real data reached back only 65 days that day, not 92. `_fetch_daily`
+already drops any date with a null reading (written for a same-day hour Open-
+Meteo hasn't filled in yet, which turned out to catch this too), so a shorter
+real window degrades gracefully - 65 days is still within the fire-science
+literature's few-months guidance for the Drought Code's memory of a wrong
+starting value to wash out - but nothing here guarantees a particular depth,
+and a day the poller was not running for still needs no special case: there is
+no stored state for it to have gone stale.
+
+**`geo.forecast_point()` is the municipality boundary's vertex-mean, not
+`TOWN_LAT`/`TOWN_LON`.** The town itself is not necessarily the geometric
+middle of the municipality around it, and this point is meant to characterise
+the whole area, the way the coarse EFFIS/GWIS grid cell would. It is derived
+from whatever `BOUNDARY_GEOJSON` is currently configured, so a fork that points
+that file at a different place's outline moves this point with it - nothing
+else to update.
+
+Config: `fire_danger_enabled` (default on - unlike `imagery_s2_enabled`, this
+needs no credential) and `fire_danger_forecast_days` (default 6, kept below
+Open-Meteo's 16-day allowance because the *weather* forecast under it, not the
+FWI arithmetic, is what gets unreliable that far out).
+
+`python3 -m firewatch fire-danger [--force]` prints today's and the forecast
+days' FWI/class without waiting for the twice-daily gate.
+
 ## Landmine: FIRMS from a CI runner
 
 Two distinct failures, both seen on GitHub Actions, both looking like "FIRMS is
@@ -641,7 +728,9 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
 - `~/Library/Application Support/FireWatch/` — `firewatch.db` (SQLite: `detections`,
   `events`, `notified`, `meta`), `snapshot.json`, `fire-map.html`, `fire-s2.png`,
   `firewatch.log`, `stdout/stderr.log`. The last rendered Sentinel-2 scene date
-  lives in `meta` under `imagery_s2`, which is what gates a re-render.
+  lives in `meta` under `imagery_s2`, which is what gates a re-render. `fwi_gate`
+  and `fwi_payload` do the same job for the fire-danger forecast - the date (plus
+  whether local noon has passed) and the last computed result.
 - `~/Library/Caches/FireWatch/public/` — the only directory ever exposed publicly.
   Rewritten from the snapshot every cycle, so losing it costs nothing. It is *not*
   under Application Support, for the reason in landmine 12.

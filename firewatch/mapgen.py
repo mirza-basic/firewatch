@@ -121,10 +121,27 @@ TEMPLATE = r"""<!doctype html>
   #unit{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
     height:26px;min-width:44px;padding:0 7px;cursor:pointer;font:inherit;font-size:11.5px}
   #speed:hover,#play:hover,#unit:hover{background:#31404f}
-  .legend{background:rgba(21,26,33,.94);padding:9px 11px;border-radius:9px;
-    border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.7}
+  /* Collapsed by default at every width, not just on a phone: the outer .legend
+     div is just a layout wrapper, and the toggle button / expanded body each
+     carry their own card styling so only one of the two is ever on screen. */
+  .legend{line-height:1.6}
+  .legend-toggle{display:block;width:100%;max-width:min(74vw,300px);text-align:left;
+    cursor:pointer;background:rgba(21,26,33,.94);border:1px solid var(--line);
+    color:var(--fg);border-radius:9px;padding:8px 13px;font:inherit;font-size:12.5px;
+    line-height:1.4;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .legend-body{display:none;background:rgba(21,26,33,.96);border:1px solid var(--line);
+    border-radius:9px;padding:10px 12px;margin-bottom:6px;width:min(74vw,300px);
+    max-height:46dvh;overflow-y:auto;color:var(--dim);font-size:11.5px;line-height:1.7;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .legend.open .legend-body{display:block}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-  .legend-toggle{display:none}
+  /* Fire-danger panel reuses the .legend/.legend-toggle/.legend-body shell above -
+     same collapse behaviour at every width, same look - and adds only its own rows. */
+  .fwiPanel{margin-top:8px}
+  .fwi-badge{font-weight:600;color:var(--fg)}
+  .fwi-row{display:flex;justify-content:space-between;gap:14px}
+  .fwi-row+.fwi-row{margin-top:1px}
+  .fwi-codes,.fwi-note{opacity:.65;margin-top:6px;font-size:10.5px;line-height:1.5}
   .leaflet-bar a.eye{display:flex;align-items:center;justify-content:center}
   .imgnote{background:rgba(21,26,33,.94);padding:6px 10px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.5;
@@ -179,9 +196,15 @@ TEMPLATE = r"""<!doctype html>
     color:var(--fg);border-radius:6px;padding:4px 9px;font:inherit;font-size:11.5px;
     cursor:pointer}
   .mpop button:hover{background:#31404f}
-  #langsw{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:1250;
-    display:flex;gap:2px;padding:2px;border-radius:9px;border:1px solid var(--line);
-    background:rgba(21,26,33,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  /* Centred over #map, not the viewport: #side docks at a fixed 370px on desktop,
+     so viewport-centre (50vw) sits 185px left of the map's own visual centre. On
+     a phone #side is an off-canvas overlay that takes no layout width, so #map
+     already spans the full viewport and plain 50vw is correct there - restored
+     in the mobile media query below. */
+  #langsw{position:fixed;top:10px;left:calc(50vw + 185px);transform:translateX(-50%);
+    z-index:1250;display:flex;gap:2px;padding:2px;border-radius:9px;
+    border:1px solid var(--line);background:rgba(21,26,33,.94);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
   #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
@@ -202,6 +225,9 @@ TEMPLATE = r"""<!doctype html>
       transition:transform .26s ease;box-shadow:0 0 42px rgba(0,0,0,.55)}
     #side.open{transform:none}
     #map{flex:1 1 auto;min-height:0}
+    /* #side is an off-canvas overlay here, not docked, so #map already spans the
+       full viewport width - the desktop offset above would be wrong here. */
+    #langsw{left:50%}
     #drawer-btn{display:flex;align-items:center;gap:7px;position:fixed;top:10px;left:10px;
       z-index:1300;background:rgba(21,26,33,.95);color:var(--fg);border:1px solid var(--line);
       border-radius:9px;padding:9px 12px;font:inherit;font-size:14px;cursor:pointer;
@@ -239,16 +265,6 @@ TEMPLATE = r"""<!doctype html>
       margin-bottom:calc(124px + env(safe-area-inset-bottom, 0px))}
     /* attribution must stay visible, but it can be smaller on a phone */
     .leaflet-control-attribution{font-size:9.5px;padding:1px 5px}
-    .legend{background:none;border:0;padding:0;line-height:1.6}
-    .legend-toggle{display:block;width:100%;text-align:left;cursor:pointer;
-      background:rgba(21,26,33,.94);border:1px solid var(--line);color:var(--fg);
-      border-radius:9px;padding:8px 13px;font:inherit;font-size:12.5px;
-      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-    .legend-body{display:none;background:rgba(21,26,33,.96);border:1px solid var(--line);
-      border-radius:9px;padding:10px 12px;margin-bottom:6px;max-width:74vw;
-      max-height:46dvh;overflow-y:auto;
-      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-    .legend.open .legend-body{display:block}
   }
   @media (prefers-reduced-motion:reduce){#side,#backdrop{transition:none}}
 </style></head><body>
@@ -357,7 +373,14 @@ const I18N = {
     m_done:"Done", m_undo:"Undo", m_close:"Close", m_remove:"Remove",
     m_perimeter:"perimeter",
     lBuffer:"{km} km buffer", legZone:"Watched area",
-    zoneNote:"kept, flagged nearby"
+    zoneNote:"kept, flagged nearby",
+    fwTitle:"Fire danger", fwBadge:"Fire danger today: {cls}", fwToday:"Today",
+    fwLow:"Low", fwModerate:"Moderate", fwHigh:"High", fwVeryHigh:"Very High",
+    fwExtreme:"Extreme", fwVeryExtreme:"Very Extreme",
+    fwNote:"Canadian Fire Weather Index, from Open-Meteo weather at the "+
+      "municipality centre — not a satellite reading. Forecast beyond a "+
+      "few days grows less reliable.",
+    fwUpdated:"updated {t}"
   },
   bs: {
     sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
@@ -411,7 +434,15 @@ const I18N = {
     m_done:"Gotovo", m_undo:"Vrati", m_close:"Zatvori", m_remove:"Ukloni",
     m_perimeter:"obim",
     lBuffer:"pojas {km} km", legZone:"Praćeno područje",
-    zoneNote:"prati se, označeno kao blizu"
+    zoneNote:"prati se, označeno kao blizu",
+    fwTitle:"Opasnost od požara", fwBadge:"Opasnost od požara danas: {cls}",
+    fwToday:"Danas",
+    fwLow:"Nizak", fwModerate:"Umjeren", fwHigh:"Visok", fwVeryHigh:"Vrlo visok",
+    fwExtreme:"Ekstreman", fwVeryExtreme:"Vrlo ekstreman",
+    fwNote:"Kanadski indeks požarne opasnosti (FWI), iz Open-Meteo podataka za "+
+      "centar općine — nije satelitsko očitanje. Prognoza nakon nekoliko dana "+
+      "postaje manje pouzdana.",
+    fwUpdated:"ažurirano {t}"
   }
 };
 // Compass points are computed server-side in English; translate the letters.
@@ -855,6 +886,28 @@ zoomBtn.onAdd = () => {
 };
 zoomBtn.addTo(map);
 
+// ---- expandable corner panels -----------------------------------------------
+// The legend and the fire-danger panel share this: only one open at a time (an
+// expanded FFMC/DMC/DC readout behind an already-open legend would be a second
+// scroll-y panel stacked on the first), and clicking the map collapses whichever
+// is open, the same "click elsewhere to dismiss" convention as a popup.
+const expandablePanels = [];
+function setPanelOpen(ctl, open){
+  const d = ctl._el;
+  if(!d) return;
+  d.classList.toggle("open", open);
+  const btn = d.querySelector(".legend-toggle");
+  if(btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function closeExpandablePanels(){
+  expandablePanels.forEach(ctl => setPanelOpen(ctl, false));
+}
+function togglePanel(ctl){
+  const wasOpen = ctl._el && ctl._el.classList.contains("open");
+  expandablePanels.forEach(other => { if(other !== ctl) setPanelOpen(other, false); });
+  setPanelOpen(ctl, !wasOpen);
+}
+
 const legend = L.control({position:"bottomright"});
 legend.onAdd = () => {
   const d = L.DomUtil.create("div","legend");
@@ -879,14 +932,79 @@ legend.onAdd = () => {
   // Without this, tapping the legend pans the map underneath it.
   L.DomEvent.disableClickPropagation(d);
   L.DomEvent.disableScrollPropagation(d);
-  const btn = d.querySelector(".legend-toggle");
-  btn.addEventListener("click", () => {
-    const open = d.classList.toggle("open");
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-  });
+  legend._el = d;
+  d.querySelector(".legend-toggle").addEventListener("click", () => togglePanel(legend));
   return d;
 };
 legend.addTo(map);
+expandablePanels.push(legend);
+
+// ---- fire danger panel ------------------------------------------------------
+// A single-point weather-derived index, not a spatial layer - see the module
+// notes in firedanger.py for why this is not a map overlay. Added after legend
+// so it stacks above it in the bottom-right corner. Content is patched in place
+// by fwiUpdate() (called from applyData() and applyStaticLabels()), the same
+// shape as the measure tool's mPanelUpdate() - not removed/re-added like the
+// language-dependent controls, since this one also changes on every poll.
+const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
+  very_high:"fwVeryHigh", extreme:"fwExtreme", very_extreme:"fwVeryExtreme"};
+const fwiCtl = L.control({position:"bottomright"});
+fwiCtl.onAdd = () => {
+  const d = L.DomUtil.create("div", "legend fwiPanel");
+  d.innerHTML = `<div class="legend-body"></div>` +
+    `<button class="legend-toggle" type="button" aria-expanded="false"></button>`;
+  L.DomEvent.disableClickPropagation(d);
+  L.DomEvent.disableScrollPropagation(d);
+  fwiCtl._el = d;
+  d.querySelector(".legend-toggle").addEventListener("click", () => togglePanel(fwiCtl));
+  // Not called here: onAdd runs synchronously from fwiCtl.addTo(map) below, which
+  // is well before monName/ago are assigned further down this script - calling
+  // it this early would hit each of those consts in its temporal dead zone.
+  // applyStaticLabels() and applyData() call it once everything is defined.
+  return d;
+};
+fwiCtl.addTo(map);
+expandablePanels.push(fwiCtl);
+// Clicking the map itself - not a control, which already stops the click here
+// via disableClickPropagation above - collapses whichever panel is open, the
+// same "click elsewhere to dismiss" convention as a popup.
+map.on("click", closeExpandablePanels);
+
+function fwiUpdate(){
+  const el = fwiCtl._el;
+  if(!el) return;
+  const fd = DATA.fire_danger;
+  // Nothing computed yet (feature disabled, or the first cycle hasn't run) -
+  // omit the panel entirely rather than show a placeholder or a stale guess.
+  if(!fd || !fd.today){ el.style.display = "none"; return; }
+  el.style.display = "";
+  const today = fd.today;
+  const clsLabel = e => t(FWI_CLASS_I18N[e.class] || "fwLow");
+  const swatch = c => `<i style="background:${c}"></i>`;
+  const badge = `${swatch(today.color)}<span class="fwi-badge">` +
+    `${t("fwBadge", {cls: clsLabel(today)})}</span>`;
+  // Collapsed state shows the same full phrase as the body's headline - the
+  // toggle button wraps rather than truncating (see .legend-toggle's max-width),
+  // so there is no narrow-screen reason to shorten it here.
+  el.querySelector(".legend-toggle").innerHTML = badge;
+
+  const rows = [today, ...(fd.forecast || [])].map(e => {
+    const [, mo, da] = e.date.split("-");
+    const label = e.date === today.date ? t("fwToday")
+      : `${parseInt(da, 10)} ${monName(mo)}`;
+    return `<div class="fwi-row"><span>${label}</span><span>` +
+      `${swatch(e.color)}${clsLabel(e)} <span style="opacity:.6">` +
+      `(${e.fwi.toFixed(1)})</span></span></div>`;
+  }).join("");
+
+  const mins = (Date.now() - new Date(fd.updated_at).getTime()) / 60000;
+  el.querySelector(".legend-body").innerHTML =
+    `<b style="color:#e6edf3">${t("fwTitle")}</b><br>${badge}` +
+    `<div style="margin-top:6px">${rows}</div>` +
+    `<div class="fwi-codes">FFMC ${today.ffmc} · DMC ${today.dmc} · DC ${today.dc}</div>` +
+    `<div class="fwi-note">${t("fwNote")}</div>` +
+    `<div class="fwi-note">${t("fwUpdated", {t: ago(mins)})}</div>`;
+}
 
 const detLayer = L.layerGroup().addTo(map);
 const evLayer  = L.layerGroup().addTo(map);
@@ -1841,7 +1959,7 @@ function applyStaticLabels(){
   unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
     b.classList.toggle("on", b.dataset.l === LANG));
-  mLabels(); mPanelUpdate();
+  mLabels(); mPanelUpdate(); fwiUpdate();
 }
 
 function rebuildControls(){
@@ -1913,7 +2031,7 @@ function applyData(d){
   if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
   const wasOpen = popupOpenId;
   recompute();
-  renderRange(); renderHeader(); drawEvents(); renderList();
+  renderRange(); renderHeader(); drawEvents(); renderList(); fwiUpdate();
   setSliderTime(at);
   drawDets(sliderTime());
   if(wasOpen && markersOn && markerById[wasOpen]){

@@ -1,0 +1,354 @@
+<title>Per-Event Spread Risk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation, the API reference and the other measurement pages so the
+     whole set reads as one family. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  .swatch{display:inline-block; width:11px; height:11px; border-radius:3px;
+    margin-right:7px; vertical-align:-1px; border:1px solid rgba(0,0,0,.15)}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;
+    margin:22px 0 26px}
+  .card{border:1px solid var(--rule); background:var(--surface); border-radius:8px;
+    padding:16px 18px}
+  .card h4{margin-top:0}
+  .card p{font-size:14.5px; margin-bottom:0; max-width:none}
+
+  .formula{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:13.5px;
+    background:var(--surface-2); border:1px solid var(--rule); border-radius:7px;
+    padding:11px 14px; margin:0 0 12px; max-width:var(--measure); overflow-x:auto;
+    line-height:1.7; white-space:pre-wrap}
+  .formula .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px;
+    font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);
+    margin-bottom:5px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+  footer a{color:var(--ink-2)}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">Per-event spread risk</div>
+  <ol>
+    <li><a href="#what"><span class="n">01</span><span>What this is</span></a></li>
+    <li><a href="#tiers"><span class="n">02</span><span>The four tiers</span></a></li>
+    <li><a href="#andor"><span class="n">03</span><span>Why AND, then OR</span></a></li>
+    <li><a href="#data"><span class="n">04</span><span>Data source and caching</span></a></li>
+    <li><a href="#where"><span class="n">05</span><span>Where it shows up</span></a></li>
+    <li><a href="#compare"><span class="n">06</span><span>vs. the fire danger forecast</span></a></li>
+    <li><a href="#sources"><span class="n">07</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Method</div>
+  <h1>Per-event spread risk</h1>
+  <p class="standfirst">Every <strong>active</strong> fire event gets a live weather
+  reading and a one-word risk label &mdash; <code>moderate</code>, <code>elevated</code>,
+  <code>high</code> or <code>extreme</code> &mdash; because a smouldering 8&nbsp;MW
+  hotspot in 39% humidity with 32&nbsp;km/h gusts is a different proposition from the
+  same hotspot in still, damp air. This is <code>enrich.py</code>, the oldest and
+  simplest of FireWatch's three weather-driven features.</p>
+  <dl class="facts">
+    <div><dt>Tiers</dt><dd>4</dd></div>
+    <div><dt>Applies to</dt><dd style="font-size:14px">active events only</dd></div>
+    <div><dt>Cache</dt><dd>15 min</dd></div>
+    <div><dt>Consumers</dt><dd>4</dd></div>
+  </dl>
+</header>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="what"><span class="num">01</span> What this is</h2>
+<p class="lede">Coordinates and an FRP number are not a notification. This is what
+turns &ldquo;44.31, 18.29, 8.4&nbsp;MW&rdquo; into something a reader can act on.</p>
+<p>Once a cycle, for every event whose <code>status</code> is <code>active</code>
+(<code>poller.py</code>'s enrich step), <code>enrich.weather()</code> asks Open-Meteo
+for the current conditions at that exact point, and <code>enrich.fire_risk()</code>
+turns the result into one of four words. Quiet events are skipped entirely &mdash; a
+fire nobody expects to spread today does not need a live weather call.</p>
+<div class="note">
+  <span class="lbl">Not a validated index</span>
+  <p>Unlike the <a href="firewatch-fire-danger.html">fire danger forecast</a>, which
+  ports a peer-reviewed, internationally standard algorithm, this is a small
+  hand-written heuristic specific to this project &mdash; four thresholds on gust
+  speed and humidity, chosen to be defensible, not derived from a published fire
+  behaviour model. Treat the label as a rough, current-conditions flag, not a rated
+  danger score.</p>
+</div>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="tiers"><span class="num">02</span> The four tiers</h2>
+<p>The whole function is nine lines. Gust speed falls back to plain wind speed when
+Open-Meteo reports no gust figure; a missing humidity reading is treated as 100% (i.e.
+it can never push risk up on its own).</p>
+<div class="formula"><span class="lbl">enrich.fire_risk() &mdash; firewatch/enrich.py:58</span>
+gust = gusts, or wind speed if no gust figure, or 0
+rh   = humidity, or 100 if missing
+
+extreme   if gust &ge; 40 km/h AND rh &le; 35%
+high      if gust &ge; 30 km/h OR  rh &le; 25%
+elevated  if gust &ge; 18 km/h OR  rh &le; 40%
+moderate  otherwise</div>
+<div class="tw">
+<table>
+  <thead><tr><th>Tier</th><th class="num">Gust</th><th></th><th class="num">Relative humidity</th></tr></thead>
+  <tbody>
+    <tr><td><span class="swatch" style="background:#8b98a5"></span>Moderate</td>
+        <td class="num">&lt; 18 km/h</td><td class="num">&mdash;</td><td class="num">&gt; 40%</td></tr>
+    <tr><td><span class="swatch" style="background:#8b98a5"></span>Elevated</td>
+        <td class="num">&ge; 18 km/h</td><td class="num">or</td><td class="num">&le; 40%</td></tr>
+    <tr><td><span class="swatch" style="background:#e63946"></span>High</td>
+        <td class="num">&ge; 30 km/h</td><td class="num">or</td><td class="num">&le; 25%</td></tr>
+    <tr><td><span class="swatch" style="background:#e63946"></span>Extreme</td>
+        <td class="num">&ge; 40 km/h</td><td class="num">and</td><td class="num">&le; 35%</td></tr>
+  </tbody>
+</table>
+</div>
+<p>The swatches match what the map popup actually does with each tier &mdash; see
+<a href="#where">&sect;05</a>: only <span style="color:#e63946"><strong>high</strong></span>
+and <span style="color:#e63946"><strong>extreme</strong></span> are drawn in colour.
+<code>moderate</code> and <code>elevated</code> render identically, in neutral grey.</p>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="andor"><span class="num">03</span> Why AND, then OR</h2>
+<p class="lede">The joining word changes exactly once, between <code>high</code> and
+<code>extreme</code>, and that is not an accident of how the conditions happened to be
+written.</p>
+<p><code>elevated</code> and <code>high</code> use <strong>OR</strong>: either strong
+wind or low humidity alone is enough, because either one independently makes a fire
+harder to contain &mdash; wind by driving spread rate, dry air by drying fuel. A fire in
+a 32&nbsp;km/h gust and 60% humidity is still meaningfully more dangerous than one in
+calm air, humidity aside; the OR is what lets wind speak for itself.</p>
+<p><code>extreme</code> uses <strong>AND</strong>: both conditions have to be severe at
+once. That is a deliberate ceiling on how easily the top label fires. Given the same
+thresholds joined by OR instead, any single very gusty afternoon (&ge;40&nbsp;km/h,
+common with an approaching front, regardless of humidity) would read as
+&ldquo;extreme&rdquo; &mdash; the label that reaches an SMS, worded to the strongest
+word this system has (&sect;05). Requiring both keeps that word for conditions that
+are actually compounding, not just windy.</p>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="data"><span class="num">04</span> Data source and caching</h2>
+<p>Weather comes from <a href="https://open-meteo.com/">Open-Meteo</a>
+(<code>api.open-meteo.com/v1/forecast</code>, <code>current=</code> fields), free and
+keyless &mdash; the same host the <a href="firewatch-fire-danger.html">fire danger
+forecast</a> uses, queried independently and for a different purpose. Temperature,
+humidity, wind speed, wind direction and gusts come back for the event's exact
+coordinates, timezone <code>Europe/Sarajevo</code>.</p>
+<p>Results are cached in memory for 15 minutes, keyed on the coordinates rounded to two
+decimal places (&asymp;1.1&nbsp;km at this latitude) &mdash; so two fires close enough
+to round to the same key, or the same fire polled across a few consecutive cycles,
+share one Open-Meteo call rather than repeating it. A failed lookup returns
+<code>None</code> and the event simply carries no weather or risk that cycle, rather
+than breaking the poll.</p>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="where"><span class="num">05</span> Where it shows up</h2>
+<p class="lede">Four independent consumers read <code>ev["risk"]</code>; none of them
+recompute it.</p>
+<div class="cards">
+  <div class="card">
+    <h4>Map popup (<code>mapgen.py</code>)</h4>
+    <p>In the event card's weather line. Rendered in red only for <code>high</code>/
+    <code>extreme</code>; <code>moderate</code>/<code>elevated</code> stay the same
+    grey as the surrounding text. Bilingual &mdash; the map's EN/BS toggle translates
+    the word itself.</p>
+  </div>
+  <div class="card">
+    <h4>Menu bar (<code>menubar.py</code>)</h4>
+    <p>A plain <code>Spread risk: high</code> line under an active fire's submenu,
+    always in English regardless of <code>sms_language</code>.</p>
+  </div>
+  <div class="card">
+    <h4>CLI report (<code>__main__.py</code>)</h4>
+    <p><code>python3 -m firewatch poll</code>/<code>status</code> print
+    <code>&hellip; high spread risk</code> alongside each active fire's weather line.</p>
+  </div>
+  <div class="card">
+    <h4>SMS alert (<code>sms.py</code>)</h4>
+    <p>The fourth and last line of an active-fire text: <code>Wind 32km/h SZ RH 28%
+    rizik visok</code>. The one consumer where this is not just informational &mdash;
+    it spends part of the 160-character, one-segment budget.</p>
+  </div>
+</div>
+<div class="note warn">
+  <span class="lbl">The SMS line is not optional padding</span>
+  <p>Per this project's own measurement, every active-fire alert already carries
+  weather, and the message is verified to fit one GSM-7 segment (160 chars) at its
+  worst case across every stored event, every alert kind, and the longest settlement
+  name. The risk word is part of that measured budget &mdash; <code>sms.worst_case()</code>
+  is what re-checks it, not a hand count.</p>
+</div>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="compare"><span class="num">06</span> vs. the fire danger forecast</h2>
+<p>Both features call the same weather API for the same municipality. They answer
+different questions, on different clocks, at different rigour.</p>
+<div class="tw">
+<table>
+  <thead><tr><th></th><th>Per-event spread risk</th><th>Fire danger forecast</th></tr></thead>
+  <tbody>
+    <tr><td>Question</td><td>Given this fire, right now, how easily could it spread?</td>
+        <td>Independent of any fire, how conducive is today to one starting?</td></tr>
+    <tr><td>Applies to</td><td>Each active event, at its own coordinates</td>
+        <td>One point for the whole municipality</td></tr>
+    <tr><td>Algorithm</td><td>A 9-line, project-specific heuristic</td>
+        <td>The Canadian FWI System, a validated port</td></tr>
+    <tr><td>Memory</td><td>None &mdash; this instant's reading only</td>
+        <td>Days to months, via FFMC/DMC/DC</td></tr>
+    <tr><td>Cadence</td><td>Every cycle, per active fire (cached 15 min)</td>
+        <td>Once or twice a day, whole-municipality</td></tr>
+    <tr><td>Reaches SMS?</td><td>Yes &mdash; every active-fire alert</td>
+        <td>No &mdash; map panel only</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="sources"><span class="num">07</span> Sources</h2>
+<ul>
+  <li><a href="https://open-meteo.com/en/docs">Open-Meteo API documentation</a> &mdash;
+  the keyless weather source both this and the fire danger forecast fetch.</li>
+  <li><code>firewatch/enrich.py</code> &mdash; the complete implementation; this page
+  describes roughly 30 lines of code in full.</li>
+</ul>
+
+<footer>
+  <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,
+  NASA FIRMS and Sentinel-3 SLSTR. Boundary and settlement data © OpenStreetMap
+  contributors, ODbL 1.0.</p>
+  <p>This page describes fixed, unchanging thresholds read directly from
+  <code>enrich.py</code> in September 2026. Re-check the source if this page is read
+  long after that date &mdash; the thresholds could have been retuned since.</p>
+</footer>
+</main>
+</div>

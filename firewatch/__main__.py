@@ -15,6 +15,7 @@
     python3 -m firewatch set-firms-key  store a FIRMS key in the Keychain
     python3 -m firewatch set-cdse-key   store a Copernicus client in the Keychain
     python3 -m firewatch imagery [--force]  render the latest Sentinel-2 scene
+    python3 -m firewatch fire-danger [--force]  today's + short-term Canadian FWI
     python3 -m firewatch expose      publish the map via ngrok, print the URL
     python3 -m firewatch unexpose    stop publishing (other tunnels untouched)
     python3 -m firewatch expose-status
@@ -306,6 +307,35 @@ def cmd_imagery(force: bool = False) -> int:
         print("  render failed - see the log")
         return 1
     print(f"  {rec['day']}  {rec['px'][0]}x{rec['px'][1]} px  -> {rec['file']}")
+    return 0
+
+
+def cmd_fire_danger(force: bool = False) -> int:
+    """Today's + short-term Canadian FWI, computed at geo.forecast_point()."""
+    from . import firedanger, geo
+
+    if not CFG.get("fire_danger_enabled", True):
+        print("  fire_danger_enabled is off in config.json")
+        return 1
+    lat, lon = geo.forecast_point()
+    print(f"\n  forecast point: {lat:.4f}, {lon:.4f}  (municipality centroid)")
+    con = store.connect()
+    try:
+        payload = firedanger.update(con, force=force)
+    finally:
+        con.close()
+    if not payload:
+        print("  no data (fetch failed and nothing cached yet - see the log)")
+        return 1
+    t = payload["today"]
+    print(f"  today ({t['date']}): FWI {t['fwi']}  [{t['class']}]")
+    print(f"    FFMC {t['ffmc']}  DMC {t['dmc']}  DC {t['dc']}"
+          f"  ISI {t['isi']}  BUI {t['bui']}")
+    if payload["forecast"]:
+        print("  forecast:")
+        for e in payload["forecast"]:
+            print(f"    {e['date']}: FWI {e['fwi']:>5}  [{e['class']}]")
+    print(f"  updated: {payload['updated_at']}\n")
     return 0
 
 
@@ -652,6 +682,8 @@ def main(argv: list[str]) -> int:
         return cmd_set_cdse_key()
     if cmd == "imagery":
         return cmd_imagery(force="--force" in argv)
+    if cmd in ("fire-danger", "firedanger"):
+        return cmd_fire_danger(force="--force" in argv)
     if cmd in ("set-firms-key", "setfirmskey"):
         return cmd_set_firms_key()
     if cmd == "quota":
