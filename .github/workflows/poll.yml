@@ -153,8 +153,29 @@ jobs:
         with:
           path: public
 
+      # Last, deliberately: everything a reader depends on - the committed
+      # state, the published map and docs - is already done by this point, so
+      # a source that is actually broken (not just unconfigured - a missing
+      # FIRMS key is `configured: false` and never trips this) only marks this
+      # run red, it does not hold anything back. That red X is the point: a run
+      # exiting 0 no matter what a source did was silent by design (per-source
+      # isolation), and there was nothing surfacing a broken feed except
+      # opening each run's log by hand. `gh run list --workflow=poll.yml`, the
+      # Actions tab, or GitHub's own "notify me on workflow failure" setting
+      # (Settings > Notifications > Actions) now all show it directly.
+      - name: Check source health
+        run: |
+          python3 -c "import json,pathlib,sys; snap=json.loads(pathlib.Path('state/snapshot.json').read_text()); failed=[k for k,v in snap.get('source_status',{}).items() if not v.get('ok') and v.get('configured',True)]; print('::error::source(s) failed this cycle: '+', '.join(failed)) if failed else print('all configured sources ok'); sys.exit(1 if failed else 0)"
+
   publish:
     needs: poll
+    # Still deploy even when `poll` ended in the source-health check above -
+    # the map and docs were already built and uploaded before that step ran,
+    # and a feed being down is exactly the case where the *rest* of the map
+    # (and the two other feeds) most needs to stay published. `!cancelled()`
+    # rather than `always()`: skip only on an actual cancellation, not on this
+    # kind of expected failure.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
