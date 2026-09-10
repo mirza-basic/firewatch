@@ -95,14 +95,26 @@ jobs:
           PREV=$(cat state/.detections 2>/dev/null || echo -1)
           echo "detections: $PREV -> $COUNT"
 
-          # Stage the database ONLY when the count moved. meta.last_cycle is
-          # rewritten every cycle, so the file's bytes change on every run even when
-          # nothing was detected - `git add -A state` would therefore commit a fresh
-          # 188 KB blob every run, hundreds of megabytes a month carrying no new
-          # information.
-          if [ "$COUNT" != "$PREV" ]; then
+          # meta.fwi_gate (date computed + whether local noon had passed) is the
+          # other thing in this database with real information in it, and it is
+          # exactly as semantic as the detection count: unlike meta.last_cycle, it
+          # changes only once or twice a day, by design (firedanger.update()'s own
+          # gate). Missing this the same way COUNT is tracked would mean a quiet
+          # run - most runs - never commits the updated gate, so the *next* run
+          # sees the last-committed (stale) gate, never matches today, and
+          # recomputes from scratch every single trigger instead of twice a day.
+          FWI_GATE=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; r=sqlite3.connect(d).execute(\"SELECT v FROM meta WHERE k='fwi_gate'\").fetchone() if d.exists() else None; print(r[0] if r else '')")
+          PREV_FWI_GATE=$(cat state/.fwi_gate 2>/dev/null || echo "")
+          echo "fwi_gate: $PREV_FWI_GATE -> $FWI_GATE"
+
+          # Stage the database when either moved. meta.last_cycle is rewritten
+          # every cycle, so the file's bytes change on every run even when neither
+          # did - `git add -A state` would therefore commit a fresh 188 KB blob
+          # every run, hundreds of megabytes a month carrying no new information.
+          if [ "$COUNT" != "$PREV" ] || [ "$FWI_GATE" != "$PREV_FWI_GATE" ]; then
             echo "$COUNT" > state/.detections
-            git add state/firewatch.db state/.detections
+            echo "$FWI_GATE" > state/.fwi_gate
+            git add state/firewatch.db state/.detections state/.fwi_gate
           fi
           git add state/config
           if git diff --cached --quiet; then
