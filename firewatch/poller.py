@@ -13,7 +13,8 @@ import threading
 import time
 from datetime import timedelta
 
-from . import enrich, events, expose, firedanger, imagery, mapgen, notify, sms, sources, store
+from . import (enrich, events, expose, firedanger, imagery, mapgen, notify, sms,
+               sources, store, telegram)
 from .config import (CFG, LOG_PATH, SNAPSHOT_PATH, RedactingFormatter,
                      ensure_dirs, public_url as config_public_url)
 from .store import iso, utcnow
@@ -184,12 +185,20 @@ class Poller:
                 except Exception:
                     log.exception("sms alert failed")
                     texted = False
-                if notified or texted:
+                # Telegram is a third, independent channel for the same reason SMS
+                # is: any one of these can be the only one someone is actually
+                # watching, so a failure in one must never suppress another.
+                try:
+                    telegrammed = telegram.send_alert(a)
+                except Exception:
+                    log.exception("telegram alert failed")
+                    telegrammed = False
+                if notified or texted or telegrammed:
                     store.mark_notified(con, ev_id, kind)
                     sent.append(a)
-                    log.info("alerted %s: %s (%s) [notify=%s sms=%s]", kind,
-                             a["event"]["place"], a.get("detail", ""),
-                             notified, texted)
+                    log.info("alerted %s: %s (%s) [notify=%s sms=%s telegram=%s]",
+                             kind, a["event"]["place"], a.get("detail", ""),
+                             notified, texted, telegrammed)
 
             # Before the snapshot is written, not after: the menu bar and the map
             # read the URL from it, and a tunnel that died since the last cycle
