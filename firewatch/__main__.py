@@ -26,6 +26,11 @@
     python3 -m firewatch set-sms-key   store the httpSMS API key
     python3 -m firewatch sms-add <number>     add an SMS recipient
     python3 -m firewatch sms-remove <number>  remove one send a test notification
+    python3 -m firewatch telegram-status       Telegram backend + settings
+    python3 -m firewatch test-telegram         send a sample alert via Telegram
+    python3 -m firewatch set-telegram-key      store the bot token in the Keychain
+    python3 -m firewatch telegram-add <chat_id>     add a Telegram recipient
+    python3 -m firewatch telegram-remove <chat_id>  remove one
 """
 from __future__ import annotations
 
@@ -38,6 +43,7 @@ from pathlib import Path
 from . import events as ev_mod
 from . import expose as expose_mod
 from . import sms as sms_mod
+from . import telegram as telegram_mod
 from . import mapgen, notify, poller, sources, store
 from .config import CFG, MAP_PATH, SNAPSHOT_PATH, cdse_credentials
 
@@ -503,6 +509,127 @@ def cmd_test_sms() -> int:
     return 0 if sent else 1
 
 
+def cmd_telegram_status() -> int:
+    from .config import CFG
+    ok, why = telegram_mod.ready()
+    print(f"\n  usable       : {ok}  ({why})")
+    print(f"  enabled      : {CFG['telegram_enabled']}")
+    print(f"  bot token    : {'found' if telegram_mod.bot_token() else 'not found'}")
+    rec = telegram_mod.recipients()
+    print(f"  to           : {', '.join(rec) if rec else '(none)'}  [{len(rec)}]")
+    print(f"  to from      : {telegram_mod.recipients_source()}")
+    print(f"  alert kinds  : {', '.join(CFG['telegram_kinds'])}")
+    print(f"  language     : {CFG['telegram_language']}")
+    print(f"  map url      : {telegram_mod.map_url() or '(map not published)'}")
+    print()
+    return 0
+
+
+def cmd_set_telegram_key() -> int:
+    """Store the Telegram bot token in the macOS Keychain.
+
+    Prompted rather than passed on the command line so it never lands in shell
+    history or a process listing - same reasoning as set-sms-key.
+    """
+    import getpass
+    import shutil
+    import subprocess
+    if not shutil.which("security"):
+        print("  macOS `security` tool not found")
+        return 1
+    token = getpass.getpass("  Telegram bot token (not echoed): ").strip()
+    if not token:
+        print("  nothing entered")
+        return 1
+    r = subprocess.run(["security", "add-generic-password", "-U",
+                        "-a", "firewatch", "-s", telegram_mod.KEYCHAIN_SERVICE,
+                        "-w", token], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  keychain write failed: {r.stderr.strip()[:200]}")
+        return 1
+    ok, why = telegram_mod.ready()
+    print(f"  stored. usable now: {ok} ({why})")
+    return 0
+
+
+def _env_overrides_telegram_recipients() -> bool:
+    """True when FIREWATCH_TELEGRAM_TO is set - see _env_overrides_recipients()."""
+    import os
+    return bool((os.environ.get(telegram_mod.TELEGRAM_TO_ENV) or "").strip())
+
+
+def _save_telegram_recipients(chat_ids: list[str]) -> None:
+    from .config import CFG
+    CFG["telegram_to"] = chat_ids
+    CFG.save()
+
+
+def cmd_telegram_add(chat_id: str | None) -> int:
+    if not chat_id:
+        print("  give a chat id, e.g. telegram-add 123456789")
+        return 1
+    if _env_overrides_telegram_recipients():
+        print(f"  {telegram_mod.TELEGRAM_TO_ENV} is set, so it decides the recipients"
+              " and this would change nothing.")
+        print(f"  edit that variable instead (currently: "
+              f"{', '.join(telegram_mod.recipients())})")
+        return 1
+    rec = telegram_mod.recipients()
+    if chat_id in rec:
+        print(f"  {chat_id} is already a recipient")
+        return 0
+    rec.append(chat_id)
+    _save_telegram_recipients(rec)
+    print(f"  added. recipients now: {', '.join(rec)}")
+    print("  applies to the running service immediately - no restart needed")
+    return 0
+
+
+def cmd_telegram_remove(chat_id: str | None) -> int:
+    if _env_overrides_telegram_recipients():
+        print(f"  {telegram_mod.TELEGRAM_TO_ENV} is set, so it decides the recipients"
+              " and this would change nothing.")
+        print(f"  edit that variable instead (currently: "
+              f"{', '.join(telegram_mod.recipients())})")
+        return 1
+    rec = telegram_mod.recipients()
+    if not chat_id or chat_id not in rec:
+        print(f"  not a recipient. current: {', '.join(rec) or '(none)'}")
+        return 1
+    rec.remove(chat_id)
+    _save_telegram_recipients(rec)
+    print(f"  removed. recipients now: {', '.join(rec) or '(none)'}")
+    print("  applies to the running service immediately - no restart needed")
+    return 0
+
+
+def cmd_test_telegram() -> int:
+    """Send the test message, and print what a real alert would look like.
+
+    Only the first is sent - see cmd_test_sms() for why the sample stays unsent.
+    """
+    poller.setup_logging()
+    text = telegram_mod.test_text()
+    ok, why = telegram_mod.ready()
+    print(f"\n  usable: {ok} ({why})")
+    print("  ---- message to send ----")
+    print("\n".join("  | " + l for l in text.splitlines()))
+
+    evs = poller.load_snapshot().get("events") or []
+    if evs:
+        alert = {"kind": "new", "event": evs[0], "detail": "sample"}
+        sample = telegram_mod.alert_text(alert)
+        print(f"  ---- a real alert, for comparison (not sent) ----")
+        print("\n".join("  | " + l for l in sample.splitlines()))
+
+    if not ok:
+        print("\n  not sent\n")
+        return 1
+    sent = telegram_mod.send(text)
+    print(f"\n  delivered: {sent}\n")
+    return 0 if sent else 1
+
+
 def cmd_buffer(km: float | None = None) -> int:
     """Rebuild the drawn "nearby" band. Build-time: needs shapely and pyproj."""
     from . import geo
@@ -700,6 +827,16 @@ def main(argv: list[str]) -> int:
         return cmd_sms_remove(argv[1] if len(argv) > 1 else None)
     if cmd in ("set-sms-key", "setsmskey"):
         return cmd_set_sms_key()
+    if cmd in ("telegram-status", "telegramstatus"):
+        return cmd_telegram_status()
+    if cmd in ("test-telegram", "testtelegram"):
+        return cmd_test_telegram()
+    if cmd in ("telegram-add", "telegramadd"):
+        return cmd_telegram_add(argv[1] if len(argv) > 1 else None)
+    if cmd in ("telegram-remove", "telegramremove"):
+        return cmd_telegram_remove(argv[1] if len(argv) > 1 else None)
+    if cmd in ("set-telegram-key", "settelegramkey"):
+        return cmd_set_telegram_key()
     if cmd in ("test-notify", "testnotify"):
         return cmd_test_notify()
     print(__doc__)

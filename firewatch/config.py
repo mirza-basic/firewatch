@@ -188,6 +188,13 @@ DEFAULTS = {
     # either way; see sms.ascii_only.
     "sms_language": "bs",
     "sms_max_chars": 320,              # 2 GSM-7 segments
+    # Telegram alerts via a bot (your Android phone is not involved - Telegram's own
+    # servers deliver it). The bot token is never stored here - it comes from
+    # TELEGRAM_BOT_TOKEN or the macOS Keychain (`firewatch-ctl set-telegram-key`).
+    "telegram_enabled": True,          # inert without a token and recipients anyway
+    "telegram_to": [],                 # list of chat ids (numeric, as strings)
+    "telegram_kinds": ["new", "reignited", "intensified", "grew"],
+    "telegram_language": "bs",         # independent of sms_language - see telegram.py
     "sound_new": "Basso",
     "sound_update": "Tink",
     # Include detections outside the municipality but within this buffer, flagged
@@ -387,12 +394,12 @@ def secrets() -> list[str]:
     global _secrets_cache
     if _secrets_cache is None:
         vals = {v for v in (firms_key()[0], cdse_credentials()[1]) if v}
-        for env in ("FIRMS_MAP_KEY", "HTTPSMS_API_KEY",
+        for env in ("FIRMS_MAP_KEY", "HTTPSMS_API_KEY", "TELEGRAM_BOT_TOKEN",
                     "CDSE_CLIENT", "CDSE_CLIENT_SECRET"):
             v = os.environ.get(env)
             if v and v.strip():
                 vals.add(v.strip())
-        for svc in (FIRMS_KEYCHAIN_SERVICE, "firewatch-httpsms",
+        for svc in (FIRMS_KEYCHAIN_SERVICE, "firewatch-httpsms", "firewatch-telegram",
                     CDSE_KEYCHAIN_SERVICE):
             v = keychain_secret(svc)
             if v:
