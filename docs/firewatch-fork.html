@@ -660,6 +660,15 @@ discovered &mdash; so this will not text anybody.</p>
     <tr><td class="mono">FIREWATCH_SMS_TO</td>
       <td class="wrap-ok">Recipients, comma-separated, E.164</td>
       <td class="wrap-ok">No SMS</td></tr>
+    <tr><td class="mono">TELEGRAM_BOT_TOKEN</td>
+      <td class="wrap-ok">Message <a href="https://t.me/BotFather">@BotFather</a> on
+        Telegram, <code>/newbot</code>. Setup below</td>
+      <td class="wrap-ok">No Telegram channel post. Everything else runs</td></tr>
+    <tr><td class="mono">FIREWATCH_TELEGRAM_CHANNEL</td>
+      <td class="wrap-ok">The <code>@handle</code> you created below. Not sensitive the
+        way a phone number is, but needed anyway &mdash; see the note below</td>
+      <td class="wrap-ok">No Telegram channel post. <code>telegram_channel</code> has no
+        built-in default, on purpose &mdash; see the note below</td></tr>
   </tbody>
 </table>
 </div>
@@ -739,6 +748,81 @@ the whole hardware requirement.</p>
   <p>The workflow logs the recipient <em>count</em>, never the numbers &mdash; GitHub masks an
   exact secret value, not the individual numbers inside a comma-separated one, and that
   log is public.</p>
+</div>
+
+<h3>Setting up the Telegram channel</h3>
+
+<p>Telegram alerts broadcast to one public channel rather than a managed recipient
+list, so there is no phone, no SIM, and no per-message cost to worry about.</p>
+
+<ol class="stages">
+  <li>
+    <h3>Create a bot</h3>
+    <p>Message <a href="https://t.me/BotFather">@BotFather</a> on Telegram,
+    <code>/newbot</code>, and follow the prompts. It replies with a bot token &mdash;
+    that is <code>TELEGRAM_BOT_TOKEN</code>.</p>
+  </li>
+  <li>
+    <h3>Create the channel</h3>
+    <p>A public channel, with a <code>@handle</code> people can subscribe from
+    directly. Set that handle as <code>telegram_channel</code> in
+    <code>config.json</code> for a local or self-hosted run, or as the
+    <code>FIREWATCH_TELEGRAM_CHANNEL</code> secret for the hosted GitHub Actions
+    deployment. There is no built-in default to fall back on &mdash; see the note
+    below for why, despite the handle itself not being private.</p>
+  </li>
+  <li>
+    <h3>Add the bot as a channel administrator</h3>
+    <p>Channel settings &rsaquo; Administrators &rsaquo; Add Admin, and add the bot
+    you just created. This step happens in Telegram itself; nothing in this codebase
+    can do it or verify it was done.</p>
+  </li>
+  <li>
+    <h3>Turn it on</h3>
+    <p>On the hosted GitHub Actions deployment, setting both secrets is enough &mdash;
+    <code>poll.yml</code> turns <code>telegram_enabled</code> on unconditionally, since
+    the feature is unusable without them anyway. Running it yourself (locally or on
+    your own host), set <code>telegram_enabled: true</code> in <code>config.json</code>
+    (it defaults off, the same as Sentinel-2 imagery, because it needs a credential
+    nothing else needs), then <code>set-telegram-key</code> to store the token. Either
+    way, <code>test-telegram</code> posts a sample so you can confirm it actually
+    works.</p>
+  </li>
+</ol>
+
+<div class="note crit">
+  <span class="lbl">A correctly configured token still fails silently until step 3</span>
+  <p>A bot token that is valid but has not been made an administrator of the channel
+  gets an ordinary HTTP 400 back from <code>sendMessage</code> &mdash; there is nothing
+  in the failure that says "you forgot to add me as admin". <code>telegram-status</code>
+  can only confirm the token and channel are both <em>set</em>, the same limit
+  <code>sms-status</code> has for the httpSMS key: it cannot confirm the channel
+  actually accepts posts from this bot. <code>test-telegram</code> is the one check that
+  exercises the real path.</p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">Why the channel handle is a secret despite not being private</span>
+  <p>Two separate reasons stack here. First: <code>state/config/config.json</code> in
+  the hosted deployment is a fixed literal that <code>poll.yml</code> writes fresh on
+  every single run - unlike a laptop's config file, nothing here persists an edit from
+  <code>sms-add</code> or its Telegram equivalent, because there is no equivalent: the
+  channel is set once, not managed like a recipient list. Without
+  <code>FIREWATCH_TELEGRAM_CHANNEL</code>, changing the channel on the hosted
+  deployment would mean editing <code>poll.yml</code> itself rather than a repository
+  setting - the same problem <code>FIREWATCH_PUBLIC_URL</code> already has, two
+  sections down.</p>
+  <p>Second, and more important: <code>telegram_channel</code> has no built-in default
+  at all, on any platform. It could - a channel handle is not sensitive the way a
+  phone number is - but a real default would mean a fork that sets
+  <code>TELEGRAM_BOT_TOKEN</code> and forgets this posts, with its own bot, at the
+  original FireWatch deployment's channel: <code>telegram.ready()</code> would report
+  <em>True</em> and Telegram would answer <code>403 "bot is not a member of the
+  channel chat"</code> instead of the clean "not configured" a missing setting gets
+  everywhere else in this project. So the secret exists both to give the hosted
+  deployment somewhere to put the handle, and to keep every Telegram setting a fork
+  needs in one place (repository secrets) rather than split between secrets and a
+  workflow file edit.</p>
 </div>
 
 <!-- ==================== 08 ==================== -->
@@ -938,6 +1022,12 @@ patience:</p>
     <tr><td class="wrap-ok">SMS wording &mdash; <code>sms_language</code> is <code>bs</code>
       or <code>en</code>, and both wordings already exist</td>
       <td class="mono">config.py, sms.py</td></tr>
+    <tr><td class="wrap-ok">Telegram wording and the channel handle itself &mdash;
+      <code>telegram_language</code> (<code>bs</code> or <code>en</code>) and
+      <code>telegram_channel</code>, which has no default at all and must be set
+      (config.json, or <code>FIREWATCH_TELEGRAM_CHANNEL</code> for the hosted
+      deployment) &mdash; see &sect;07</td>
+      <td class="mono">config.py, telegram.py</td></tr>
   </tbody>
 </table>
 </div>

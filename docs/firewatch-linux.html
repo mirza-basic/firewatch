@@ -218,11 +218,14 @@ here needs its dependencies.</p>
     <tr><td>SMS</td>
         <td><span class="pill ok">unchanged</span> the key comes from
         <code>HTTPSMS_API_KEY</code></td></tr>
+    <tr><td>Telegram</td>
+        <td><span class="pill ok">unchanged</span> the token comes from
+        <code>TELEGRAM_BOT_TOKEN</code></td></tr>
     <tr><td>Serving the map</td>
         <td><span class="pill ok">unchanged</span> <code>serve</code> is stdlib only</td></tr>
     <tr><td>Desktop notifications</td>
         <td><code>notify-send</code> where a desktop exists; on a headless host the
-        alert is logged and SMS carries it</td></tr>
+        alert is logged and SMS/Telegram carry it</td></tr>
     <tr><td>Data locations</td>
         <td>XDG &mdash; <code>~/.local/share/firewatch</code>, <code>~/.cache/firewatch</code></td></tr>
     <tr><td>The menu bar app</td>
@@ -262,10 +265,12 @@ python3 -m pip install requests certifi</code></pre>
   <li>
     <h3>Supply the keys through the environment</h3>
     <p>No credential is committed to the repository, and there is no system keystore
-    in play here &mdash; both keys come from the environment:</p>
+    in play here &mdash; every key comes from the environment:</p>
     <pre><code>export FIRMS_MAP_KEY=your_key_here        <span class="c"># free: firms.modaps.eosdis.nasa.gov/api/map_key/</span>
 export HTTPSMS_API_KEY=your_sms_key       <span class="c"># optional, for SMS alerts</span>
-export HTTPSMS_FROM=+38761234567          <span class="c"># the Android gateway phone</span></code></pre>
+export HTTPSMS_FROM=+38761234567          <span class="c"># the Android gateway phone</span>
+export TELEGRAM_BOT_TOKEN=your_bot_token  <span class="c"># optional, for the Telegram channel</span>
+export FIREWATCH_TELEGRAM_CHANNEL=@your_channel  <span class="c"># optional, overrides telegram_channel</span></code></pre>
     <p>For a service, put these in an <code>EnvironmentFile</code> with mode 600
     rather than in the unit itself.</p>
     <div class="note">
@@ -360,9 +365,10 @@ system services need.</p>
 
 <!-- ==================== 05 ==================== -->
 <h2 id="alerts"><span class="num">05</span> Getting alerted</h2>
-<p>On a headless box the desktop notification has nowhere to go, so SMS is the channel
-that matters. It runs through <a href="https://httpsms.com">httpSMS</a>, where an
-Android phone you own is the gateway &mdash; messages come from your own number.</p>
+<p>On a headless box the desktop notification has nowhere to go, so SMS and Telegram
+are the channels that matter. SMS runs through
+<a href="https://httpsms.com">httpSMS</a>, where an Android phone you own is the
+gateway &mdash; messages come from your own number.</p>
 <p>The two halves are configured differently on purpose:</p>
 <ul>
   <li><strong>The sender is deploy config.</strong> <code>HTTPSMS_FROM</code> plus
@@ -382,6 +388,38 @@ python3 -m firewatch test-sms</code></pre>
 <p>Numbers must be E.164 &mdash; leading <code>+</code>, country code, no spaces. Alert
 text is transliterated to ASCII: one non-GSM character switches the whole message to
 UCS-2 and drops the segment size from 160 characters to 70.</p>
+
+<p>Telegram has no gateway phone and no recipient list to manage &mdash; it posts to
+one public channel, and people subscribe to it directly rather than being added by
+number. The bot token is deploy config, exactly like the SMS sender. The channel
+handle itself is not sensitive the way a phone number is, but it ships with
+<strong>no built-in default</strong> &mdash; a real one would mean a fork that sets
+its own bot token and forgets this posts, with its own bot, at the wrong channel
+instead of failing cleanly. Set it with <code>FIREWATCH_TELEGRAM_CHANNEL</code> if
+there is no writable config file, for the same reason <code>FIREWATCH_SMS_TO</code>
+exists.</p>
+<div class="note crit">
+  <span class="lbl">One more switch, and it has no environment variable</span>
+  <p><code>telegram_enabled</code> defaults to <code>false</code>, the same as
+  Sentinel-2 imagery, and unlike the token and the channel it lives only in
+  <code>config.json</code> &mdash; there is nothing to export for it. On a normal
+  host that file is real and writable (<code>~/.config/firewatch/config.json</code>
+  by default), so set it once:</p>
+  <pre><code>python3 -c "from firewatch.config import CFG; CFG['telegram_enabled']=True; CFG.save()"</code></pre>
+  <p>Skip this and the token and channel can both be present and correct while
+  <code>telegram-status</code> plainly reports <code>telegram_enabled is false</code>
+  and every cycle silently skips the post.</p>
+</div>
+<pre><code>export TELEGRAM_BOT_TOKEN=your_bot_token
+export FIREWATCH_TELEGRAM_CHANNEL=@your_channel   <span class="c"># unless config.json already has it</span>
+python3 -m firewatch telegram-status     <span class="c"># says exactly what is missing, if anything</span>
+python3 -m firewatch test-telegram</code></pre>
+<p>Unlike SMS there is no 160-character segment to transliterate for: the limit is
+4096 and a real alert runs 150&ndash;210, so diacritics are sent as typed. A channel
+enforces its own rate limit of roughly one post per second; FireWatch honours a 429's
+<code>retry_after</code> once, capped at 5 s, rather than blocking the poll cycle on
+it.</p>
+
 <p>If this machine <em>does</em> have a desktop, install <code>libnotify-bin</code> and
 notifications appear through <code>notify-send</code>. With no backend at all,
 <code>notify.backend()</code> reports <code>"none"</code> rather than naming something
@@ -392,6 +430,7 @@ that is not installed, and each alert is written to the log.</p>
 <pre><code>python3 -m firewatch status          <span class="c"># last published state</span>
 python3 -m firewatch quota           <span class="c"># which FIRMS key is in use</span>
 python3 -m firewatch sms-status      <span class="c"># SMS readiness</span>
+python3 -m firewatch telegram-status <span class="c"># Telegram readiness</span>
 journalctl --user -u firewatch -n 50</code></pre>
 <p>A healthy install shows every configured source as <code>[ok ]</code> and a snapshot
 timestamp only a few minutes old. If you are also serving the map,

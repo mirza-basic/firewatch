@@ -7,12 +7,21 @@
 # cadence puts an alert 30-45 minutes behind it.
 #
 # Secrets to set under Settings > Secrets and variables > Actions:
-#   FIRMS_MAP_KEY     required for VIIRS/MODIS; without it that feed is skipped and
-#                     Meteosat + Sentinel-3 still run
-#   HTTPSMS_API_KEY   optional, for SMS alerts
-#   HTTPSMS_FROM      optional, the gateway phone number
-#   FIREWATCH_SMS_TO  optional, comma-separated recipients. This is why it exists:
-#                     a phone number must not be committed to a public repository.
+#   FIRMS_MAP_KEY               required for VIIRS/MODIS; without it that feed is
+#                               skipped and Meteosat + Sentinel-3 still run
+#   HTTPSMS_API_KEY             optional, for SMS alerts
+#   HTTPSMS_FROM                optional, the gateway phone number
+#   FIREWATCH_SMS_TO            optional, comma-separated recipients. This is why
+#                               it exists: a phone number must not be committed
+#                               to a public repository.
+#   TELEGRAM_BOT_TOKEN          optional, for the Telegram channel
+#   FIREWATCH_TELEGRAM_CHANNEL  optional, the @handle to post to. Not sensitive
+#                               like a phone number, but config.json below is a
+#                               fixed literal written fresh every run, not
+#                               something `telegram-status` or a CLI command
+#                               can edit here the way it can on a laptop - so
+#                               without this, a fork could only change the
+#                               channel by editing this workflow file itself.
 
 name: poll
 
@@ -74,11 +83,20 @@ jobs:
           HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
           HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
         run: |
           mkdir -p state/config public
           # auto_expose must stay off: there is no ngrok agent here, and leaving it
           # on makes every run waste time failing to build a tunnel.
-          echo '{"auto_expose": false}' > state/config/config.json
+          # telegram_enabled defaults to false, same reasoning as
+          # imagery_s2_enabled - it needs a credential nothing else needs, so it
+          # stays opt-in for a bare CLI/menubar install. Here that opt-in is
+          # "a fork bothered to set TELEGRAM_BOT_TOKEN and
+          # FIREWATCH_TELEGRAM_CHANNEL": telegram.ready() is unusable without
+          # both anyway, so turning it on unconditionally in this deployment
+          # costs nothing when they are absent.
+          echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
           python3 -m firewatch poll
 
       - name: Commit the database back, but only when something actually changed

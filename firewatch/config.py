@@ -230,6 +230,26 @@ DEFAULTS = {
     # ECMWF-driven layer goes to 9; the weather forecast under it is markedly
     # less reliable by then, so this stays below what the API would allow (16).
     "fire_danger_forecast_days": 6,
+    # Telegram alerts, broadcast to one public channel rather than a managed
+    # per-person recipient list - see telegram.py. The bot token is never stored
+    # here; it comes from TELEGRAM_BOT_TOKEN or the Keychain (`set-telegram-key`).
+    "telegram_enabled": False,
+    # Empty on purpose, same as sms_to: a channel handle is not sensitive the
+    # way a phone number is, but shipping a real default here means a fork
+    # that sets its own TELEGRAM_BOT_TOKEN and forgets this posts, with its own
+    # bot, at this deployment's channel - ready() reports True and Telegram
+    # answers 403 "bot is not a member of the channel chat" rather than the
+    # cleaner "not configured" a missing setting gets everywhere else. Set via
+    # `telegram_channel` in config.json or the FIREWATCH_TELEGRAM_CHANNEL
+    # environment variable.
+    "telegram_channel": "",
+    # No per-message cost the way an SMS segment is, so nothing is dropped for
+    # space: "extinguished" is included here though sms_kinds leaves it out on
+    # purpose (see sms.py) - it is genuinely useful information for a public
+    # channel, just not worth an SMS segment.
+    "telegram_kinds": ["new", "reignited", "intensified", "grew",
+                        "extinguished", "corroborated"],
+    "telegram_language": "bs",
 }
 
 # Reference point for bearings/distances: Zavidovići town centre.
@@ -387,12 +407,12 @@ def secrets() -> list[str]:
     global _secrets_cache
     if _secrets_cache is None:
         vals = {v for v in (firms_key()[0], cdse_credentials()[1]) if v}
-        for env in ("FIRMS_MAP_KEY", "HTTPSMS_API_KEY",
+        for env in ("FIRMS_MAP_KEY", "HTTPSMS_API_KEY", "TELEGRAM_BOT_TOKEN",
                     "CDSE_CLIENT", "CDSE_CLIENT_SECRET"):
             v = os.environ.get(env)
             if v and v.strip():
                 vals.add(v.strip())
-        for svc in (FIRMS_KEYCHAIN_SERVICE, "firewatch-httpsms",
+        for svc in (FIRMS_KEYCHAIN_SERVICE, "firewatch-httpsms", "firewatch-telegram",
                     CDSE_KEYCHAIN_SERVICE):
             v = keychain_secret(svc)
             if v:
