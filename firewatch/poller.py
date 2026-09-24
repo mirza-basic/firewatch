@@ -13,7 +13,7 @@ import threading
 import time
 from datetime import timedelta
 
-from . import enrich, events, expose, mapgen, notify, sms, sources, store
+from . import enrich, events, expose, firedanger, imagery, mapgen, notify, sms, sources, store, telegram
 from .config import (CFG, LOG_PATH, SNAPSHOT_PATH, RedactingFormatter,
                      ensure_dirs, public_url as config_public_url)
 from .store import iso, utcnow
@@ -154,6 +154,19 @@ class Poller:
                     ev["weather"] = w
                     ev["risk"] = enrich.fire_risk(w)
 
+            # Keyless catalogue check every cycle, a render only when the scene
+            # date changes - the look is free, the pixels are not.
+            s2 = imagery.refresh(con)
+
+            # Same "cheap to check, rare to actually do work" shape: gated inside
+            # to at most twice a day, so calling it every cycle costs nothing on
+            # the ~140 cycles that are not one of those two.
+            try:
+                fire_danger = firedanger.update(con)
+            except Exception:
+                log.exception("fire danger update failed")
+                fire_danger = None
+
             alerts = events.diff(previous, current)
             store.save_events(con, current)
 
@@ -163,20 +176,25 @@ class Poller:
                 if store.was_notified(con, ev_id, kind, CFG["notify_cooldown_min"]):
                     continue
                 notified = notify.notify_alert(a)
-                # SMS is a separate channel and must go out even if the desktop
-                # notification failed - the Mac may be asleep or locked with
-                # nobody looking at it. Hence OR, not a gate.
+                # SMS and Telegram are separate channels and must go out even if
+                # the desktop notification failed - the Mac may be asleep or
+                # locked with nobody looking at it. Hence OR, not a gate.
                 try:
                     texted = sms.send_alert(a)
                 except Exception:
                     log.exception("sms alert failed")
                     texted = False
-                if notified or texted:
+                try:
+                    posted = telegram.send_alert(a)
+                except Exception:
+                    log.exception("telegram alert failed")
+                    posted = False
+                if notified or texted or posted:
                     store.mark_notified(con, ev_id, kind)
                     sent.append(a)
-                    log.info("alerted %s: %s (%s) [notify=%s sms=%s]", kind,
-                             a["event"]["place"], a.get("detail", ""),
-                             notified, texted)
+                    log.info("alerted %s: %s (%s) [notify=%s sms=%s telegram=%s]",
+                             kind, a["event"]["place"], a.get("detail", ""),
+                             notified, texted, posted)
 
             # Before the snapshot is written, not after: the menu bar and the map
             # read the URL from it, and a tunnel that died since the last cycle
@@ -210,6 +228,17 @@ class Poller:
                 "alerts_sent": [{"kind": a["kind"], "id": a["event"]["id"],
                                  "detail": a.get("detail", "")} for a in sent],
                 "notify_backend": notify.backend(),
+                # None until a scene has been rendered; the map omits the layer
+                # rather than drawing an empty rectangle, exactly as it does for
+                # a missing buffer band.
+                "imagery": s2,
+                # None when disabled, or before the first successful computation -
+                # the map's fire-danger panel omits itself rather than showing a
+                # stale or fabricated reading.
+                "fire_danger": fire_danger,
+                # None unless a public channel is actually configured - see
+                # _telegram_channel_url().
+                "telegram_url": _telegram_channel_url(),
             }
             with self.lock:
                 self.snapshot = snap
@@ -247,6 +276,26 @@ class Poller:
     def get(self) -> dict:
         with self.lock:
             return self.snapshot
+
+
+def _telegram_channel_url() -> str | None:
+    """A public join link for the alert channel, or None.
+
+    Only for a public @handle - a private channel (a numeric chat id) has no
+    public link to advertise, and the map should not offer to join something
+    it cannot. Gated on `telegram.ready()`, not just `telegram_enabled`: a
+    channel with no bot token configured cannot actually deliver an alert, and
+    inviting the public to subscribe to one that never posts is worse than not
+    advertising it - same reasoning as `fire_danger` and `imagery` staying None
+    until there is something real behind them. This still cannot catch every
+    failure mode - a bot token that is valid but was never made a channel
+    administrator looks identical to `ready()` and only fails at send time -
+    but a missing credential is the common case and is free to check here.
+    """
+    if not telegram.ready()[0]:
+        return None
+    ch = telegram.channel()
+    return f"https://t.me/{ch[1:]}" if ch.startswith("@") else None
 
 
 def backfill(days: int = 30) -> dict:
@@ -295,7 +344,8 @@ def _empty_snapshot() -> dict:
             "default_range": CFG.get("default_range", events.DEFAULT_RANGE),
             "source_status": {}, "window_hours": CFG["window_hours"],
             "buffer_km": CFG["nearby_buffer_km"], "n_detections": 0,
-            "alerts_sent": [], "notify_backend": notify.backend()}
+            "alerts_sent": [], "notify_backend": notify.backend(),
+            "imagery": None, "fire_danger": None, "telegram_url": None}
 
 
 def load_snapshot() -> dict:

@@ -517,6 +517,9 @@ the total:</p>
     <tr><td>httpSMS</td><td>Sending alert SMS through an Android phone acting as the
       gateway</td><td>Per alert, if configured</td>
       <td><span class="pill ok">required</span></td></tr>
+    <tr><td>Telegram Bot API</td><td>Posting alerts to a public channel</td>
+      <td>Per alert, if configured</td>
+      <td><span class="pill ok">required</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -528,7 +531,9 @@ the total:</p>
   Bosnia at 18&deg;E is not in its field of view; five days of queries returned zero
   rows. <strong>MSG</strong> (<code>msg_fes:fire</code>, 15 min) does cover Europe and
   is available as a WMS layer, but WMS returns pictures rather than queryable
-  features, and MTG already supersedes it.</p>
+  features, and MTG already supersedes it. That objection holds for
+  <em>detection</em> and only for detection &mdash; pictures are exactly what you
+  want once a fire is known, which is what the imagery layers on the map are for.</p>
 </div>
 
 <!-- ==================== 3 ==================== -->
@@ -662,7 +667,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <polyline points="380,530 380,552 628,552 628,574" class="s-line" marker-end="url(#a3)"/>
 
     <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
-    <text x="30" y="602" class="s-t-b">6 &middot; Notify + SMS</text>
+    <text x="30" y="602" class="s-t-b">6 &middot; Notify + SMS + Telegram</text>
     <text x="30" y="618" class="s-t-s">rate-limited per event</text>
     <text x="30" y="633" class="s-t-s">and per kind</text>
 
@@ -793,10 +798,10 @@ schedules, so one slow or failing feed never blocks the others.</p>
 
   <li>
     <h3>Notify</h3>
-    <p>Alerts become macOS notifications and, when configured, an SMS &mdash; two
-    independent channels, so a failed notification never suppresses the text.
-    Either way the alert is suppressed if the same event already fired for the same
-    reason inside 25 minutes.</p>
+    <p>Alerts become macOS notifications and, when configured, an SMS and a
+    Telegram channel post &mdash; three independent channels, so a failure in
+    one never suppresses another. Either way the alert is suppressed if the
+    same event already fired for the same reason inside 25 minutes.</p>
   </li>
 
   <li>
@@ -893,7 +898,10 @@ that last detection, which is the number the map shows.</p>
   and staying visible only to VIIRS.</p>
   <p>This is why <code>extinguished</code> is the one alert that never sends an SMS.
   It is a statement about the data, and the field does not need a text message saying
-  the satellite stopped seeing something.</p>
+  the satellite stopped seeing something. Telegram carries it anyway &mdash; there is
+  no per-message cost to a channel post, so <code>telegram_kinds</code> includes
+  <code>extinguished</code> by default even though <code>sms_kinds</code> never
+  has.</p>
 </div>
 
 <p><strong>Why five hours.</strong> It is a compromise between the two failure modes
@@ -1047,6 +1055,24 @@ an SMS to UCS-2 encoding, cutting a segment from 160 characters to 70, so
 SMS is an <em>independent</em> channel &mdash; it still goes out when the Mac is
 asleep and nobody sees the desktop notification.</p>
 
+<h3>Telegram</h3>
+<p>Alerts can also post to a public Telegram channel through the
+<a href="https://core.telegram.org/bots/api">Bot API</a> &mdash; one recipient, the
+channel itself, rather than a managed list of numbers. Anyone subscribes from the
+channel&rsquo;s own public link; there is no per-person onboarding the way an SMS
+recipient has to be added by number.</p>
+<p>There is no 160-character segment to fit inside (the limit is 4096, real alerts
+run 150&ndash;210), so nothing is trimmed or transliterated: diacritics are kept as
+typed, and the message carries lines SMS drops for cost &mdash; the detection count
+and its source list, the footprint width, and an <code>IZVAN OP&Cacute;INE</code>
+marker for a fire outside the municipality. Telegram is also an <em>independent</em>
+channel in the same sense SMS is: a failed desktop notification, or a failed SMS,
+never stops the channel post from going out.</p>
+<p>A channel still has its own rate limit &mdash; about one post per second &mdash;
+and a 429 response tells the bot exactly how long to wait before retrying. FireWatch
+honours that once, capped at five seconds, and drops the post rather than block the
+next poll cycle on a longer wait.</p>
+
 <h3>Sharing the map</h3>
 <p>The map can be published on a public URL, which is the link the SMS alerts carry.
 ngrok serves one directory — the map and its data file, never the database, log or
@@ -1091,6 +1117,65 @@ with a double-click, <kbd>Enter</kbd> or <em>Done</em>; <kbd>Backspace</kbd> dro
 the last point and <kbd>Esc</kbd> puts the tool away. Measurements live in their
 own map pane, so the 60-second refresh &mdash; which rebuilds every fire layer from
 scratch &mdash; leaves them standing.</p>
+
+<p><strong>Satellite imagery.</strong> The three basemaps are all archival &mdash;
+Esri World Imagery is months to years old &mdash; so none of them can show a fire
+that is burning. Three tiers of live imagery sit in the layer control, and the
+ordering is counter-intuitive: <strong>the fast layer is the coarse
+one</strong>. Meteosat lands every 10 minutes at ~1.7 &times; 1.3 km here; NASA
+GIBS gives 250 m VIIRS and 30 m HLS once a day, 4&ndash;5 h behind; Sentinel-2
+gives ~11 m every 2&ndash;3 days. What you can actually see of a fire this size is
+the <em>smoke</em>, not the flame, which is why cadence beats resolution. Measured
+against the real event of 2026-09-05 at 44.354/18.225: the 250 m VIIRS frame showed
+a clear plume drifting south-east, while the VIIRS fire-band combo &mdash; the one
+meant to flag sub-pixel flame &mdash; showed nothing at all.
+<code>mtg_fd:rgb_firetemperature</code> was the exception, rendering two
+unmistakable red hotspots at 20:40Z that evening.</p>
+<p>A readout in the bottom-left names the layer and the frame you are looking at,
+because the timeline can read 12:03 while the frame is 12:00, and because a gap in
+an archive otherwise looks exactly like a clear sky. Scrubbing the timeline moves
+the Meteosat and GIBS imagery with it; Sentinel-2 is a single latest scene and says
+so. The readout also explains the two ways a layer can be present but useless. Both
+Meteosat <em>visible</em> layers go blind after sunset &mdash; true colour returns
+a transparent frame, so you would think it failed to load, and the 0.6&nbsp;km
+visible channel returns a black rectangle &mdash; so after dark they step aside
+and point you at fire temperature, which is thermal and works all night. And
+those same two layers have a daily publication hole between 00:00Z and 01:50Z,
+which is a different thing entirely: not darkness, since they answer perfectly at
+midnight local. The 30&nbsp;m layer, meanwhile, only images a given spot every
+few days, so on most dates there is simply no scene, and it says so instead of
+showing nothing.</p>
+<p>The layers are alternatives to one another with one deliberate exception:
+<strong>fire temperature stacks on top of any of them</strong>. That pairing is
+the reason the grouping exists &mdash; Meteosat hotspots composited onto VIIRS
+terrain puts the fire, its smoke plume and the ground it is burning in a single
+frame. It works because Fire Temperature RGB is black everywhere except the
+fire, so it is blended rather than laid over: the blend can only lighten, and
+therefore cannot hide the imagery beneath it.</p>
+<p>An eye button on the left hides every fire graphic at once &mdash; event
+circles, footprints, detection dots and the trail &mdash; because the markers are
+drawn to be impossible to miss, which is exactly wrong once you have put a
+satellite frame underneath and want to look at the smoke. The sidebar list stays
+either way, so hiding the map graphics never costs you the answer to what is
+burning. It is deliberately not remembered: reloading the page brings the
+markers back, and so does any cycle that carries new data. Hiding them is a
+momentary look underneath, not a preference &mdash; on a fire monitor, a fire
+that has just changed outranks whatever you were studying beneath it. A cycle
+that finds nothing new leaves your view alone.</p>
+<p>The basemap list carries a fourth option, <em>No basemap</em>, which draws
+nothing and leaves the near-black background. With no cartography competing, the
+fire layers are all that is left &mdash; and it reads best of all under the
+Meteosat fire temperature layer, whose blend over near-black is close to the raw
+layer, so the hotspots come through at full strength. It is a basemap choice
+rather than a checkbox because Leaflet's basemaps are a radio group: one is
+always selected, so there would otherwise be no way to untick your way to
+nothing.</p>
+<p>Sentinel-2 is the one tier rendered on this side rather than in your browser,
+and needs a free Copernicus account. Sentinel Hub takes its credential as an
+instance id <em>in the URL</em>, so a browser-side layer would publish a
+quota-bearing credential to everyone who opens the map. Instead the poller renders
+one image per new scene and the page places it as a georeferenced overlay. Without
+credentials the layer is simply absent; the other two tiers need none.</p>
 
 <h3>Command line</h3>
 <pre><code>python3 -m firewatch status 24h|3d|7d|30d|1y   current state for one range

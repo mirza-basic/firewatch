@@ -1,0 +1,555 @@
+<title>Satellite-to-System Latency</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation and API reference so the three read as one set. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  .src-mtg{color:var(--mtg); font-weight:600; font-family:Archivo,sans-serif; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase}
+  .src-firms{color:var(--firms); font-weight:600; font-family:Archivo,sans-serif; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase}
+  .src-s3{color:var(--s3); font-weight:600; font-family:Archivo,sans-serif; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;
+    margin:22px 0 26px}
+  .card{border:1px solid var(--rule); background:var(--surface); border-radius:8px;
+    padding:16px 18px}
+  .card h4{margin-top:0}
+  .card p{font-size:14.5px; margin-bottom:0; max-width:none}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+  footer a{color:var(--ink-2)}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">Satellite latency</div>
+  <ol>
+    <li><a href="#method"><span class="n">01</span><span>Method</span></a></li>
+    <li><a href="#orbits"><span class="n">02</span><span>How the satellites move</span></a></li>
+    <li><a href="#cadence"><span class="n">03</span><span>Overpasses per day</span></a></li>
+    <li><a href="#frp"><span class="n">04</span><span>Minimum detectable FRP</span></a></li>
+    <li><a href="#pixel"><span class="n">05</span><span>Ground footprint per pixel</span></a></li>
+    <li><a href="#table"><span class="n">06</span><span>First detections, Aug 28 &ndash; Sep 9</span></a></li>
+    <li><a href="#sources"><span class="n">07</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Measurement</div>
+  <h1>Satellite-to-system latency</h1>
+  <p class="standfirst">For every fire cluster in the last 15 days, the detection that
+  first discovered it &mdash; the same one that gives the cluster its identity in
+  <code>events.py</code> &mdash; compared against the moment that detection actually
+  landed in the database.</p>
+  <dl class="facts">
+    <div><dt>Clusters (15d)</dt><dd>20</dd></div>
+    <div><dt>Average delay</dt><dd>2h 49m</dd></div>
+    <div><dt>Fastest / slowest</dt><dd>26m / 5h 57m</dd></div>
+    <div><dt>First-caught by MTG</dt><dd>1 / 20</dd></div>
+  </dl>
+</header>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="method"><span class="num">01</span> Method</h2>
+<p class="lede">This is not the <code>events</code> table read back &mdash; it is
+detections re-clustered from scratch, to isolate exactly one row per fire.</p>
+<p>Raw detections from the last 15 days were pulled straight out of
+<code>detections</code> and re-clustered with the same single-linkage algorithm the
+live system uses (3.5&nbsp;km / 8&nbsp;h). For each resulting cluster, only the
+earliest detection &mdash; the one <code>build_events</code> uses to derive the
+cluster's <code>first_ts</code> and its id &mdash; was kept. For that one row,
+<code>ts</code> (satellite acquisition time) was compared against <code>first_seen</code>
+(when the poller's <code>INSERT OR IGNORE</code> actually wrote it).</p>
+<p>One outlier was excluded: a detection whose <code>first_seen</code> lagged its
+<code>ts</code> by 11h 26m, at the edge of the 15-day window, where truncation makes the
+gap unrepresentative of normal operation.</p>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="orbits"><span class="num">02</span> How the satellites move</h2>
+<p class="lede">FireWatch combines two fundamentally different kinds of orbit, and that
+difference is most of why their latency differs.</p>
+<div class="cards">
+  <div class="card">
+    <h4><span class="src-mtg">Geostationary</span> &middot; Meteosat MTG</h4>
+    <p>Sits above the same point on Earth, at roughly 35,786&nbsp;km, and stares at the
+    same hemisphere continuously. That lets it scan the full disc every 10 minutes &mdash;
+    the fastest source here &mdash; but its distance and viewing angle limit it to
+    stronger, larger fires.</p>
+  </div>
+  <div class="card">
+    <h4><span class="src-firms">Polar, sun-synchronous</span> &middot; VIIRS / FIRMS</h4>
+    <p>Circles north&ndash;south at roughly 834&nbsp;km, sweeping a different strip of the
+    planet on every pass. Over Zavidovići that means only a handful of passes a day, but
+    flying low and close lets it catch fires MTG cannot see at all.</p>
+  </div>
+  <div class="card">
+    <h4><span class="src-s3">Polar, sun-synchronous</span> &middot; Sentinel-3</h4>
+    <p>Same orbit family as VIIRS, roughly 807&nbsp;km, a different satellite and sensor
+    (SLSTR), about two passes a day between S3A and S3B. Tracked as a third source, but
+    in this 15-day window it never won the race to be a cluster's first detection &mdash;
+    MTG or VIIRS/FIRMS always got there first.</p>
+  </div>
+</div>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="cadence"><span class="num">03</span> Overpasses per day</h2>
+<div class="tw">
+<table>
+  <thead><tr><th>Satellite</th><th>Orbit</th><th class="num">Passes / observations per day</th><th class="num">Processing delay</th></tr></thead>
+  <tbody>
+    <tr><td><span class="src-mtg">MTG</span><br>Meteosat MTG (FCI)</td><td>Geostationary</td>
+        <td class="num">Every 10 min</td><td class="num">~26m <span style="color:var(--ink-3)">(measured)</span></td></tr>
+    <tr><td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20/21, Suomi NPP) + MODIS</td><td>Polar</td>
+        <td class="num">4&ndash;7 / day</td><td class="num">~2h 51m <span style="color:var(--ink-3)">(measured)</span></td></tr>
+    <tr><td><span class="src-s3">S3</span><br>Sentinel-3 A/B (SLSTR)</td><td>Polar</td>
+        <td class="num">~2 / day</td><td class="num">~4h <span style="color:var(--ink-3)">(documented)</span></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="note">
+  <span class="lbl">Verified against NASA FIRMS documentation</span>
+  <p>FIRMS' own FAQ states VIIRS gives &ldquo;3&ndash;4 looks a day&rdquo; at mid-latitudes
+  (Zavidovići sits at ~44&deg;N) and MODIS gives &ldquo;at least 4 daily
+  observations&rdquo; at the equator, rising toward the poles. Combined into one feed,
+  that supports the &ldquo;4&ndash;7/day&rdquo; figure in <code>sources.py</code>. FIRMS
+  also states NRT data is available &ldquo;within 3 hours&rdquo; of observation &mdash;
+  the same number this project already uses, and close to the 2h51m this system actually
+  measured over the last 15 days.</p>
+</div>
+<div class="note warn">
+  <span class="lbl">What the raw database alone cannot tell you</span>
+  <p>Counting distinct acquisition timestamps per day in the database (all history,
+  33 active days) gives an average of 2.9 passes/day, rising to 4&ndash;8/day in the most
+  active recent stretch. That is not a contradiction of &ldquo;4&ndash;7/day&rdquo;: the
+  database only records a pass when it actually produced a detection. A day with no fire
+  leaves no row, and even on a fire day, a physical overpass that saw no hotspot leaves no
+  row either &mdash; so a database count is always a lower bound on how often the
+  satellites actually fly over.</p>
+</div>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="frp"><span class="num">04</span> Minimum detectable fire strength</h2>
+<div class="tw">
+<table>
+  <thead><tr><th>Satellite / sensor</th><th class="num">Published minimum</th><th class="num">Observed minimum (15 days)</th></tr></thead>
+  <tbody>
+    <tr><td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20/21, Suomi NPP)</td>
+        <td class="num">~0.5 MW <span style="color:var(--ink-3)">(night, nadir)</span></td>
+        <td class="num">0.39 MW</td></tr>
+    <tr><td><span class="src-firms">FIRMS</span><br>MODIS</td>
+        <td class="num">~3.7 MW <span style="color:var(--ink-3)">(night, nadir)</span></td>
+        <td class="num">3.35 MW</td></tr>
+    <tr><td><span class="src-mtg">MTG</span><br>Meteosat MTG (FCI)</td>
+        <td class="num">~5 MW</td>
+        <td class="num">4.44 MW</td></tr>
+    <tr><td><span class="src-s3">S3</span><br>Sentinel-3 (SLSTR)</td>
+        <td class="num">&lt;10 MW</td>
+        <td class="num">3.70 MW</td></tr>
+  </tbody>
+</table>
+</div>
+<p><strong>Nadir</strong> means directly beneath the satellite, at a 0&deg; viewing angle
+&mdash; a polar-orbiting sensor's sharpest, most sensitive view. Off-nadir, toward the
+edge of the swath, the same sensor's minimum detectable FRP rises (VIIRS: ~1.8&ndash;3.6
+MW at 60&deg; view zenith), because the same footprint spreads over more ground. MTG has
+no nadir/off-nadir distinction in this sense &mdash; it has a single, fixed viewing angle
+from Zavidovići, covered in the next section.</p>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="pixel"><span class="num">05</span> Ground footprint per pixel</h2>
+<div class="tw">
+<table>
+  <thead><tr><th>Satellite / sensor</th><th class="num">Pixel at the satellite</th><th class="num">Pixel over Zavidovići</th></tr></thead>
+  <tbody>
+    <tr><td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20/21, Suomi NPP)</td>
+        <td class="num">375 &times; 375 m</td><td class="num">375 &times; 375 m</td></tr>
+    <tr><td><span class="src-firms">FIRMS</span><br>MODIS</td>
+        <td class="num">~1 &times; 1 km</td><td class="num">~1 &times; 1 km</td></tr>
+    <tr><td><span class="src-mtg">MTG</span><br>Meteosat MTG (FCI)</td>
+        <td class="num">2 &times; 2 km <span style="color:var(--ink-3)">(nadir, thermal)</span></td>
+        <td class="num">~3.4 &times; 2.6 km</td></tr>
+    <tr><td><span class="src-s3">S3</span><br>Sentinel-3 (SLSTR)</td>
+        <td class="num">~1 &times; 1 km</td><td class="num">~1 &times; 1 km</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="note">
+  <span class="lbl">Why MTG's pixel changes shape between the satellite and here</span>
+  <p>EUMETSAT's own FCI specification gives 2&nbsp;km at nadir for the thermal channels
+  FRP is derived from (1&nbsp;km for the solar channels). MTG sits over 0&deg;E and
+  Zavidovići is seen at roughly a 54&deg; viewing zenith from there, so
+  <code>1&nbsp;/&nbsp;cos&nbsp;&theta; &asymp; 1.7</code> stretches that circular 2&nbsp;km
+  pixel into an oval of roughly 3.4&nbsp;&times;&nbsp;2.6&nbsp;km. Its diagonal, ~4.3&nbsp;km,
+  is where the &ldquo;~4&nbsp;km pixel&rdquo; shorthand used elsewhere in this codebase
+  (as the justification for <code>cluster_radius_km&nbsp;=&nbsp;3.5</code>) comes from
+  &mdash; both figures describe the same footprint, one as two dimensions and one rounded
+  to a single number.</p>
+</div>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="table"><span class="num">06</span> First detections, last 15 days (2026-08-28 &ndash; 2026-09-09)</h2>
+<p class="lede">One row per cluster: the earliest detection that established it, and how
+long it took to reach this system.</p>
+<div class="tw">
+<table>
+  <thead>
+    <tr>
+      <th>Location</th>
+      <th>Satellite / sensor</th>
+      <th class="num">FRP</th>
+      <th>Satellite saw it (UTC)</th>
+      <th>System ingested (UTC)</th>
+      <th class="num">Delay</th>
+      <th class="num">Detections in cluster</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>5.5 km E of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3291, 18.2774</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-21)</td>
+      <td class="num">7.65 MW</td>
+      <td class="mono">2026-08-28<br>12:02:00</td>
+      <td class="mono">2026-08-28<br>14:45:37</td>
+      <td class="num">2h 44m</td>
+      <td class="num">1</td>
+    </tr>
+    <tr>
+      <td>2.6 km NE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3534, 18.2330</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">2.46 MW</td>
+      <td class="mono">2026-08-29<br>00:54:00</td>
+      <td class="mono">2026-08-29<br>04:00:49</td>
+      <td class="num">3h 07m</td>
+      <td class="num">2</td>
+    </tr>
+    <tr>
+      <td>2.5 km NE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3516, 18.2329</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">1.17 MW</td>
+      <td class="mono">2026-08-30<br>00:54:00</td>
+      <td class="mono">2026-08-30<br>03:30:56</td>
+      <td class="num">2h 37m</td>
+      <td class="num">1</td>
+    </tr>
+    <tr>
+      <td>2.4 km SSE of Suha<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2849, 18.1673</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">0.85 MW</td>
+      <td class="mono">2026-08-31<br>00:35:00</td>
+      <td class="mono">2026-08-31<br>03:30:45</td>
+      <td class="num">2h 56m</td>
+      <td class="num">5</td>
+    </tr>
+    <tr>
+      <td>2.4 km NE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3539, 18.2277</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">0.79 MW</td>
+      <td class="mono">2026-08-31<br>00:35:00</td>
+      <td class="mono">2026-08-31<br>03:30:45</td>
+      <td class="num">2h 56m</td>
+      <td class="num">9</td>
+    </tr>
+    <tr>
+      <td>2.2 km NW of Meljić<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2814, 18.1674</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">6.93 MW</td>
+      <td class="mono">2026-08-31<br>11:42:00</td>
+      <td class="mono">2026-08-31<br>13:15:36</td>
+      <td class="num">1h 34m</td>
+      <td class="num">2</td>
+    </tr>
+    <tr>
+      <td>2.2 km NE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3494, 18.2301</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">1.38 MW</td>
+      <td class="mono">2026-09-01<br>00:16:00</td>
+      <td class="mono">2026-09-01<br>03:01:03</td>
+      <td class="num">2h 45m</td>
+      <td class="num">2</td>
+    </tr>
+    <tr>
+      <td>2.1 km NW of Meljić<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2799, 18.1662</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">0.74 MW</td>
+      <td class="mono">2026-09-02<br>01:20:00</td>
+      <td class="mono">2026-09-02<br>04:31:20</td>
+      <td class="num">3h 11m</td>
+      <td class="num">1</td>
+    </tr>
+    <tr>
+      <td>2.4 km SSE of Suha<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2853, 18.1665</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">0.88 MW</td>
+      <td class="mono">2026-09-03<br>01:00:00</td>
+      <td class="mono">2026-09-03<br>04:15:56</td>
+      <td class="num">3h 16m</td>
+      <td class="num">4</td>
+    </tr>
+    <tr>
+      <td>2.1 km S of Suha<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2870, 18.1602</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-21)</td>
+      <td class="num">6.67 MW</td>
+      <td class="mono">2026-09-03<br>11:49:00</td>
+      <td class="mono">2026-09-03<br>14:15:50</td>
+      <td class="num">2h 27m</td>
+      <td class="num">24</td>
+    </tr>
+    <tr>
+      <td>1.6 km S of Suha<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2911, 18.1562</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">1.78 MW</td>
+      <td class="mono">2026-09-05<br>00:41:00</td>
+      <td class="mono">2026-09-05<br>03:31:03</td>
+      <td class="num">2h 50m</td>
+      <td class="num">5</td>
+    </tr>
+    <tr>
+      <td>2.3 km NE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3540, 18.2263</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-21)</td>
+      <td class="num">1.45 MW</td>
+      <td class="mono">2026-09-05<br>01:26:00</td>
+      <td class="mono">2026-09-05<br>03:46:06</td>
+      <td class="num">2h 20m</td>
+      <td class="num">1</td>
+    </tr>
+    <tr>
+      <td>3.5 km NNE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3650, 18.2301</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">3.70 MW</td>
+      <td class="mono">2026-09-05<br>11:49:00</td>
+      <td class="mono">2026-09-05<br>13:15:41</td>
+      <td class="num">1h 27m</td>
+      <td class="num">5</td>
+    </tr>
+    <tr>
+      <td>3.6 km S of Miljevići<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3556, 18.3298</span></td>
+      <td><span class="src-mtg">MTG</span><br>Meteosat MTG (FCI)</td>
+      <td class="num">14.83 MW</td>
+      <td class="mono">2026-09-06<br>13:20:00</td>
+      <td class="mono">2026-09-06<br>13:45:40</td>
+      <td class="num">26m</td>
+      <td class="num">31</td>
+    </tr>
+    <tr>
+      <td>6.8 km ESE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3199, 18.2914</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">0.56 MW</td>
+      <td class="mono">2026-09-07<br>00:05:00</td>
+      <td class="mono">2026-09-07<br>04:45:39</td>
+      <td class="num">4h 41m</td>
+      <td class="num">6</td>
+    </tr>
+    <tr>
+      <td>1.7 km SSW of Suha<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.2907, 18.1523</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">0.93 MW</td>
+      <td class="mono">2026-09-07<br>01:26:00</td>
+      <td class="mono">2026-09-07<br>04:30:56</td>
+      <td class="num">3h 05m</td>
+      <td class="num">3</td>
+    </tr>
+    <tr>
+      <td>6.9 km ESE of Kamenica<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3197, 18.2921</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-21)</td>
+      <td class="num">4.79 MW</td>
+      <td class="mono">2026-09-07<br>10:34:00</td>
+      <td class="mono">2026-09-07<br>16:31:21</td>
+      <td class="num">5h 57m</td>
+      <td class="num">1</td>
+    </tr>
+    <tr>
+      <td>3.0 km SSW of Vozuća<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3591, 18.3394</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (NOAA-20)</td>
+      <td class="num">4.90 MW</td>
+      <td class="mono">2026-09-07<br>11:30:00</td>
+      <td class="mono">2026-09-07<br>13:31:09</td>
+      <td class="num">2h 01m</td>
+      <td class="num">3</td>
+    </tr>
+    <tr>
+      <td>3.4 km SSW of Vozuća<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3574, 18.3325</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">1.52 MW</td>
+      <td class="mono">2026-09-08<br>01:07:00</td>
+      <td class="mono">2026-09-08<br>04:01:19</td>
+      <td class="num">2h 54m</td>
+      <td class="num">6</td>
+    </tr>
+    <tr>
+      <td>3.7 km S of Miljevići<br><span class="mono" style="font-size:11px;color:var(--ink-3)">44.3543, 18.3298</span></td>
+      <td><span class="src-firms">FIRMS</span><br>VIIRS (Suomi NPP)</td>
+      <td class="num">1.21 MW</td>
+      <td class="mono">2026-09-09<br>00:48:00</td>
+      <td class="mono">2026-09-09<br>04:01:32</td>
+      <td class="num">3h 14m</td>
+      <td class="num">1</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<p>Delay = system ingest time minus satellite acquisition time. For FIRMS/VIIRS this is
+mostly the source's own processing latency &mdash; the satellite passes, NASA processes,
+this system polls &mdash; not a delay this poller introduces. Meteosat is the only
+geostationary source in this window, and the only one under half an hour, consistent
+with its 10-minute cycle and ~25-minute publication latency.</p>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="sources"><span class="num">07</span> Sources</h2>
+<p>Every figure on this page that is not read directly from FireWatch's own database or
+source code was checked against the following, in September 2026:</p>
+<ul>
+  <li><a href="https://www.earthdata.nasa.gov/data/tools/firms/faq">NASA FIRMS FAQ</a>
+  &mdash; VIIRS/MODIS overpass frequency, NRT latency (&ldquo;within 3 hours&rdquo;)</li>
+  <li><a href="https://forum.earthdata.nasa.gov/viewtopic.php?t=5159">Earthdata Forum &mdash; &ldquo;How often are the active fire data acquired?&rdquo;</a></li>
+  <li><a href="https://forum.earthdata.nasa.gov/viewtopic.php?t=5191">FIRMS FAQ &mdash; Questions about MODIS active fire data</a> &mdash; MODIS minimum FRP</li>
+  <li><a href="https://www.eumetsat.int/mtg-flexible-combined-imager-fci">EUMETSAT &mdash; MTG Flexible Combined Imager (FCI)</a> &mdash; channel resolutions (1&nbsp;km solar / 2&nbsp;km thermal, nadir)</li>
+  <li><a href="https://user.eumetsat.int/s3/eup-strapi-media/pdf_mtg_fci_l1_pug_8235cb71d9.pdf">MTG FCI L1 Product User Guide</a></li>
+  <li><a href="https://www.esa.int/Applications/Observing_the_Earth/Meteorological_missions/Meteosat/About_Meteosat_Third_Generation">ESA &mdash; About Meteosat Third Generation</a> &mdash; geostationary orbit, 10-minute full-disc cycle</li>
+  <li><a href="https://www.sciencedirect.com/science/article/pii/S2666017226000040">ScienceDirect &mdash; MTG-FCI improvements in early fire detection</a> &mdash; ~10 MW median FRP threshold</li>
+  <li><a href="https://www.eoportal.org/satellite-missions/suomi-npp">eoPortal &mdash; Suomi NPP</a> &mdash; VIIRS orbital altitude (~834 km)</li>
+  <li><a href="https://yceo.yale.edu/node/791">Yale YCEO &mdash; What is VIIRS?</a> &mdash; swath width and coverage</li>
+  <li><a href="https://egusphere.copernicus.org/preprints/2026/egusphere-2026-89/">EGUsphere &mdash; Detection limits for MODIS and VIIRS FRP products</a> &mdash; minimum FRP by view zenith angle</li>
+  <li><a href="https://www.eoportal.org/satellite-missions/copernicus-sentinel-3">eoPortal &mdash; Copernicus Sentinel-3</a> &mdash; orbital altitude (~807 km)</li>
+  <li><a href="https://sentinel.esa.int/web/sentinel/user-guides/sentinel-3-slstr/coverage">ESA Sentinel Online &mdash; Sentinel-3 SLSTR Coverage</a> &mdash; daily revisit, S3A + S3B</li>
+</ul>
+
+<footer>
+  <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,
+  NASA FIRMS and Sentinel-3 SLSTR. Boundary and settlement data © OpenStreetMap
+  contributors, ODbL 1.0.</p>
+  <p>Figures on this page were measured from FireWatch's own database over the 15 days
+  ending 2026-09-09, and cross-checked against the sources above the same month. Both
+  drift: re-measure before citing this page as current.</p>
+</footer>
+</main>
+</div>

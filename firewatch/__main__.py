@@ -16,6 +16,9 @@
     python3 -m firewatch serve [host:port] [--no-poll]   poll + serve the map over HTTP
     python3 -m firewatch quota       FIRMS transaction usage + which key is in use
     python3 -m firewatch set-firms-key  store a FIRMS key in the Keychain
+    python3 -m firewatch set-cdse-key   store a Copernicus client in the Keychain
+    python3 -m firewatch imagery [--force]  render the latest Sentinel-2 scene
+    python3 -m firewatch fire-danger [--force]  today's + short-term Canadian FWI
     python3 -m firewatch expose      publish the map via ngrok, print the URL
     python3 -m firewatch unexpose    stop publishing (other tunnels untouched)
     python3 -m firewatch expose-status
@@ -26,6 +29,9 @@
     python3 -m firewatch set-sms-key   store the httpSMS API key
     python3 -m firewatch sms-add <number>     add an SMS recipient
     python3 -m firewatch sms-remove <number>  remove one send a test notification
+    python3 -m firewatch telegram-status  Telegram channel + settings
+    python3 -m firewatch test-telegram    post a sample alert to the channel
+    python3 -m firewatch set-telegram-key store the Telegram bot token
 """
 from __future__ import annotations
 
@@ -38,8 +44,9 @@ from pathlib import Path
 from . import events as ev_mod
 from . import expose as expose_mod
 from . import sms as sms_mod
+from . import telegram as telegram_mod
 from . import mapgen, notify, place, poller, sources, store
-from .config import CFG, MAP_PATH, SNAPSHOT_PATH
+from .config import CFG, MAP_PATH, SNAPSHOT_PATH, cdse_credentials
 
 
 def _print_snapshot(snap: dict, rng: str | None = None) -> None:
@@ -246,6 +253,99 @@ def cmd_set_firms_key() -> int:
     return 0
 
 
+def cmd_set_cdse_key() -> int:
+    """Store a Copernicus Data Space OAuth client in the Keychain.
+
+    Two values, one item: `security` holds a single password per service, and
+    keeping the halves in separate items would let an install end up with an id
+    from one client and a secret from another - which fails at render time with
+    an opaque 401, long after the mistake.
+    """
+    import getpass
+    import shutil
+    import subprocess
+
+    from .config import CDSE_KEYCHAIN_SERVICE, CDSE_SIGNUP_URL, cdse_credentials
+    if not shutil.which("security"):
+        print("  no macOS Keychain here - set CDSE_CLIENT='<id>:<secret>' in the"
+              " environment instead (systemd EnvironmentFile, or docker -e)")
+        return 1
+    print(f"  register a client at {CDSE_SIGNUP_URL}")
+    cid = input("  client id: ").strip()
+    sec = getpass.getpass("  client secret (not echoed): ").strip()
+    if not cid or not sec:
+        print("  need both halves")
+        return 1
+    r = subprocess.run(["security", "add-generic-password", "-U",
+                        "-a", "firewatch", "-s", CDSE_KEYCHAIN_SERVICE,
+                        "-w", f"{cid}:{sec}"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  keychain write failed: {r.stderr.strip()[:200]}")
+        return 1
+    _, _, source = cdse_credentials()
+    print(f"  stored. now resolving from: {source}")
+    if not CFG.get("imagery_s2_enabled"):
+        print("  note: imagery_s2_enabled is off, so nothing will render yet -"
+              " set it to true in config.json and restart")
+    return 0
+
+
+def cmd_imagery(force: bool = False) -> int:
+    """Look for a new Sentinel-2 scene, and render it if there is one."""
+    from . import imagery, store
+    scene = imagery.latest_scene()
+    if not scene:
+        print("  no usable Sentinel-2 scene found (catalogue empty, or all too cloudy)")
+        return 1
+    print(f"  newest scene: {scene['day']}  cloud {scene['cloud']}%  {scene['name'][:44]}")
+    if not CFG.get("imagery_s2_enabled"):
+        print("  imagery_s2_enabled is off - not rendering")
+        return 1
+    cid, _sec, src = cdse_credentials()
+    if not cid:
+        print(f"  no Copernicus credentials ({src}) - run `set-cdse-key`")
+        return 1
+    con = store.connect()
+    try:
+        rec = imagery.refresh(con, force=force)
+    finally:
+        con.close()
+    if not rec:
+        print("  render failed - see the log")
+        return 1
+    print(f"  {rec['day']}  {rec['px'][0]}x{rec['px'][1]} px  -> {rec['file']}")
+    return 0
+
+
+def cmd_fire_danger(force: bool = False) -> int:
+    """Today's + short-term Canadian FWI, computed at geo.forecast_point()."""
+    from . import firedanger, geo
+
+    if not CFG.get("fire_danger_enabled", True):
+        print("  fire_danger_enabled is off in config.json")
+        return 1
+    lat, lon = geo.forecast_point()
+    print(f"\n  forecast point: {lat:.4f}, {lon:.4f}  (municipality centroid)")
+    con = store.connect()
+    try:
+        payload = firedanger.update(con, force=force)
+    finally:
+        con.close()
+    if not payload:
+        print("  no data (fetch failed and nothing cached yet - see the log)")
+        return 1
+    t = payload["today"]
+    print(f"  today ({t['date']}): FWI {t['fwi']}  [{t['class']}]")
+    print(f"    FFMC {t['ffmc']}  DMC {t['dmc']}  DC {t['dc']}"
+          f"  ISI {t['isi']}  BUI {t['bui']}")
+    if payload["forecast"]:
+        print("  forecast:")
+        for e in payload["forecast"]:
+            print(f"    {e['date']}: FWI {e['fwi']:>5}  [{e['class']}]")
+    print(f"  updated: {payload['updated_at']}\n")
+    return 0
+
+
 def cmd_history(n: int = 40) -> int:
     con = store.connect()
     rows = con.execute(
@@ -288,7 +388,8 @@ def cmd_sms_status() -> int:
     print(f"  map url      : {sms_mod.map_url() or '(map not published)'}")
     # The one number a fork needs and cannot guess: how close the longest alert
     # this place can produce comes to spilling into a second segment. The URL is
-    # part of the message, so a longer owner/repository name spends this headroom.
+    # part of the message, so a longer settlement name, or a longer owner/repository
+    # name in the published URL, spends this headroom without anyone deciding to.
     w = sms_mod.worst_case()
     fit = "fits" if w["segments"] == 1 else f"COSTS {w['segments']} SEGMENTS"
     print(f"  worst alert  : {w['chars']} chars, {w['headroom']} to spare - {fit}"
@@ -406,6 +507,77 @@ def cmd_test_sms() -> int:
         print("\n  not sent\n")
         return 1
     sent = sms_mod.send(text)
+    print(f"\n  delivered: {sent}\n")
+    return 0 if sent else 1
+
+
+def cmd_telegram_status() -> int:
+    from .config import CFG
+    ok, why = telegram_mod.ready()
+    print(f"\n  usable       : {ok}  ({why})")
+    print(f"  enabled      : {CFG['telegram_enabled']}")
+    print(f"  channel      : {telegram_mod.channel() or '(unset)'}")
+    print(f"  channel from : {telegram_mod.channel_source()}")
+    print(f"  bot token    : {'found' if telegram_mod.bot_token() else 'not found'}")
+    print(f"  alert kinds  : {', '.join(CFG['telegram_kinds'])}")
+    print(f"  language     : {CFG['telegram_language']}")
+    print(f"  map url      : {telegram_mod.map_url() or '(map not published)'}")
+    print()
+    return 0
+
+
+def cmd_set_telegram_key() -> int:
+    """Store the Telegram bot token in the macOS Keychain.
+
+    Prompted rather than passed on the command line so it never lands in shell
+    history or a process listing - same reasoning as `set-sms-key`.
+    """
+    import getpass
+    import shutil
+    import subprocess
+    if not shutil.which("security"):
+        print("  macOS `security` tool not found")
+        return 1
+    token = getpass.getpass("  Telegram bot token (not echoed): ").strip()
+    if not token:
+        print("  nothing entered")
+        return 1
+    r = subprocess.run(["security", "add-generic-password", "-U",
+                        "-a", "firewatch", "-s", telegram_mod.KEYCHAIN_SERVICE,
+                        "-w", token], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  keychain write failed: {r.stderr.strip()[:200]}")
+        return 1
+    ok, why = telegram_mod.ready()
+    print(f"  stored. usable now: {ok} ({why})")
+    return 0
+
+
+def cmd_test_telegram() -> int:
+    """Post the test message, and print what a real alert would look like.
+
+    Only the first is posted. A test that reads "NOVI POZAR: ..." in the channel
+    is indistinguishable from the real thing, so the sample alert is shown here
+    for its formatting and goes no further - same reasoning as `test-sms`.
+    """
+    poller.setup_logging()
+    text = telegram_mod.test_text()
+    ok, why = telegram_mod.ready()
+    print(f"\n  usable: {ok} ({why})")
+    print("  ---- message to post ----")
+    print("\n".join("  | " + l for l in text.splitlines()))
+
+    evs = poller.load_snapshot().get("events") or []
+    if evs:
+        alert = {"kind": "new", "event": evs[0], "detail": "sample"}
+        sample = telegram_mod.alert_text(alert)
+        print(f"  ---- a real alert, for comparison (not sent) ----")
+        print("\n".join("  | " + l for l in sample.splitlines()))
+
+    if not ok:
+        print("\n  not sent\n")
+        return 1
+    sent = telegram_mod.send(text)
     print(f"\n  delivered: {sent}\n")
     return 0 if sent else 1
 
@@ -680,6 +852,12 @@ def main(argv: list[str]) -> int:
         return cmd_serve(argv[1:])
     if cmd == "buffer":
         return cmd_buffer(float(argv[1]) if len(argv) > 1 else None)
+    if cmd in ("set-cdse-key", "setcdsekey"):
+        return cmd_set_cdse_key()
+    if cmd == "imagery":
+        return cmd_imagery(force="--force" in argv)
+    if cmd in ("fire-danger", "firedanger"):
+        return cmd_fire_danger(force="--force" in argv)
     if cmd in ("set-firms-key", "setfirmskey"):
         return cmd_set_firms_key()
     if cmd == "quota":
@@ -696,6 +874,12 @@ def main(argv: list[str]) -> int:
         return cmd_sms_remove(argv[1] if len(argv) > 1 else None)
     if cmd in ("set-sms-key", "setsmskey"):
         return cmd_set_sms_key()
+    if cmd in ("telegram-status", "telegramstatus"):
+        return cmd_telegram_status()
+    if cmd in ("test-telegram", "testtelegram"):
+        return cmd_test_telegram()
+    if cmd in ("set-telegram-key", "settelegramkey"):
+        return cmd_set_telegram_key()
     if cmd in ("test-notify", "testnotify"):
         return cmd_test_notify()
     print(__doc__)

@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 from . import geo
-from .config import CFG, FIRMS_SIGNUP_URL, firms_key
+from .config import CFG, FIRMS_SIGNUP_URL, firms_key, force_ipv4
 from .store import iso, parse_iso, utcnow
 
 log = logging.getLogger("firewatch.sources")
@@ -55,37 +55,13 @@ class NoCredentials(SourceError):
     """
 
 
-def _force_ipv4() -> None:
-    """Make urllib3 resolve A records only, when FIREWATCH_FORCE_IPV4 is set.
-
-    Needed wherever a host publishes AAAA records but the network has no IPv6
-    route: the connection then fails with `[Errno 101] Network is unreachable`
-    rather than falling back. GitHub Actions runners are exactly this - and of the
-    four hosts FireWatch talks to, `firms.modaps.eosdis.nasa.gov` is the only one
-    with an AAAA record, so FIRMS was the only feed that broke while Meteosat,
-    Sentinel-3 and the weather lookup all worked.
-
-    Opt-in, not automatic: a working dual-stack network resolves this correctly on
-    its own, and hard-coding IPv4 would break an IPv6-only host.
-    """
-    if not (os.environ.get("FIREWATCH_FORCE_IPV4") or "").strip():
-        return
-    try:
-        import socket
-
-        import urllib3.util.connection as u3
-        u3.allowed_gai_family = lambda: socket.AF_INET
-    except Exception as exc:          # never let a tuning knob break a cycle
-        log.warning("could not force IPv4: %s", exc)
-
-
 def _timeout() -> tuple[float, float]:
     """(connect, read). requests takes a tuple; a single value applies to both."""
     return float(CFG["connect_timeout"]), float(CFG["http_timeout"])
 
 
 def _session() -> requests.Session:
-    _force_ipv4()
+    force_ipv4()
     s = requests.Session()
     s.headers.update({"User-Agent": CFG["user_agent"]})
     return s

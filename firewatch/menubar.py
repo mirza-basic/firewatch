@@ -22,7 +22,7 @@ from pathlib import Path
 import rumps
 
 from . import events as ev_mod
-from . import expose, mapgen, notify, place, poller, sms, sources
+from . import expose, mapgen, notify, place, poller, sms, sources, telegram
 from .config import CFG, LOG_PATH, MAP_PATH, SUPPORT_DIR
 
 log = logging.getLogger("firewatch.menubar")
@@ -127,6 +127,7 @@ class FireWatchApp(rumps.App):
             notif,
             rumps.MenuItem("Send Test Notification", callback=self.test_notify),
             self._test_sms_item(),
+            self._test_telegram_item(),
             rumps.MenuItem(f"Alerts via: {notify.backend()}", callback=None),
             rumps.separator,
             rumps.MenuItem("FIRMS Quota…", callback=self.show_quota),
@@ -167,6 +168,14 @@ class FireWatchApp(rumps.App):
         if not ok:
             return _info(f"Send Test SMS — unavailable: {why}")
         return rumps.MenuItem("Send Test SMS…", callback=self.test_sms)
+
+    def _test_telegram_item(self) -> rumps.MenuItem:
+        """Greyed out, with the reason in the title, when the channel post cannot
+        go out - same reasoning as `_test_sms_item`."""
+        ok, why = telegram.ready()
+        if not ok:
+            return _info(f"Post Test Telegram — unavailable: {why}")
+        return rumps.MenuItem("Post Test Telegram…", callback=self.test_telegram)
 
     def _range_item(self, snap: dict) -> rumps.MenuItem:
         """Last 24h / 3 days / 7 days / month, with the event count for each."""
@@ -343,6 +352,35 @@ class FireWatchApp(rumps.App):
                         "Test SMS delivered to httpSMS" if sent
                         else "Test SMS failed — see the log",
                         subtitle=", ".join(to))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def test_telegram(self, _=None):
+        """Confirm, then post the test message to the channel.
+
+        Confirmed first because this one is public: it lands in front of every
+        channel subscriber. The dialog shows the exact text, so what was
+        approved is what gets posted. The post is a network call and must stay
+        off the main thread or the whole menu bar freezes on it.
+        """
+        text = telegram.test_text()
+        ch = telegram.channel()
+        if rumps.alert(
+                f"Post a test message to {ch}?",
+                f"{text}",
+                ok="Post", cancel="Cancel") != 1:
+            return
+
+        def work():
+            try:
+                sent = telegram.send(text)
+            except Exception:
+                log.exception("test telegram post failed")
+                sent = False
+            notify.send("FireWatch",
+                        "Test message posted to Telegram" if sent
+                        else "Test post failed — see the log",
+                        subtitle=ch)
 
         threading.Thread(target=work, daemon=True).start()
 
