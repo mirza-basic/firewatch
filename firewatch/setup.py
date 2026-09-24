@@ -131,6 +131,30 @@ def fetch_settlements(lat: float, lon: float, radius_km: float) -> list[dict]:
                      "  with bare coordinates. Run it again.")
 
 
+def _fold(s: str) -> str:
+    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+
+
+def town_point(places: list[dict], short: str,
+                rel_lat: float, rel_lon: float) -> tuple[float, float, bool]:
+    """Where the town actually is, if Overpass found one under that name.
+
+    Nominatim's relation lat/lon is a representative point for the *boundary
+    polygon*, not necessarily where the town itself sits - the two coincide for
+    a compact municipality (Zavidovici, ~0 km apart) but not a stretched one
+    (Jablanica, whose relation centre and town are ~5.2 km apart, measured: the
+    municipality follows a river valley, so its polygon's centre is nowhere near
+    the settlement). A `town`/`city` place from fetch_settlements() matching the
+    resolved short name is the real thing; fall back to the relation's point
+    only when Overpass has nothing under that name.
+    """
+    target = _fold(short)
+    for p in places:
+        if p["k"] in ("town", "city") and _fold(p["n"]) == target:
+            return float(p["lat"]), float(p["lon"]), True
+    return rel_lat, rel_lon, False
+
+
 def name_forms(short: str, admin: str, lang: str) -> dict:
     """Scaffolded name forms - English correct, any other language a placeholder.
 
@@ -158,9 +182,9 @@ def run(query: str, *, place_id: str | None = None, lang: str = "en",
     admin = hit["display_name"].split(",")[0].strip()
     short = short_name(admin)
     pid = place_id or slug(short)
-    lat, lon = float(hit["lat"]), float(hit["lon"])
+    rel_lat, rel_lon = float(hit["lat"]), float(hit["lon"])
     print(f"  {hit['display_name']}")
-    print(f"  relation {hit['osm_id']} · centre {lat:.6f}, {lon:.6f} · id {pid}")
+    print(f"  relation {hit['osm_id']} · id {pid}")
 
     boundary = DATA_DIR / f"{pid}.geojson"
     settlements = DATA_DIR / f"{pid}-settlements.json"
@@ -177,7 +201,15 @@ def run(query: str, *, place_id: str | None = None, lang: str = "en",
     # tying them together - and the next run reads the stale profile and reports
     # success. All three files or none.
     print(f"\n  Fetching settlements within {radius_km:g} km ...")
-    places = fetch_settlements(lat, lon, radius_km)
+    places = fetch_settlements(rel_lat, rel_lon, radius_km)
+
+    lat, lon, matched = town_point(places, short, rel_lat, rel_lon)
+    if matched:
+        print(f"  town centre {lat:.6f}, {lon:.6f}"
+              f"  (settlement match - relation centre was {rel_lat:.6f}, {rel_lon:.6f})")
+    else:
+        print(f"  town centre {lat:.6f}, {lon:.6f}"
+              "  (relation centre - no matching town/city settlement found)")
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     boundary.write_text(json.dumps({"type": "FeatureCollection", "features": [{
