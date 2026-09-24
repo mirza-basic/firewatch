@@ -30,7 +30,7 @@ import subprocess
 
 import requests
 
-from .config import CFG, keychain_secret
+from .config import CFG, force_ipv4, keychain_secret
 
 log = logging.getLogger("firewatch.sms")
 
@@ -434,6 +434,13 @@ def send(text: str, to: list[str] | None = None) -> bool:
     bulk = len(nums) > 1
     body = {"from": sender(), "content": text,
             "to": nums if bulk else nums[0]}
+    # api.httpsms.com CNAMEs to ghs.googlehosted.com, which publishes an AAAA
+    # record - GitHub Actions runners have no IPv6 route. A no-op unless
+    # FIREWATCH_FORCE_IPV4 is set. This was previously a gap: test-sms.yml has
+    # set that variable since it was written, believing it covered this call,
+    # but nothing in this module ever triggered the patch that makes it do
+    # anything - see config.force_ipv4().
+    force_ipv4()
     try:
         r = requests.post(BULK_URL if bulk else API_URL, json=body, timeout=45,
                           headers={"x-api-key": api_key(),

@@ -44,7 +44,7 @@ import time
 
 import requests
 
-from .config import CFG, keychain_secret
+from .config import CFG, force_ipv4, keychain_secret
 
 log = logging.getLogger("firewatch.telegram")
 
@@ -267,6 +267,10 @@ def _latest_events() -> list[dict]:
 # ------------------------------------------------------------------------- send
 
 def _post(url: str, body: dict) -> requests.Response | None:
+    # api.telegram.org publishes an AAAA record, and GitHub Actions runners have
+    # no IPv6 route - see config.force_ipv4(). A no-op unless FIREWATCH_FORCE_IPV4
+    # is set, and cheap enough to call on every post rather than once at startup.
+    force_ipv4()
     try:
         return requests.post(url, json=body,
                              timeout=(CFG["connect_timeout"], CFG["http_timeout"]),

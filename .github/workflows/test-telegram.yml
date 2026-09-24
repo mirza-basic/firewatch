@@ -1,0 +1,80 @@
+# Manually post (or just preview) a test Telegram message, to check delivery end to end.
+#
+# Defaults to PREVIEW. Clicking "Run workflow" without thinking prints the message and
+# does not post it - a test post lands in a real public channel, so the safe option is
+# the default one. Mirrors test-sms.yml.
+
+name: test-telegram
+
+on:
+  workflow_dispatch:
+    inputs:
+      send:
+        description: "Actually post it (leave unchecked to preview only)"
+        type: boolean
+        default: false
+
+# Read-only: this workflow publishes nothing and commits nothing.
+permissions:
+  contents: read
+
+jobs:
+  test-telegram:
+    runs-on: ubuntu-latest
+    env:
+      # The database is here so the test message is built from a real event -
+      # exercising the real formatting and the genitive place-name rule.
+      FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+      FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+      # api.telegram.org publishes an AAAA record, and these runners have no IPv6
+      # route - without this the post fails with "[Errno 101] Network is
+      # unreachable", exactly as FIRMS and httpSMS do. See config.force_ipv4().
+      FIREWATCH_FORCE_IPV4: "1"
+      FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - run: python3 -m pip install --quiet requests certifi
+
+      - name: Preview
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
+        run: |
+          mkdir -p state/config
+          # telegram_enabled defaults to false, the same as Sentinel-2 imagery,
+          # because it needs a credential nothing else needs - and unlike the
+          # token and the channel it has no environment variable of its own.
+          echo '{"telegram_enabled": true}' > state/config/config.json
+          python3 - <<'PY'
+          from firewatch import telegram
+          ok, why = telegram.ready()
+          text = telegram.test_text()
+          print(f"usable       : {ok} ({why})")
+          print(f"channel      : {telegram.channel() or '(unset)'}")
+          print(f"channel from : {telegram.channel_source()}")
+          print(f"bot token    : {'found' if telegram.bot_token() else 'not found'}")
+          print(f"map link     : {telegram.map_url()}")
+          print(f"length       : {len(text)} chars (limit 4096)")
+          print("---- message ----")
+          print(text)
+          print("------------------")
+          PY
+
+      - name: Send
+        if: ${{ inputs.send }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
+        run: |
+          mkdir -p state/config
+          echo '{"telegram_enabled": true}' > state/config/config.json
+          python3 -m firewatch test-telegram
+
+      - name: Note
+        if: ${{ !inputs.send }}
+        run: echo "Preview only — nothing was posted. Re-run with 'send' ticked to deliver it."

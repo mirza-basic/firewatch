@@ -460,6 +460,44 @@ class RedactingFormatter(logging.Formatter):
         return redact(super().format(record))
 
 
+def force_ipv4() -> None:
+    """Make urllib3 resolve A records only, when FIREWATCH_FORCE_IPV4 is set.
+
+    Needed wherever a host publishes AAAA records but the network has no IPv6
+    route: the connection then fails with `[Errno 101] Network is unreachable`
+    rather than falling back. GitHub Actions runners are exactly this - and of
+    the hosts FireWatch talks to, `firms.modaps.eosdis.nasa.gov`,
+    `api.telegram.org` and `api.httpsms.com` (via its `ghs.googlehosted.com`
+    CNAME) all publish AAAA records (checked with `dig AAAA`), while the
+    EUMETSAT WFS and Open-Meteo are IPv4-only.
+
+    Shared here rather than living inside `sources.py`, which used to be its
+    only caller: `sms.send()` and `telegram.send()`/`_post()` need the exact
+    same fix, and a process-wide urllib3 patch belongs in one place, not
+    copied into every module that makes an outbound request. Before this
+    module existed, `test-sms.yml` had set `FIREWATCH_FORCE_IPV4` since it was
+    written on the belief that it covered the SMS send - but nothing in
+    `sms.py` ever called the function that made the variable do anything, so
+    it silently did nothing for that path.
+
+    Opt-in, not automatic: a working dual-stack network resolves this
+    correctly on its own, and hard-coding IPv4 would break an IPv6-only host.
+    Idempotent - safe to call from every caller's send path rather than once
+    at startup, so a module that is never exercised in a given run never pays
+    for it.
+    """
+    if not (os.environ.get("FIREWATCH_FORCE_IPV4") or "").strip():
+        return
+    try:
+        import socket
+
+        import urllib3.util.connection as u3
+        u3.allowed_gai_family = lambda: socket.AF_INET
+    except Exception as exc:          # never let a tuning knob break a cycle
+        logging.getLogger("firewatch.config").warning(
+            "could not force IPv4: %s", exc)
+
+
 def ensure_dirs():
     SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
