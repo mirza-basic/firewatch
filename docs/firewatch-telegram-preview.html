@@ -1,0 +1,194 @@
+<title>FireWatch Alert Telegram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* FireWatch house palette, shared with the field manual and platform guides. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --screen:#e9eef0; --bubble:#ffffff;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --screen:#0b1013; --bubble:#1c262d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --screen:#0b1013; --bubble:#1c262d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Source Serif 4",Georgia,serif;font-size:16px;line-height:1.6;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:40px 22px 80px}
+  .eyebrow{font-family:Archivo,sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  h1{font-family:Archivo,sans-serif;font-weight:700;font-size:clamp(27px,4vw,37px);
+    letter-spacing:-.025em;line-height:1.08;margin:9px 0 12px;text-wrap:balance}
+  .stand{color:var(--ink-2);font-size:18px;margin:0 0 6px;max-width:62ch;text-wrap:pretty}
+  h2{font-family:Archivo,sans-serif;font-weight:700;font-size:19px;letter-spacing:-.015em;
+    margin:46px 0 4px;padding-top:20px;border-top:1px solid var(--rule)}
+  h2 + p{color:var(--ink-2);margin:0 0 20px;max-width:62ch;font-size:15px}
+
+  .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+    margin-top:24px}
+  .msg{margin:0;background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+    padding:14px 15px 13px;display:flex;flex-direction:column;gap:11px}
+  figcaption{display:flex;flex-direction:column;gap:2px}
+  .name{font-family:Archivo,sans-serif;font-weight:600;font-size:14px}
+  .note{color:var(--ink-3);font-size:12.5px;line-height:1.45}
+
+  /* the post as it lands: a left-aligned bubble on a channel-feed ground */
+  .phone{background:var(--screen);border-radius:9px;padding:12px 11px}
+  .bubble{background:var(--bubble);border:1px solid var(--rule);border-radius:13px;
+    border-bottom-left-radius:4px;padding:9px 12px;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;line-height:1.62;
+    color:var(--ink);word-break:break-word;max-width:34ch}
+
+  .nums{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);
+    font-variant-numeric:tabular-nums}
+  .nums b{color:var(--ink);font-weight:600}
+
+  .tw{overflow-x:auto;border:1px solid var(--rule);border-radius:9px;background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;font-family:Archivo,sans-serif}
+  th,td{padding:7px 13px;text-align:left;border-bottom:1px solid var(--rule)}
+  thead th{font-size:10.5px;font-weight:600;letter-spacing:.075em;text-transform:uppercase;
+    color:var(--ink-3);background:var(--surface-2)}
+  tbody tr:last-child td{border-bottom:0}
+  .mono{font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+  .hd{color:var(--accent);font-weight:600}
+
+  .note-box{border:1px solid var(--rule);border-left:3px solid var(--ink-3);
+    background:var(--surface);border-radius:7px;padding:13px 15px;font-size:15px;
+    max-width:66ch;margin-top:18px}
+  .note-box.warn{border-left-color:var(--warn)}
+  .note-box .lbl{display:block;font-family:Archivo,sans-serif;font-size:10.5px;
+    font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+    margin-bottom:4px}
+  .note-box p{margin:0}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--surface-2);
+    padding:.1em .34em;border-radius:3px}
+  footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--rule);
+    font-family:Archivo,sans-serif;font-size:12.5px;color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Alert Telegram reference</div>
+  <h1>FireWatch Alert Telegram</h1>
+  <p class="stand">One public channel, one post per alert. Unlike the SMS
+  version there is no 160-character segment to fit inside — the limit is 4096
+  — so nothing here is trimmed, folded to ASCII, or left out for cost. These
+  are rendered from your real event data, not mocked up.</p>
+
+  <h2>What lands in the channel</h2>
+  <p>Five lines once an active fire has weather attached, four without it — one
+  more than SMS ever sends, because the detection count, its source list and the
+  footprint width fit here with room to spare.</p>
+  <div class="grid">
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Aktivni požar</span>
+    <span class="note">the usual case — an active fire carries wind and risk</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">🔥 NOVI POŽAR: 5.6 km I od Kamenice<br>VISOK &middot; 1.9 MW maks / 1.9 MW sada<br>6 detekcija (firms+mtg) &middot; 0.8 km<br>44.329,18.278<br>Vjetar 14km/h SI vlaga 38% &middot; rizik povišen<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="nums"><b>198</b> characters &middot; 3898 to spare</div>
+</figure>
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Širi se</span>
+    <span class="note">132 MW, 41 km/h wind, 17% humidity, three sensors</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">🔥 ŠIRI SE: 5.6 km I od Kamenice<br>EKSTREMAN &middot; 132.4 MW maks / 118.9 MW sada<br>41 detekcija (firms+mtg+s3) &middot; 3.9 km<br>44.329,18.278<br>Vjetar 41km/h JJZ vlaga 17% &middot; rizik ekstreman<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="nums"><b>210</b> characters &middot; 3886 to spare</div>
+</figure>
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Ponovo gori</span>
+    <span class="note">a fire that had gone quiet starts again</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">🔥 PONOVO GORI: 5.6 km I od Kamenice<br>VISOK &middot; 1.9 MW maks / 1.9 MW sada<br>6 detekcija (firms+mtg) &middot; 0.8 km<br>44.329,18.278<br>Vjetar 14km/h SI vlaga 38% &middot; rizik povišen<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="nums"><b>199</b> characters &middot; 3897 to spare</div>
+</figure>
+<figure class="msg fire">
+  <figcaption>
+    <span class="name">Ugašen, izvan općine</span>
+    <span class="note">"extinguished" is in <code>telegram_kinds</code> though never <code>sms_kinds</code> — no segment cost, and it's real information</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">✅ UGAŠEN: 5.6 km I od Kamenice<br>NIZAK &middot; 1.9 MW maks / 0.0 MW sada<br>4 detekcija (mtg) &middot; 0.8 km &middot; IZVAN OPĆINE<br>44.329,18.278<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="nums"><b>160</b> characters &middot; 3936 to spare</div>
+</figure>
+  </div>
+
+  <h2>The test message</h2>
+  <p>Sent by the <code>test-telegram</code> workflow. Same body shape as a real
+  alert so it exercises the same wording — but it leads with TEST, because a
+  drill that reads like a fire in the channel is worse than no drill.</p>
+  <div class="grid">
+<figure class="msg test">
+  <figcaption>
+    <span class="name">Test post</span>
+    <span class="note">what the test-telegram workflow sends</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">FIREWATCH TEST - nema požara, provjera Telegram kanala<br>Primjer: 5.6 km I od Kamenice<br>NIZAK 1.9/1.9MW<br>44.329,18.278<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="nums"><b>154</b> characters</div>
+</figure>
+<figure class="msg en">
+  <figcaption>
+    <span class="name">English</span>
+    <span class="note">telegram_language: en</span>
+  </figcaption>
+  <div class="phone"><div class="bubble">🔥 NEW FIRE: 5.6 km E of Kamenica<br>HIGH &middot; 1.9 MW peak / 1.9 MW now<br>6 detections (firms+mtg) &middot; 0.8 km<br>44.329,18.278<br>Wind 14km/h NE RH 38% &middot; risk elevated<br>https://mirza-basic.github.io/firewatch</div></div>
+  <div class="nums"><b>190</b> characters</div>
+</figure>
+  </div>
+
+  <h2>First line, by what changed</h2>
+  <p>All six post — unlike SMS, where <code>UGAŠEN</code> and <code>POTVRĐEN</code>
+  are held back on purpose to save a segment.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>alert</th><th>first line</th></tr></thead>
+      <tbody><tr><td class="mono">new</td><td class="mono hd">🔥 NOVI POŽAR</td></tr><tr><td class="mono">reignited</td><td class="mono hd">🔥 PONOVO GORI</td></tr><tr><td class="mono">intensified</td><td class="mono hd">🔥 POJAČAVA SE</td></tr><tr><td class="mono">grew</td><td class="mono hd">🔥 ŠIRI SE</td></tr><tr><td class="mono">extinguished</td><td class="mono hd">✅ UGAŠEN</td></tr><tr><td class="mono">corroborated</td><td class="mono hd">🔥 POTVRĐEN</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>What SMS drops, this keeps</h2>
+  <p>Every alert here carries what the SMS version has to leave out for cost —
+  see the SMS preview's own note on this.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>line</th><th>SMS</th><th>Telegram</th></tr></thead>
+      <tbody>
+        <tr><td>detection count + source list</td><td class="mono">dropped</td><td class="mono hd">6 detekcija (firms+mtg)</td></tr>
+        <tr><td>footprint width</td><td class="mono">dropped</td><td class="mono hd">0.8 km</td></tr>
+        <tr><td><code>IZVAN OPĆINE</code> marker</td><td class="mono">dropped (dead key in <code>SMS_TEXT</code>)</td><td class="mono hd">shown when the fire sits outside the boundary</td></tr>
+        <tr><td>diacritics</td><td class="mono">folded to ASCII</td><td class="mono hd">kept — "Zavidovići"</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note-box warn">
+    <span class="lbl">One thing this format does not do</span>
+    <p>There is no <code>worst_case()</code> here and nothing degrades — a long
+    settlement name or a long <code>FIREWATCH_PUBLIC_URL</code> just makes the
+    post a little longer, nowhere near 4096 characters. The one limit that is
+    real is Telegram's own: about one post per second to the channel. A 429
+    response is retried once, after waiting what Telegram itself asks for
+    (<code>retry_after</code>, capped at 5 s) — past that cap the post is
+    dropped rather than blocking the next poll cycle on it.</p>
+  </div>
+
+  <footer>Rendered from <code>firewatch/telegram.py</code> against live event data;
+  <code>./firewatch-ctl test-telegram</code> exercises the delivery half.</footer>
+</div>

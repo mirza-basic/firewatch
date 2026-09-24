@@ -655,6 +655,77 @@ succeeded, so a failed notification never suppresses the SMS.
 - Inert until a sender, a recipient list and the key are all present; `sms.ready()`
   returns the specific reason it is not usable, including non-E.164 numbers.
 
+## Telegram alerts
+
+`telegram.py` posts to the Bot API (`POST https://api.telegram.org/bot<token>/
+sendMessage`, body `{chat_id,text}`). Same independent-channel treatment as SMS —
+`mark_notified` in `poller.cycle` is OR'd across `notify`, `sms` and `telegram`, so
+a failure in one never suppresses another.
+
+- **One public channel, not a managed recipient list.** `telegram_channel` is
+  who alerts go to; anyone subscribes from the channel's own public link, with
+  no per-person onboarding and no `getUpdates` lookup to find a chat id. The
+  bot must be added to the channel as an administrator before it can post;
+  that step happens once, outside this codebase, in Telegram itself.
+- **`telegram_channel` has no built-in default**, unlike `TOWN_LAT`/`TOWN_LON`
+  and the rest of what `main` hardcodes for this instance. A channel handle is
+  not sensitive the way `sms_to` is, so it *could* ship as a real default - but
+  a fork that sets its own `TELEGRAM_BOT_TOKEN` and forgets to set its own
+  channel would then post, with its own bot, at *this* deployment's channel:
+  `telegram.ready()` would report `True` (everything it checks looks present)
+  and Telegram would answer `403 "bot is not a member of the channel chat"`
+  rather than the clean "not configured" every other missing setting gets.
+  Set it via `telegram_channel` in `config.json` or
+  `FIREWATCH_TELEGRAM_CHANNEL` in the environment - `channel()` checks the env
+  var first, same order as `sms.recipients()` and `SMS_TO_ENV`.
+- **The bot token resolves exactly like the httpSMS key**: `TELEGRAM_BOT_TOKEN`
+  or the macOS Keychain (service `firewatch-telegram`, set by `set-telegram-key`),
+  never `config.json`. `secrets()` and `RedactingFormatter` cover it the same way.
+- **No character budget, so nothing here degrades.** Telegram is UTF-8 end to
+  end with a 4096-character limit, so unlike SMS: no ASCII fold (`ascii_only()`
+  has no Telegram counterpart — "Zavidovići" stays "Zavidovići"), no segment
+  math, and none of the lines SMS drops for cost. The detection count and its
+  source list, the footprint extent and the `IZVAN OPĆINE` marker are all
+  present — `TELEGRAM_TEXT`'s `outside` key is actually read by `_compose()`,
+  unlike the identical key sitting unused in `SMS_TEXT` for the documented
+  reason (no room). There is consequently no `worst_case()` here and no
+  degradation ladder to measure — `alert_text()` composes once and is done.
+- **A public channel still has a rate limit** — about one message per second —
+  and ignoring a 429 risks the bot being muted from the channel for longer than
+  the delay it originally asked for. `send()` reads `retry_after` out of the
+  429 body and waits once, capped at `MAX_RETRY_WAIT` (5 s): past that cap it
+  drops the post rather than blocking the poll cycle, because the fast MTG path
+  this architecture leans on cannot afford to stall on a single alert channel.
+- **`TELEGRAM_TEXT` is `SMS_TEXT` copied, not imported** — same reasoning as
+  `SMS_TEXT` itself gives for not reusing anything from an earlier channel:
+  wording drifting apart later (an emoji, a longer phrase) is a feature request
+  here, not a bug to prevent by sharing one dict. `_place()`, `_dir()` and
+  `COMPASS_BS` are copied into `telegram.py` for the same reason rather than
+  imported as `sms.py` internals.
+- `telegram_kinds` includes `extinguished`, unlike `sms_kinds` — there is no
+  per-post cost the way there is a per-segment one, and "the fire went quiet"
+  is genuine information for a public channel even though it never justified an
+  SMS.
+- Inert until `telegram_enabled` is true, `telegram_channel` is set and a bot
+  token is present; `telegram.ready()` returns the specific reason otherwise,
+  the same contract `sms.ready()` and `cdse_credentials()` follow.
+- **The map carries a subscribe banner**, gated on `telegram.ready()`, not just
+  `telegram_enabled` - a channel with no bot token cannot actually deliver an
+  alert, and inviting the public to join one that never posts is worse than
+  not advertising it. `poller._telegram_channel_url()` turns a public `@handle`
+  into `https://t.me/...` and puts it in the snapshot as `telegram_url`;
+  `mapgen.renderHeader()` fills `#tgbanner`, a full-width `--accent`-filled
+  button at the top of the side panel - the one call-to-action on the page
+  that is not a fire, so it does not sit quietly in the footer with the docs
+  link. `#tgbanner:empty` in CSS collapses it to nothing when there is no
+  channel, rather than leaving a gap. Unlike the docs link this is not gated
+  on `public_url`: the channel is a fixed deployment setting, not something
+  published alongside this particular map instance, so it shows on a local
+  `file://` map too. A private channel (a numeric chat id rather than an
+  `@handle`) has no public join link, so `_telegram_channel_url()` returns
+  `None` for one rather than advertising a
+  link that cannot work.
+
 ## The GitHub deployment
 
 This repository *is* a running instance, not just the source of one. `.github/workflows/`
@@ -694,11 +765,23 @@ files are written in artifact-body form (no doctype, no viewport) so they can al
 published as Claude artifacts. Serving them unwrapped renders every page at desktop width
 on a phone.
 
-**Secrets, not config.** `FIRMS_MAP_KEY`, `HTTPSMS_API_KEY`, `HTTPSMS_FROM` and
-`FIREWATCH_SMS_TO` come from repository secrets. The last one exists precisely because
-this repo is public and `sms_to` in `config.json` would publish real phone numbers; the
-workflow logs the recipient *count*, never the numbers, since GitHub masks an exact secret
-value and not the individual numbers inside a comma-separated one.
+**Secrets, not config.** `FIRMS_MAP_KEY`, `HTTPSMS_API_KEY`, `HTTPSMS_FROM`,
+`FIREWATCH_SMS_TO`, `TELEGRAM_BOT_TOKEN` and `FIREWATCH_TELEGRAM_CHANNEL` come from
+repository secrets. `FIREWATCH_SMS_TO` exists precisely because this repo is public and
+`sms_to` in `config.json` would publish real phone numbers; the workflow logs the
+recipient *count*, never the numbers, since GitHub masks an exact secret value and not
+the individual numbers inside a comma-separated one. `FIREWATCH_TELEGRAM_CHANNEL` is not
+sensitive the same way - a channel handle is meant to be public - but it earns the same
+treatment because `state/config/config.json` here is a fixed literal the `Poll` step
+writes fresh every run (`{"auto_expose": false, "telegram_enabled": true}`), not
+something a CLI command can edit the way `sms-add` edits a laptop's config file; without
+the secret, changing the channel would mean editing `poll.yml` itself - and since
+`telegram_channel` has no built-in default (see the Telegram alerts section above),
+leaving the secret unset here just leaves the channel unset, the same clean "not
+configured" result a fork gets anywhere else, not a fallback to this deployment's own
+channel. `telegram_enabled` is set unconditionally in that literal - unlike a bare
+install, where it defaults off - because `telegram.ready()` is unusable without both secrets anyway, so turning it on
+costs nothing when they are absent.
 
 Three settings in the repo itself, all of which fail silently when wrong: **Workflow
 permissions** must be read/write or the state push fails; **Pages source** must be
@@ -759,13 +842,14 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   string redacts the log line that carries it, but a traceback from the token POST
   carries the **secret alone**, and only the split covers that.
 - `quota` prints the last four characters and the source, never the key.
-  `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` uses it too.
+  `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` and
+  `telegram.bot_token()` use it too.
 - **On macOS the key belongs in the Keychain, not the environment.** `launchd` does not
   read a shell profile, and the generated plist injects only `SSL_CERT_FILE`,
   `REQUESTS_CA_BUNDLE` and `PYTHONUNBUFFERED` - so an `export FIRMS_MAP_KEY` in
-  `~/.zshrc` is visible to a terminal `poll` and invisible to the running agent. Both
-  keys resolve the same way, so the agent silently loses FIRMS *and* SMS while a
-  hand-run poll looks perfect. Environment variables are for Linux and hosts, where a
+  `~/.zshrc` is visible to a terminal `poll` and invisible to the running agent. All
+  three keys resolve the same way, so the agent silently loses FIRMS, SMS *and*
+  Telegram while a hand-run poll looks perfect. Environment variables are for Linux and hosts, where a
   service manager passes them in on purpose.
 - **The FIRMS key travels in the URL *path***, so any `requests` exception carries the
   whole query - key included - and a bare `log.warning("firms %s: %s", ds, exc)`

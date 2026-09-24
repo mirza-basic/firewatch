@@ -260,9 +260,9 @@ python3 -m firewatch quota        <span class="c"># confirms which key is in use
       <code>~/.zshrc</code> reaches your terminal and nothing else. The failure is
       silent and misleading: <code>firewatch poll</code> by hand shows all three feeds
       <code>[ok&nbsp;]</code>, while the background agent resolves to <em>not set</em>,
-      skips VIIRS/MODIS as <code>[----]</code>, and leaves SMS inert &mdash; the key
-      lookup is the same for both. You would be testing the working path while the
-      thing that actually alerts you runs degraded.</p>
+      skips VIIRS/MODIS as <code>[----]</code>, and leaves SMS and Telegram inert
+      &mdash; the key lookup is the same for all three. You would be testing the
+      working path while the thing that actually alerts you runs degraded.</p>
       <p>The Keychain is the one store a <code>launchd</code> agent can reach without
       putting a secret in a plain file, which is why it is in the order at all. Use
       environment variables on Linux and on a server, where the service manager passes
@@ -321,8 +321,8 @@ Google Maps at the fire's coordinates:</p>
 <pre><code>brew install terminal-notifier
 python3 -m firewatch test-notify   <span class="c"># sends a sample</span></code></pre>
 <p>FireWatch picks it up automatically; <code>notify.backend()</code> reports which is
-live. SMS is a separate, independent channel &mdash; see the Field Manual, and note
-that a failed notification never suppresses the text message.</p>
+live. SMS and Telegram are separate, independent channels &mdash; see the Field
+Manual, and note that a failed notification never suppresses either of them.</p>
 
 <!-- ==================== 05 ==================== -->
 <h2 id="share"><span class="num">05</span> Sharing the map</h2>
@@ -365,6 +365,7 @@ one &mdash; see <a href="https://claude.ai/code/artifact/09883c3e-dc41-4093-9db6
     <tr><td class="mono">poll / map</td><td>One cycle; rebuild and open the map</td></tr>
     <tr><td class="mono">expose / unexpose / exposed</td><td>Publish the map, stop, show status</td></tr>
     <tr><td class="mono">sms / test-sms / set-sms-key</td><td>SMS settings, a test message, store the key</td></tr>
+    <tr><td class="mono">telegram / test-telegram / set-telegram-key</td><td>Telegram channel settings, a test post, store the bot token</td></tr>
     <tr><td class="mono">set-firms-key</td><td>Store the FIRMS key in the Keychain</td></tr>
     <tr><td class="mono">sms-add / sms-remove &lt;number&gt;</td><td>Manage recipients &mdash; applies without a restart</td></tr>
   </tbody>
@@ -391,9 +392,10 @@ listed in full in the Field Manual.</p>
   </tbody>
 </table>
 </div>
-<p>Keys live in the Keychain (services <code>firewatch-firms</code> and
-<code>firewatch-httpsms</code>), never in a file. The database is a single SQLite file
-with no external state, so backing it up is a copy.</p>
+<p>Keys live in the Keychain (services <code>firewatch-firms</code>,
+<code>firewatch-httpsms</code> and <code>firewatch-telegram</code>), never in a file.
+The database is a single SQLite file with no external state, so backing it up is a
+copy.</p>
 <pre><code>./firewatch-ctl uninstall    <span class="c"># stops the agent, keeps your data</span></code></pre>
 <p>To remove everything, delete the directories above as well.</p>
 

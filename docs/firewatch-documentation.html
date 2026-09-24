@@ -517,6 +517,9 @@ the total:</p>
     <tr><td>httpSMS</td><td>Sending alert SMS through an Android phone acting as the
       gateway</td><td>Per alert, if configured</td>
       <td><span class="pill ok">required</span></td></tr>
+    <tr><td>Telegram Bot API</td><td>Posting alerts to a public channel</td>
+      <td>Per alert, if configured</td>
+      <td><span class="pill ok">required</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -664,7 +667,7 @@ schedules, so one slow or failing feed never blocks the others.</p>
     <polyline points="380,530 380,552 628,552 628,574" class="s-line" marker-end="url(#a3)"/>
 
     <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
-    <text x="30" y="602" class="s-t-b">6 &middot; Notify + SMS</text>
+    <text x="30" y="602" class="s-t-b">6 &middot; Notify + SMS + Telegram</text>
     <text x="30" y="618" class="s-t-s">rate-limited per event</text>
     <text x="30" y="633" class="s-t-s">and per kind</text>
 
@@ -795,10 +798,10 @@ schedules, so one slow or failing feed never blocks the others.</p>
 
   <li>
     <h3>Notify</h3>
-    <p>Alerts become macOS notifications and, when configured, an SMS &mdash; two
-    independent channels, so a failed notification never suppresses the text.
-    Either way the alert is suppressed if the same event already fired for the same
-    reason inside 25 minutes.</p>
+    <p>Alerts become macOS notifications and, when configured, an SMS and a
+    Telegram channel post &mdash; three independent channels, so a failure in
+    one never suppresses another. Either way the alert is suppressed if the
+    same event already fired for the same reason inside 25 minutes.</p>
   </li>
 
   <li>
@@ -895,7 +898,10 @@ that last detection, which is the number the map shows.</p>
   and staying visible only to VIIRS.</p>
   <p>This is why <code>extinguished</code> is the one alert that never sends an SMS.
   It is a statement about the data, and the field does not need a text message saying
-  the satellite stopped seeing something.</p>
+  the satellite stopped seeing something. Telegram carries it anyway &mdash; there is
+  no per-message cost to a channel post, so <code>telegram_kinds</code> includes
+  <code>extinguished</code> by default even though <code>sms_kinds</code> never
+  has.</p>
 </div>
 
 <p><strong>Why five hours.</strong> It is a compromise between the two failure modes
@@ -1048,6 +1054,24 @@ an SMS to UCS-2 encoding, cutting a segment from 160 characters to 70, so
 &ldquo;Zavidovici&rdquo; costs a third of what &ldquo;Zavidovi&#263;i&rdquo; would.
 SMS is an <em>independent</em> channel &mdash; it still goes out when the Mac is
 asleep and nobody sees the desktop notification.</p>
+
+<h3>Telegram</h3>
+<p>Alerts can also post to a public Telegram channel through the
+<a href="https://core.telegram.org/bots/api">Bot API</a> &mdash; one recipient, the
+channel itself, rather than a managed list of numbers. Anyone subscribes from the
+channel&rsquo;s own public link; there is no per-person onboarding the way an SMS
+recipient has to be added by number.</p>
+<p>There is no 160-character segment to fit inside (the limit is 4096, real alerts
+run 150&ndash;210), so nothing is trimmed or transliterated: diacritics are kept as
+typed, and the message carries lines SMS drops for cost &mdash; the detection count
+and its source list, the footprint width, and an <code>IZVAN OP&Cacute;INE</code>
+marker for a fire outside the municipality. Telegram is also an <em>independent</em>
+channel in the same sense SMS is: a failed desktop notification, or a failed SMS,
+never stops the channel post from going out.</p>
+<p>A channel still has its own rate limit &mdash; about one post per second &mdash;
+and a 429 response tells the bot exactly how long to wait before retrying. FireWatch
+honours that once, capped at five seconds, and drops the post rather than block the
+next poll cycle on a longer wait.</p>
 
 <h3>Sharing the map</h3>
 <p>The map can be published on a public URL, which is the link the SMS alerts carry.

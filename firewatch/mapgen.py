@@ -63,6 +63,16 @@ TEMPLATE = r"""<!doctype html>
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;font-size:11.5px;color:var(--dim)}
   .chip b{color:var(--fg);font-weight:600}
+  /* A call-to-action, not a chip: full width and filled with --accent so it reads
+     as the one thing on this page worth clicking that is not a fire, distinct
+     from the quiet text link this used to be in the footer. Empty (no configured
+     channel) collapses to nothing rather than an empty gap - see renderHeader(). */
+  #tgbanner:empty{display:none}
+  #tgbanner{margin-top:12px}
+  #tgbanner a{display:flex;align-items:center;justify-content:center;gap:7px;
+    background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
+    font-size:12.5px;border-radius:8px;padding:9px 10px;transition:filter .13s}
+  #tgbanner a:hover,#tgbanner a:focus-visible{filter:brightness(1.08)}
   #list{overflow-y:auto;flex:1;padding:10px}
   .ev{background:var(--panel2);border:1px solid var(--line);border-left-width:3px;
     border-radius:9px;padding:12px 13px;margin-bottom:9px;cursor:pointer;transition:.14s}
@@ -283,6 +293,7 @@ TEMPLATE = r"""<!doctype html>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
       <div class="status" id="hchips"></div>
+      <div id="tgbanner"></div>
     </header>
     <div id="list"></div>
     <footer id="foot"></footer>
@@ -345,7 +356,7 @@ const I18N = {
     discoveredBy:"Reported by", savedAt:"saved",
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
     noDetRange:"no detections in range", boundary:"boundary",
-    docs:"Documentation",
+    docs:"Documentation", telegramSub:"Alerts on Telegram",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
     r_1y:"Last year",
     rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month", rs_1y:"Year",
@@ -406,7 +417,7 @@ const I18N = {
     discoveredBy:"Prvi prijavio", savedAt:"sačuvano",
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
     noDetRange:"nema detekcija u periodu", boundary:"granica",
-    docs:"Dokumentacija",
+    docs:"Dokumentacija", telegramSub:"Obavijesti na Telegramu",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
     r_1y:"Zadnja godina",
     rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec", rs_1y:"Godina",
@@ -1368,6 +1379,14 @@ function renderHeader(){
     ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
     `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}`;
+  // A banner, not a footer link: this is the one call-to-action on the page
+  // that is not a fire, so it sits at the top of the panel rather than buried
+  // below the fire list. Independent of public_url, unlike the docs link -
+  // the channel is a fixed deployment setting, not something published
+  // alongside this particular map instance, so it shows on a local file://
+  // map too. :empty in CSS collapses it to nothing when there is no channel.
+  document.getElementById("tgbanner").innerHTML = DATA.telegram_url
+    ? `<a href="${DATA.telegram_url}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>` : "";
 }
 
 // Chrome on Android reports the visible height in innerHeight, so this keeps a

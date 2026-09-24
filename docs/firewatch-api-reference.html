@@ -189,6 +189,7 @@
   <div class="grp">Outbound</div>
   <ul>
     <li><a href="#httpsms">httpSMS</a></li>
+    <li><a href="#telegram">Telegram Bot API</a></li>
   </ul>
   <div class="grp">Build-time</div>
   <ul>
@@ -278,6 +279,12 @@ alert fires, and three run once at build time and are then bundled into the repo
       <td><span class="tag key">api key</span></td>
       <td class="mono">sms.send_alert</td>
     </tr>
+    <tr>
+      <td>Telegram Bot API</td>
+      <td class="mono nw">REST · JSON</td><td class="nw">per alert</td>
+      <td><span class="tag key">bot token</span></td>
+      <td class="mono">telegram.send_alert</td>
+    </tr>
   </tbody>
 </table>
 </div>
@@ -326,7 +333,7 @@ alert fires, and three run once at build time and are then bundled into the repo
     <line x1="89" y1="168" x2="89" y2="234" class="s-line" marker-end="url(#ar)"/>
     <rect x="14" y="238" width="330" height="24" rx="5" class="s-box"/>
     <text x="26" y="255" class="s-t-m">build-time: Nominatim + Overpass → data/*.json</text>
-    <text x="356" y="232" class="s-t-m">outbound: httpSMS, on alert only</text>
+    <text x="356" y="232" class="s-t-m">outbound: httpSMS + Telegram, on alert only</text>
     <text x="356" y="255" class="s-t-s">never called at runtime</text>
   </svg>
   </div>
@@ -664,6 +671,67 @@ costs one. Messages expire after <code>message_expiration_seconds</code> (600) w
 queueing indefinitely. The key comes from <code>HTTPSMS_API_KEY</code> or the macOS
 Keychain, never <code>config.json</code>.</p>
 
+<h2 id="telegram">Telegram Bot API <span class="tag key">bot token</span></h2>
+
+<p class="lede">The other push. One recipient, always &mdash; a public channel
+rather than httpSMS's per-phone fan-out, so there is no bulk endpoint to reach
+for and no recipient count to branch on.</p>
+
+<div class="io">
+  <div class="io-h"><span class="verb">POST</span> one channel</div>
+  <pre>https://api.telegram.org/bot&lt;token&gt;/sendMessage
+{"chat_id": "@firewatchzavidovici", "text": "…"}
+
+&rarr; 200 {"ok": true, "result": {"message_id": …, "chat": {…}, "date": …, …}}</pre>
+</div>
+
+<p>The bot must already be an administrator of the channel &mdash; a one-time step
+done in Telegram itself, not something this codebase can set up or verify. A
+correctly configured token against a channel the bot has not been added to still
+fails, quietly, as an ordinary 400.</p>
+
+<div class="note warn">
+  <span class="lbl">No character budget, unlike httpSMS</span>
+  <p>The limit is 4096 characters against real alerts of ~150&ndash;210, so nothing
+  here is trimmed or transliterated. Bosnian diacritics are sent as-is &mdash;
+  <code>Zavidovi&#263;i</code>, not <code>Zavidovici</code> &mdash; and the message
+  carries lines httpSMS drops for segment cost: the detection count and its source
+  list, the footprint width, and an <code>IZVAN OP&Cacute;INE</code> marker for a
+  fire outside the municipality.</p>
+</div>
+
+<div class="note crit">
+  <span class="lbl">429 carries its own retry budget</span>
+  <p>Unlike httpSMS's plain 4xx, a Telegram 429 answers with a body naming exactly
+  how long to wait:</p>
+  <pre>&rarr; 429 {"ok": false, "error_code": 429,
+       "description": "Too Many Requests: retry after 3",
+       "parameters": {"retry_after": 3}}</pre>
+  <p>Ignoring it risks the bot being muted from the channel for longer than the
+  three seconds it actually asked for. <code>telegram.send()</code> waits the
+  stated amount once, capped at 5 s (<code>MAX_RETRY_WAIT</code>) &mdash; past that
+  cap the post is dropped rather than blocking the next poll cycle on it, since a
+  channel post is not worth stalling the fast MTG path over.</p>
+</div>
+
+<p>A channel enforces roughly one post per second on its own, independent of any
+per-bot global limit. The token comes from <code>TELEGRAM_BOT_TOKEN</code> or the
+macOS Keychain (service <code>firewatch-telegram</code>), never
+<code>config.json</code> &mdash; same resolution order as the httpSMS key. The
+channel handle itself, unlike a phone number, is not sensitive - it is meant to
+be public - but <code>telegram_channel</code> ships with <strong>no built-in
+default</strong>, unlike most of what this instance hardcodes: a real default
+would mean a fork that sets its own <code>TELEGRAM_BOT_TOKEN</code> and forgets
+this posts, with its own bot, at this deployment's channel, and Telegram answers
+<code>403</code> rather than the clean "not configured" a missing setting gets
+everywhere else. Set it via <code>telegram_channel</code> in
+<code>config.json</code>, or <code>FIREWATCH_TELEGRAM_CHANNEL</code> in the
+environment for a deployment with no writable config file to edit (a container,
+or this repo's own GitHub Actions run, which rewrites <code>config.json</code>
+from a fixed literal every cycle). <code>telegram.channel()</code> checks the
+environment first, same order as <code>sms.recipients()</code> and
+<code>FIREWATCH_SMS_TO</code>.</p>
+
 <h2 id="nominatim">Nominatim <span class="tag build">build-time</span></h2>
 
 <p>Used once to resolve the municipality and pull its polygon. The result is committed
@@ -832,6 +900,12 @@ corners, so an equirectangular image drifts vertically against the basemap.</p>
       <td class="mono">200 = <em>accepted</em>,<br>not yet sent</td>
       <td>Message stays <code>scheduled</code>; check heartbeat freshness</td>
     </tr>
+    <tr>
+      <td>Telegram</td>
+      <td class="mono">429 + JSON<br><code>retry_after</code></td>
+      <td class="mono">200 = posted</td>
+      <td>Wait <code>retry_after</code>, capped at 5s, then one retry or drop</td>
+    </tr>
   </tbody>
 </table>
 </div>
@@ -987,6 +1061,7 @@ python3 -m firewatch history 40  <span class="cmt"># what actually landed in the
   Copernicus Sentinel-3 SLSTR) ·
   <code>api.open-meteo.com</code> ·
   <code>api.httpsms.com</code> (SMS gateway) ·
+  <code>api.telegram.org</code> (Telegram Bot API) ·
   <code>nominatim.openstreetmap.org</code> ·
   <code>overpass-api.de</code> · OpenStreetMap, Esri and OpenTopoMap tile servers.
   All request/response samples on this page were captured live from these endpoints,
