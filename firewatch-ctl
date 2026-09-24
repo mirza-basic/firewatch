@@ -28,6 +28,9 @@ FireWatch Zavidovići
   ./firewatch-ctl set-sms-key store the httpSMS API key
   ./firewatch-ctl set-firms-key  store the NASA FIRMS map key
   ./firewatch-ctl sms-add <number> | sms-remove <number>
+  ./firewatch-ctl telegram         Telegram channel + settings
+  ./firewatch-ctl test-telegram    post a sample alert to the channel
+  ./firewatch-ctl set-telegram-key store the Telegram bot token
 USAGE
 }
 
@@ -125,5 +128,8 @@ set-sms-key) cd "$PROJ" && python3 -m firewatch set-sms-key ;;
 set-firms-key) cd "$PROJ" && python3 -m firewatch set-firms-key ;;
 sms-add)     cd "$PROJ" && python3 -m firewatch sms-add "${2:-}" ;;
 sms-remove)  cd "$PROJ" && python3 -m firewatch sms-remove "${2:-}" ;;
+telegram)         cd "$PROJ" && python3 -m firewatch telegram-status ;;
+test-telegram)    cd "$PROJ" && python3 -m firewatch test-telegram ;;
+set-telegram-key) cd "$PROJ" && python3 -m firewatch set-telegram-key ;;
 *)      usage; exit 2 ;;
 esac

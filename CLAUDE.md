@@ -52,10 +52,14 @@ python3 -m firewatch history [n]      # raw detections from SQLite
 python3 -m firewatch quota            # FIRMS transaction usage (free call)
 python3 -m firewatch place            # which municipality is configured, and from where
 python3 -m firewatch setup "<Name>"   # re-point at another one (Nominatim + Overpass)
+python3 -m firewatch imagery [--force]   # render the newest Sentinel-2 scene
+python3 -m firewatch set-cdse-key       # store a Copernicus client in the Keychain
+python3 -m firewatch fire-danger [--force]  # today's + short-term Canadian FWI
 python3 -m firewatch test-notify
 
 # tests
 python3 tests_events.py               # 23 assertions, exits non-zero on failure
+python3 tests_fwi.py                  # FWI System vs. the official CFFDRS fixture
 ```
 
 `[range]` is `24h | 3d | 7d | 30d | 1y`.
@@ -68,6 +72,11 @@ no way to select a single test by name. It builds synthetic detections via a loc
 one case, comment out the others or copy the case into a scratch file. It writes to
 the real SQLite database only for the notification-cooldown case, which it cleans up
 after itself.
+
+`tests_fwi.py` is the same shape, but checks `firedanger.py`'s FWI System port
+against a fixed external ground truth rather than synthetic input: the official
+CFFDRS reference implementation's own published 48-day validation dataset. It
+makes no network calls.
 
 **The map's JavaScript has no automated tests, by decision.** `mapgen.py` emits ~1,900
 lines of JS that Python cannot reach. Testing it means jsdom + Leaflet under npm, and
@@ -93,6 +102,7 @@ geo.py       clip to the real municipality polygon (+2 km buffer → "nearby")
 store.py     INSERT OR IGNORE by uid → returns ONLY never-seen detections
 events.py    cluster detections into fire events (single linkage, 3.5 km / 8 h)
 enrich.py    nearest settlement, wind, spread risk (active events only)
+imagery.py   newest Sentinel-2 scene; renders one PNG per *new* scene only
 events.diff  compare with stored events → alert records
 notify.py    deliver, rate-limited per (event, kind)
              then write snapshot.json + regenerate fire-map.html
@@ -120,6 +130,22 @@ cloud blocks detection completely on all three sensors, and MTG cannot see below
 roughly 5 MW, so a fire can go `quiet` on schedule while burning unchanged. That is
 why `extinguished` is informational and silent — it is news about the feed, not about
 the forest.
+
+**The eye button detaches the three marker groups, it does not clear them.**
+`drawEvents` and `drawDets` rebuild their contents on every refresh, zoom and
+range change, so clearing would last until the next tick; a `LayerGroup` removed
+from the map keeps accepting children that are simply not drawn, which is why the
+hidden state survives without any draw path knowing about it. The one thing that
+does need to know is the popup restore in `applyData` - `openPopup()` on a
+detached marker is a no-op, so it is gated on the toggle.
+
+**Hidden is not a preference and is deliberately not persisted.** It resets on
+load and whenever `applyData` accepts fresh data, because a cycle that brings a
+new fire must not deliver it invisibly. The reset sits *after* the
+`generated_at` guard, so a quiet cycle - which is most of them, once a minute -
+leaves the reader's view alone. Persisting it in `localStorage` next to
+`fw_lang` is the obvious move and the wrong one: it would let someone hide the
+markers, close the tab, and reopen a map that never shows a fire again.
 
 The map opens in **Bosnian**, unconditionally — there is no `navigator.language`
 sniff. A reader's own choice wins: the EN/BS toggle writes `fw_lang` to
@@ -291,6 +317,229 @@ These all cost real debugging time. Most are silent failures.
     is a fact, and leaves the verdict to the reader. `reclip --apply` clears and
     re-stamps.
 
+## Satellite imagery on the map
+
+The three basemaps are all archival - Esri World Imagery is months to years old -
+so none of them can show a fire that is burning. Three tiers of real imagery sit
+in the layer control, and the ordering is counter-intuitive: **the fast layer is
+the coarse one.**
+
+| Tier | Source | Key? | Resolution here | Cadence |
+|---|---|---|---|---|
+| Meteosat MTG | `view.eumetsat.int/geoserver/wms` | none | ~1.7 × 1.3 km | 10 min, ~25 min behind |
+| VIIRS / HLS | `gibs.earthdata.nasa.gov` WMTS | none | 250 m / 30 m | daily, 4-5 h behind |
+| Sentinel-2 | CDSE Sentinel Hub | **yes** | ~11 m | ~2-3 days here |
+
+The first two are fetched by the reader's browser from keyless services and add
+no dependency. Note the WMS host is the *same GeoServer* `sources.py` already
+polls for FRP features - the imagery was one query away the whole time.
+
+**What you can actually see is smoke, not flame.** Measured against the real
+2026-09-05 event at 44.354/18.225 (FIRMS 3.7 + 5.3 MW, Sentinel-3 15.4 + 16.5 MW):
+the VIIRS 250 m true-colour frame showed a clear grey plume drifting SE, while
+the VIIRS SWIR fire-band combo - the one documented to saturate red on sub-pixel
+flame - showed *nothing*. At this municipality's fire sizes the plume is the
+signal. `mtg_fd:rgb_firetemperature` is the exception: it rendered two
+unmistakable red hotspots at 20:40Z that evening.
+
+Zavidovići sits at a ~54° viewing zenith from 0°E, so `1/cos θ ≈ 1.7` inflates
+every MTG figure: FDHSI solar 1 km → ~1.7 × 1.3 km, thermal 2 km → ~3.4 × 2.6 km.
+That last number is an independent justification for `cluster_radius_km = 3.5`.
+
+**Sentinel-2 is rendered here and published as a picture, never as a tile layer**
+(`imagery.py`). Sentinel Hub takes its credential as an *instance id in the URL
+path*, so a browser-side layer would write a quota-bearing credential into
+`fire-map.html` - a file this repo publishes to GitHub Pages and through ngrok.
+There is no keyless form; a made-up instance id answers 400. Server-side
+rendering is also the only shape that works on Pages, where there is nothing to
+proxy through. The catalogue half *is* keyless (CDSE OData), which is why the
+"is there a new scene?" question is asked every cycle and the pixels are bought
+only when the answer changes.
+
+**There is no usable Sentinel-3 imagery layer**, which is worth writing down
+because the capabilities document strongly implies otherwise. Checked
+2026-09-06: GIBS carries **zero** Sentinel-3 imagery (only orbit tracks).
+`copernicus:sentinel3a/b_olci_l1_rgb_fullres` return a blank frame - mean 255,
+standard deviation 0 - at every time tried, and their advertised abstract is the
+*Meteosat FCI* one ("cannot be made directly from FCI because it lacks a Green
+band") carrying a 10-minute cadence that no polar orbiter has. Only
+`copernicus:daily_sentinel3ab_olci_l1_rgb_fulres` has real pixels, and measuring
+its repeated scanlines puts it at **~650 m per source pixel**, so it is strictly
+worse than the VIIRS 250 m layer already on the map and, being a daily composite,
+adds no time diversity either. `copernicus:sentinel_slstr_frp` answers
+**`LayerNotDefined`** on every endpoint despite being advertised, and
+`copernicus:sentinel3a_slstr_level2_frp` returns near-empty tiles with a time
+dimension stuck at 2026-06-11. Even a working FRP layer would only redraw, as a
+picture, the Sentinel-3 detections the map already plots as real points with FRP
+values from the WFS feed. **Treat this server's capabilities as advertising, not
+as fact - measure the pixels.**
+
+A keyless 10 m route does exist if the credential ever becomes unwelcome:
+Element84 Earth Search STAC plus the unsigned, non-requester-pays
+`sentinel-cogs` bucket. It costs a real imaging dependency - parsing TIFF tile
+offsets and inflating DEFLATE - which is why it was not taken.
+
+## Landmines: imagery
+
+19. **EUMETView answers a bad `time` with HTTP 200 and `text/xml`.** An
+    out-of-archive timestamp returns `ServiceException code="InvalidDimensionValue"`
+    in ~470 bytes; Leaflet draws nothing and the reader sees a blank map with no
+    error anywhere. Third instance of this project's 200-means-nothing-wrong
+    trap, after landmines 3 and 5.
+20. **`rgb_truecolour` and `vis06_hrfi` need *two* separate guards, and
+    conflating them gets both wrong.** They have a daily publication hole from
+    00:00Z to 01:50Z, first frame at 02:00Z, reproduced on two separate days -
+    while capabilities advertise an unbroken `PT10M` series. Ask inside it and
+    you get the landmine-19 exception. **That hole is not darkness**: the same
+    layers answer 200 at 20:00Z and 22:00Z with the sun 27-38° below the
+    horizon. So `dayFrom` (minutes into the UTC day) handles availability.
+
+    But those night frames are *useless*, and in two different disguises:
+    `rgb_truecolour` returns a **fully transparent** tile, so the reader sees
+    the basemap and assumes the layer never loaded, while `vis06_hrfi` returns
+    an **opaque black rectangle**. Neither is an error. Hence `needsSun` and a
+    solar-elevation test, measured against pixel brightness: at +7.5° the frame
+    reads 31/255 mean, at +2.2° it is 1.0, below the horizon it is blank - so
+    the cutoff is `SUN_MIN_DEG = 3`, above the horizon rather than on it.
+
+    **Only the geostationary visible layers carry `needsSun`.** The GIBS layers
+    are daily composites built from a daytime overpass, so they are perfectly
+    readable at midnight; flagging them would be wrong. And the sun test must
+    run on the *live* branch too - the default view is the live edge, so a
+    layer useless right now is the first one the reader meets.
+21. **Never send `exceptions=`.** Any value - `se_xml`, `se_inimage`,
+    `se_blank` - makes their proxy answer **502 with an empty body**, so the
+    usual OGC trick of requesting a transparent error tile makes it worse.
+22. **Omitting `time` returns the newest frame** - byte-identical to
+    `time=current` - and an off-grid time snaps to nearest (`12:03` returned the
+    `12:00` bytes). So "latest" needs no GetCapabilities, which matters: that
+    document is 282 KB. Do **not** derive "latest" from the capabilities
+    `default` either - it read 14:00Z at 14:30 wall clock while 15:30Z answered
+    at 15:37.
+23. **A GIBS tile past its own `Level` is HTTP 400 XML, not a blank tile.**
+    `maxNativeZoom` is load-bearing, not an optimisation: without it the layer
+    vanishes the moment the reader zooms past z9.
+24. **Sub-daily `TIME` is silently ignored** by GIBS and Worldview daily
+    composites - `2026-09-05`, `…T11:49Z` and `…T20:49Z` return identical bytes.
+    Only the Meteosat tier is genuinely sub-daily.
+25. **The Sentinel-2 render is requested in EPSG:3857, not 4326.**
+    `L.imageOverlay` stretches its image linearly between two *projected*
+    corners, so an equirectangular image drifts vertically against the basemap -
+    a few hundred metres here, enough to put a fire on the wrong side of a ridge.
+26. **`imagery.py` writes to `SUPPORT_DIR`, never straight to `PUBLIC_DIR`.**
+    `PUBLIC_DIR` existing is exactly what `sync_public` reads as "the user asked
+    for this to be published", so creating it to hold a picture would quietly
+    start publishing the map. `sync_public` copies a **fixed file list**, so the
+    PNG had to be added to it - miss that and the local `file://` map looks
+    perfect while the published one, the URL in every SMS, shows an empty layer.
+27. **An empty GIBS day is an HTTP error per tile, not a blank tile.** HLS
+    revisits every ~5 days and lands days later, so "today" is normally empty
+    and every tile 400s. There is no way to know in advance, so the layer
+    listens for Leaflet's `tileerror` and reports it; `tileload` clears the
+    flag. The layers are also seeded with today's date rather than a
+    placeholder, because Leaflet starts fetching the moment a layer is added -
+    before the handler sets the real date - and a placeholder's errors would
+    land afterwards and raise a false "no scene" note.
+28. **Imagery exclusivity is per *group*, in code, not by Leaflet.** Base
+    layers get exclusivity and overlays get none, so `overlayadd` does it by
+    hand - but only within a group. `grp:"vis"` layers are alternatives;
+    `grp:"hot"` (Fire Temperature) stacks on top of any one of them, and
+    Sentinel-2 competes for the `vis` slot like any other visible layer rather
+    than clearing the map. Unavailable moments drop opacity to 0 rather than
+    removing the layer, because removing it fires `overlayremove`, unticks the
+    reader's own checkbox and loses the selection.
+29. **The thermal layer composites with `mix-blend-mode:screen`, and that is
+    load-bearing rather than decorative.** Fire Temperature RGB is near-black
+    everywhere except the fire - mean 3.4 of 255 over this municipality - so
+    screen discards its background entirely and leaves only the hot pixels on
+    top of the visible layer. Two useful consequences: **screen can only
+    lighten**, so the blended layer physically cannot obscure the imagery
+    underneath, which is exactly what stacking two rasters at 85% opacity does;
+    and a blended layer must run at **opacity 1**, because dimming it only dims
+    the hotspots - the background it contributes is already black. It lives in
+    its own pane (`imageryHot`, z-index 260) above `imagery` (250). A browser
+    that ignored `mix-blend-mode` would render it opaquely: ugly, not wrong.
+
+## Fire danger forecast (self-computed FWI)
+
+The three fire feeds report *detections* - something is already hot. `firedanger.py`
+answers a different question: how conducive today's weather is to fire at all,
+independent of whether one has started. It computes the Canadian Forest Fire
+Weather Index (FWI) System itself rather than calling EFFIS/GWIS, the free
+European product that already does this, for two measured reasons: EFFIS's own
+WMS (`maps.effis.emergency.copernicus.eu/effis`, layer `mf010.fwi`) is ~10 km
+resolution here - three or four flat-colored blocks across this whole
+municipality, confirmed by rendering it - and querying it for "today" returned
+an empty 200 response on two separate days while yesterday and the days on
+either side had real data, an EFFIS-side gap around the current date, not a
+sky that is briefly quiet.
+
+The six formulas (FFMC, DMC, DC, ISI, BUI, FWI) are a line-for-line port of the
+official NRCan reference implementation (`github.com/cffdrs/cffdrs_py`), not a
+reconstruction from memory. `tests_fwi.py` replays CFFDRS's own published
+48-day validation dataset (Van Wagner & Pickett 1985) through this module and
+checks every day's six outputs against the published numbers - a transcription
+mistake in a constant fails there rather than silently mis-rating a real fire
+day.
+
+**It is single-point, not spatial, and deliberately stays out of the map's
+layer control.** Danger-class colours sit in the same orange-red family as
+`SEVC` (fire severity, `mapgen.py:303`), so a colored dot on the map canvas
+would read as another fire, not a weather index. Instead it is a small panel
+next to the legend - collapsed to a one-line badge (the full "Fire danger
+today: X" phrase, not shortened) by default at every width, expanding on
+click - by reusing the exact `.legend`/`.legend-toggle`/`.legend-body` CSS
+rather than inventing a second collapse mechanism. Both panels used to stay
+permanently expanded on a desktop-sized screen and only collapse on a phone;
+that took up too much of the corner, so the collapse is now unconditional.
+`geo.forecast_point()` names one point; the panel shows a number for it, not a
+layer that implies coverage over an area it does not actually have.
+
+**Runs once, twice at most, a day - never per poll cycle.** FFMC/DMC/DC are a
+daily-timestep bookkeeping system: today's value depends on yesterday's, so
+recomputing every 4 minutes would repeat the same day's arithmetic ~140 times
+for nothing. `update()` is gated by `meta.fwi_gate` (today's date, plus whether
+local noon has passed) exactly like `imagery.refresh()` gates on scene date -
+cheap to check every cycle, rare to actually do work. It fires once for
+whichever cycle first runs after local midnight (today's entry built from
+forecast noon values, since the real noon has not happened yet) and once more
+after local noon (rebuilt from the now-actual observation) - a fetch-once-a-day
+design would otherwise show a stale, forecast-only number all afternoon.
+
+**Deliberately stateless across days.** Rather than persisting yesterday's
+FFMC/DMC/DC and bridging forward - which needs a separate cold-start path and a
+separate "gap too large to bridge" path - every run replays the *entire*
+fetched window from the standard startup values (FFMC=85, DMC=6, DC=15). One
+Open-Meteo call (`api.open-meteo.com/v1/forecast`, keyless) *asks* for
+`past_days=93`, one more than the documented 92-day cap so the earliest usable
+date still has a full 24h behind it for the rain sum. **What actually comes
+back reaches less far than that**, measured 2026-09-10: the hourly series does
+span the full 93 days, but the earliest ~28 of them have temp/RH/wind all
+`null` - real data reached back only 65 days that day, not 92. `_fetch_daily`
+already drops any date with a null reading (written for a same-day hour Open-
+Meteo hasn't filled in yet, which turned out to catch this too), so a shorter
+real window degrades gracefully - 65 days is still within the fire-science
+literature's few-months guidance for the Drought Code's memory of a wrong
+starting value to wash out - but nothing here guarantees a particular depth,
+and a day the poller was not running for still needs no special case: there is
+no stored state for it to have gone stale.
+
+**`geo.forecast_point()` is the municipality boundary's vertex-mean, not
+`TOWN_LAT`/`TOWN_LON`.** The town itself is not necessarily the geometric
+middle of the municipality around it, and this point is meant to characterise
+the whole area, the way the coarse EFFIS/GWIS grid cell would. It is derived
+from whatever `BOUNDARY_GEOJSON` is currently configured, so a fork that points
+that file at a different place's outline moves this point with it - nothing
+else to update.
+
+Config: `fire_danger_enabled` (default on - unlike `imagery_s2_enabled`, this
+needs no credential) and `fire_danger_forecast_days` (default 6, kept below
+Open-Meteo's 16-day allowance because the *weather* forecast under it, not the
+FWI arithmetic, is what gets unreliable that far out).
+
+`python3 -m firewatch fire-danger [--force]` prints today's and the forecast
+days' FWI/class without waiting for the twice-daily gate.
+
 ## Landmine: FIRMS from a CI runner
 
 Two distinct failures, both seen on GitHub Actions, both looking like "FIRMS is
@@ -315,16 +564,29 @@ cycle, not a dead one.
 
 ## Landmine: IPv6 without a route
 
-`FIREWATCH_FORCE_IPV4=1` makes urllib3 resolve A records only. Of the four hosts
-this talks to, **only `firms.modaps.eosdis.nasa.gov` publishes an AAAA record** -
-`view.eumetsat.int` (MTG and Sentinel-3) and `api.open-meteo.com` are IPv4-only. So
-on a network with no IPv6 egress, FIRMS is the *only* feed that breaks, with
-`[Errno 101] Network is unreachable` after ~90 s of retries per dataset, while
-everything else looks healthy. GitHub Actions runners are exactly that network.
+`FIREWATCH_FORCE_IPV4=1` makes urllib3 resolve A records only - `config.force_ipv4()`,
+called from every module that makes an outbound request (`sources._session()`,
+`sms.send()`, `telegram._post()`), not just the WFS/FIRMS sources it started as. Of
+the hosts FireWatch talks to, `firms.modaps.eosdis.nasa.gov`, `api.telegram.org` and
+`api.httpsms.com` (via its `ghs.googlehosted.com` CNAME) all publish AAAA records -
+`view.eumetsat.int` (MTG and Sentinel-3) and `api.open-meteo.com` are IPv4-only. So on
+a network with no IPv6 egress, FIRMS, SMS and Telegram are the ones that break, with
+`[Errno 101] Network is unreachable` after retries, while everything else looks
+healthy. GitHub Actions runners are exactly that network.
 
 It is opt-in on purpose: a working dual-stack network handles the fallback itself,
-and forcing IPv4 would break an IPv6-only host. The failure is easy to misread as a
-FIRMS outage or a bad key, so check `dig AAAA` before believing either.
+and forcing IPv4 would break an IPv6-only host. The failure is easy to misread as an
+outage or a bad key, so check `dig AAAA` before believing either.
+
+**The SMS half of this was broken from the day `test-sms.yml` was written.** That
+workflow has set `FIREWATCH_FORCE_IPV4` since it started, on the correct belief that
+`api.httpsms.com` needed it - but the function that makes the variable do anything
+lived only inside `sources._session()`, which `sms.send()` never called. The
+variable was set, read, and had no effect; a test-sms run on a runner with no IPv6
+route would have failed with the Errno 101 the variable exists to prevent. Moving
+the function to `config.py` and calling it from `sms.send()` and `telegram._post()`
+directly - rather than only from the one module that happened to need it first -
+is what actually closes this for both.
 
 ## Running on a Linux host
 
@@ -401,15 +663,17 @@ succeeded, so a failed notification never suppresses the SMS.
   alert cost two segments. What survives is what you act on — what changed, where,
   how hot, and coordinates that work with no signal. Verified across every stored
   event × every sending kind × the longest settlement name × absurd values
-  (1234.5 MW, 99.9 km, 100% RH): max 158 characters, always one segment. Adding a
-  line back will break that, so measure before you do - and `sms.worst_case()` is
-  how, rather than by hand. It builds that same worst alert against the live
-  settlement list and the live map URL, and `sms-status` and the `test-sms` workflow
-  both print it with the headroom left. The URL is what makes this a fork concern:
-  it is a line of the message, so `https://some-longer-org-name.github.io/
-  firewatch-kakanj-monitoring` pushes the same alert to 170 characters and two
-  segments, measured. English wording is written out in `SMS_TEXT` now rather than
-  falling back to raw keys, and fits with a character less to spare than Bosnian.
+  (1234.5 MW, 99.9 km, 100% RH): max 158 characters, always one segment - two
+  characters of headroom. Adding a line back will break that, so measure before you
+  do - and `sms.worst_case()` is how, rather than by hand. It builds that same worst
+  alert against the live settlement list and the live map URL, and `sms-status` and
+  the `test-sms` workflow both print it with the headroom left. The URL is what
+  makes this a fork concern: it is a line of the message, so a longer settlement
+  name or a longer `FIREWATCH_PUBLIC_URL` spends that headroom without anyone
+  deciding to - `https://some-longer-org-name.github.io/firewatch-kakanj-monitoring`
+  pushes the same alert to 170 characters and two segments, measured. English
+  wording is written out in `SMS_TEXT` rather than falling back to raw keys, and
+  fits with a character less to spare than Bosnian.
 - **Message text must stay ASCII.** `ascii_only()` folds Bosnian diacritics
   because one non-GSM character switches the whole message to UCS-2, dropping a
   segment from 160 characters to 70. `segments()` reports the real cost. `Đ` is the
@@ -441,6 +705,77 @@ succeeded, so a failed notification never suppresses the SMS.
 - Inert until a sender, a recipient list and the key are all present; `sms.ready()`
   returns the specific reason it is not usable, including non-E.164 numbers.
 
+## Telegram alerts
+
+`telegram.py` posts to the Bot API (`POST https://api.telegram.org/bot<token>/
+sendMessage`, body `{chat_id,text}`). Same independent-channel treatment as SMS —
+`mark_notified` in `poller.cycle` is OR'd across `notify`, `sms` and `telegram`, so
+a failure in one never suppresses another.
+
+- **One public channel, not a managed recipient list.** `telegram_channel` is
+  who alerts go to; anyone subscribes from the channel's own public link, with
+  no per-person onboarding and no `getUpdates` lookup to find a chat id. The
+  bot must be added to the channel as an administrator before it can post;
+  that step happens once, outside this codebase, in Telegram itself.
+- **`telegram_channel` has no built-in default**, unlike `TOWN_LAT`/`TOWN_LON`
+  and the rest of what `main` hardcodes for this instance. A channel handle is
+  not sensitive the way `sms_to` is, so it *could* ship as a real default - but
+  a fork that sets its own `TELEGRAM_BOT_TOKEN` and forgets to set its own
+  channel would then post, with its own bot, at *this* deployment's channel:
+  `telegram.ready()` would report `True` (everything it checks looks present)
+  and Telegram would answer `403 "bot is not a member of the channel chat"`
+  rather than the clean "not configured" every other missing setting gets.
+  Set it via `telegram_channel` in `config.json` or
+  `FIREWATCH_TELEGRAM_CHANNEL` in the environment - `channel()` checks the env
+  var first, same order as `sms.recipients()` and `SMS_TO_ENV`.
+- **The bot token resolves exactly like the httpSMS key**: `TELEGRAM_BOT_TOKEN`
+  or the macOS Keychain (service `firewatch-telegram`, set by `set-telegram-key`),
+  never `config.json`. `secrets()` and `RedactingFormatter` cover it the same way.
+- **No character budget, so nothing here degrades.** Telegram is UTF-8 end to
+  end with a 4096-character limit, so unlike SMS: no ASCII fold (`ascii_only()`
+  has no Telegram counterpart — "Zavidovići" stays "Zavidovići"), no segment
+  math, and none of the lines SMS drops for cost. The detection count and its
+  source list, the footprint extent and the `IZVAN OPĆINE` marker are all
+  present — `TELEGRAM_TEXT`'s `outside` key is actually read by `_compose()`,
+  unlike the identical key sitting unused in `SMS_TEXT` for the documented
+  reason (no room). There is consequently no `worst_case()` here and no
+  degradation ladder to measure — `alert_text()` composes once and is done.
+- **A public channel still has a rate limit** — about one message per second —
+  and ignoring a 429 risks the bot being muted from the channel for longer than
+  the delay it originally asked for. `send()` reads `retry_after` out of the
+  429 body and waits once, capped at `MAX_RETRY_WAIT` (5 s): past that cap it
+  drops the post rather than blocking the poll cycle, because the fast MTG path
+  this architecture leans on cannot afford to stall on a single alert channel.
+- **`TELEGRAM_TEXT` is `SMS_TEXT` copied, not imported** — same reasoning as
+  `SMS_TEXT` itself gives for not reusing anything from an earlier channel:
+  wording drifting apart later (an emoji, a longer phrase) is a feature request
+  here, not a bug to prevent by sharing one dict. `_place()`, `_dir()` and
+  `COMPASS_BS` are copied into `telegram.py` for the same reason rather than
+  imported as `sms.py` internals.
+- `telegram_kinds` includes `extinguished`, unlike `sms_kinds` — there is no
+  per-post cost the way there is a per-segment one, and "the fire went quiet"
+  is genuine information for a public channel even though it never justified an
+  SMS.
+- Inert until `telegram_enabled` is true, `telegram_channel` is set and a bot
+  token is present; `telegram.ready()` returns the specific reason otherwise,
+  the same contract `sms.ready()` and `cdse_credentials()` follow.
+- **The map carries a subscribe banner**, gated on `telegram.ready()`, not just
+  `telegram_enabled` - a channel with no bot token cannot actually deliver an
+  alert, and inviting the public to join one that never posts is worse than
+  not advertising it. `poller._telegram_channel_url()` turns a public `@handle`
+  into `https://t.me/...` and puts it in the snapshot as `telegram_url`;
+  `mapgen.renderHeader()` fills `#tgbanner`, a full-width `--accent`-filled
+  button at the top of the side panel - the one call-to-action on the page
+  that is not a fire, so it does not sit quietly in the footer with the docs
+  link. `#tgbanner:empty` in CSS collapses it to nothing when there is no
+  channel, rather than leaving a gap. Unlike the docs link this is not gated
+  on `public_url`: the channel is a fixed deployment setting, not something
+  published alongside this particular map instance, so it shows on a local
+  `file://` map too. A private channel (a numeric chat id rather than an
+  `@handle`) has no public join link, so `_telegram_channel_url()` returns
+  `None` for one rather than advertising a
+  link that cannot work.
+
 ## The GitHub deployment
 
 This repository *is* a running instance, not just the source of one. `.github/workflows/`
@@ -448,8 +783,9 @@ holds the whole production deployment, and it is the one described in
 `docs/firewatch-fork.html`.
 
 ```
-poll.yml     the cycle: fetch → cluster → alert → render → publish
-test-sms.yml manual SMS delivery check; previews by default, sending is a checkbox
+poll.yml          the cycle: fetch → cluster → alert → render → publish
+test-sms.yml      manual SMS delivery check; previews by default, sending is a checkbox
+test-telegram.yml manual Telegram delivery check; same shape as test-sms.yml
 ```
 
 Four facts drive everything about it:
@@ -480,11 +816,23 @@ files are written in artifact-body form (no doctype, no viewport) so they can al
 published as Claude artifacts. Serving them unwrapped renders every page at desktop width
 on a phone.
 
-**Secrets, not config.** `FIRMS_MAP_KEY`, `HTTPSMS_API_KEY`, `HTTPSMS_FROM` and
-`FIREWATCH_SMS_TO` come from repository secrets. The last one exists precisely because
-this repo is public and `sms_to` in `config.json` would publish real phone numbers; the
-workflow logs the recipient *count*, never the numbers, since GitHub masks an exact secret
-value and not the individual numbers inside a comma-separated one.
+**Secrets, not config.** `FIRMS_MAP_KEY`, `HTTPSMS_API_KEY`, `HTTPSMS_FROM`,
+`FIREWATCH_SMS_TO`, `TELEGRAM_BOT_TOKEN` and `FIREWATCH_TELEGRAM_CHANNEL` come from
+repository secrets. `FIREWATCH_SMS_TO` exists precisely because this repo is public and
+`sms_to` in `config.json` would publish real phone numbers; the workflow logs the
+recipient *count*, never the numbers, since GitHub masks an exact secret value and not
+the individual numbers inside a comma-separated one. `FIREWATCH_TELEGRAM_CHANNEL` is not
+sensitive the same way - a channel handle is meant to be public - but it earns the same
+treatment because `state/config/config.json` here is a fixed literal the `Poll` step
+writes fresh every run (`{"auto_expose": false, "telegram_enabled": true}`), not
+something a CLI command can edit the way `sms-add` edits a laptop's config file; without
+the secret, changing the channel would mean editing `poll.yml` itself - and since
+`telegram_channel` has no built-in default (see the Telegram alerts section above),
+leaving the secret unset here just leaves the channel unset, the same clean "not
+configured" result a fork gets anywhere else, not a fallback to this deployment's own
+channel. `telegram_enabled` is set unconditionally in that literal - unlike a bare
+install, where it defaults off - because `telegram.ready()` is unusable without both secrets anyway, so turning it on
+costs nothing when they are absent.
 
 Two settings in the repo itself, both of which fail silently when wrong: **Workflow
 permissions** must be read/write or the state push fails, and **Pages source** must be
@@ -517,8 +865,11 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
 ## State and configuration
 
 - `~/Library/Application Support/FireWatch/` — `firewatch.db` (SQLite: `detections`,
-  `events`, `notified`, `meta`), `snapshot.json`, `fire-map.html`, `firewatch.log`,
-  `stdout/stderr.log`.
+  `events`, `notified`, `meta`), `snapshot.json`, `fire-map.html`, `fire-s2.png`,
+  `firewatch.log`, `stdout/stderr.log`. The last rendered Sentinel-2 scene date
+  lives in `meta` under `imagery_s2`, which is what gates a re-render. `fwi_gate`
+  and `fwi_payload` do the same job for the fire-danger forecast - the date (plus
+  whether local noon has passed) and the last computed result.
 - `~/Library/Caches/FireWatch/public/` — the only directory ever exposed publicly.
   Rewritten from the snapshot every cycle, so losing it costs nothing. It is *not*
   under Application Support, for the reason in landmine 12.
@@ -537,14 +888,24 @@ ngrok during a menu rebuild would put a blocking HTTP call on the main thread.
   instead of counting it down - otherwise an install deliberately running without
   FIRMS would report 503 for ever. Meteosat and Sentinel-3 need no credentials, so
   two of three feeds keep working.
+- **The Copernicus client resolves the same way**, through `cdse_credentials()`:
+  `CDSE_CLIENT` (`"<id>:<secret>"`) or `CDSE_CLIENT_ID`/`CDSE_CLIENT_SECRET` in the
+  environment, then the Keychain (service `firewatch-cdse`, set by `set-cdse-key`).
+  Never `config.json`. Both halves live in **one** Keychain item because `security`
+  holds one password per service, and splitting them would let an install pair an id
+  with the wrong secret - which fails as an opaque 401 at render time, long after the
+  mistake. `secrets()` adds the raw item *and* each half separately: the combined
+  string redacts the log line that carries it, but a traceback from the token POST
+  carries the **secret alone**, and only the split covers that.
 - `quota` prints the last four characters and the source, never the key.
-  `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` uses it too.
+  `config.keychain_secret()` is the one Keychain reader; `sms.api_key()` and
+  `telegram.bot_token()` use it too.
 - **On macOS the key belongs in the Keychain, not the environment.** `launchd` does not
   read a shell profile, and the generated plist injects only `SSL_CERT_FILE`,
   `REQUESTS_CA_BUNDLE` and `PYTHONUNBUFFERED` - so an `export FIRMS_MAP_KEY` in
-  `~/.zshrc` is visible to a terminal `poll` and invisible to the running agent. Both
-  keys resolve the same way, so the agent silently loses FIRMS *and* SMS while a
-  hand-run poll looks perfect. Environment variables are for Linux and hosts, where a
+  `~/.zshrc` is visible to a terminal `poll` and invisible to the running agent. All
+  three keys resolve the same way, so the agent silently loses FIRMS, SMS *and*
+  Telegram while a hand-run poll looks perfect. Environment variables are for Linux and hosts, where a
   service manager passes them in on purpose.
 - **The FIRMS key travels in the URL *path***, so any `requests` exception carries the
   whole query - key included - and a bare `log.warning("firms %s: %s", ds, exc)`
@@ -559,12 +920,47 @@ Notifications go through `osascript` (attributed to *Script Editor*, click does
 nothing) unless `terminal-notifier` is installed, in which case notifications become
 clickable links to Google Maps. `notify.backend()` reports which is active.
 
+## Branches
+
+`main` is this deployment and names Zavidovići in code: `config.py` hardcodes the three
+`data/` filenames and `TOWN_LAT`/`TOWN_LON`, and both workflow files carry a literal
+`FIREWATCH_PUBLIC_URL`.
+
+**`fork-template` is the branch anyone adapting this should start from**, and it is where
+work on adaptability belongs. It adds `place.py` and `setup.py`, moves every place-specific
+string into `data/place.json`, derives the Pages URL from `github.repository`, and carries
+`FORK.md`. Porting a fork-template change back to `main` is usually wrong — main is
+deliberately the concrete instance, not the template.
+
+**A boundary can arrive as several rings, and `geo.py` is the only thing that knows it.**
+Nominatim returns a MultiPolygon for anything with an enclave, an exclave or an island - a
+country, some counties - and `geo.boundary_rings()` flattens every ring of every part,
+holes included, because the even-odd containment test toggles per crossing. Read one ring
+and the rest of the place silently stops existing. The older `boundary_ring()` did exactly
+that (`coordinates[0]`, which for a MultiPolygon is a whole polygon) and the ValueError it
+raised came from inside `bbox_padded()` - so all three feeds reported `[FAIL]`, per-source
+isolation swallowed it, the cycle exited 0, and the map rendered correctly and stayed empty
+for ever. Fixed on both branches 2026-09-05, found against `Bosna i Hercegovina` (OSM
+relation 2528142, 2 parts). A municipality is one polygon, so nothing at that scale ever
+exercised it.
+
 ## Repo conventions
 
 - `firewatch/` is the system. `fire-detection-zavidovici.sh` and
   `fire-detection-bih.sh` are standalone shell leftovers and
   `fire-detection-requraments` the hand-written spec — read them for context, leave
   them alone rather than extending them.
+- **Both halves of the layer control are built by a function** - `bases()` and
+  `overlays()`. The control is destroyed and rebuilt on every language switch, and
+  the base list used to be written out at each of the two call sites, which is one
+  edit away from a base layer that vanishes the moment the reader presses BS.
+  `lNone` is an empty `L.layerGroup()`: a base layer and not a checkbox, because
+  Leaflet's base layers are a radio group, so there is no way to untick your way
+  to no basemap.
+- **A new map label needs both `I18N.en` and `I18N.bs`** or `t()` silently falls
+  back to the raw key and the reader sees `imFire` in the layer control. The layer
+  control itself is now built from one `overlays()` function, so it survives the
+  language-switch rebuild without a second edit - but the dictionaries are still two.
 - `docs/*.html` are self-contained documentation pages, also published as Claude
   artifacts. Update them when behaviour changes — particularly the "field notes" and
   "landmines" content, which is the part that goes stale invisibly.

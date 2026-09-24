@@ -31,7 +31,7 @@ import subprocess
 import requests
 
 from . import place
-from .config import CFG, keychain_secret
+from .config import CFG, force_ipv4, keychain_secret
 
 log = logging.getLogger("firewatch.sms")
 
@@ -333,11 +333,12 @@ def worst_case(code: str | None = None) -> dict:
     """The longest alert this deployment can produce, and what it costs.
 
     "An alert is four lines and one segment" is a measured claim, not a structural
-    one, and two things a fork changes move it: the longest settlement name in
-    data/settlements.json, and the length of the published URL - every character of
-    "https://owner.github.io/repository" is spent before a word of the fire is.
-    Rather than leave that to be discovered by a phone bill, this builds the worst
-    alert the data allows and reports the headroom, and `sms-status` prints it.
+    one, and two things move it without anyone deciding to: a longer settlement name
+    arriving in data/settlements.json, and the length of the published URL - every
+    character of "https://owner.github.io/repository" is spent before a word of the
+    fire is (a fork changes both). Headroom is currently two characters here. Rather
+    than leave that to be discovered by a phone bill, this builds the worst alert the
+    data allows and reports the headroom, and `sms-status` prints it.
 
     The event is synthetic on purpose: absurd values (1234.5 MW peak, 99.9 km,
     100% humidity, extreme risk) with the longest real place name, so the answer
@@ -442,6 +443,13 @@ def send(text: str, to: list[str] | None = None) -> bool:
     bulk = len(nums) > 1
     body = {"from": sender(), "content": text,
             "to": nums if bulk else nums[0]}
+    # api.httpsms.com CNAMEs to ghs.googlehosted.com, which publishes an AAAA
+    # record - GitHub Actions runners have no IPv6 route. A no-op unless
+    # FIREWATCH_FORCE_IPV4 is set. This was previously a gap: test-sms.yml has
+    # set that variable since it was written, believing it covered this call,
+    # but nothing in this module ever triggered the patch that makes it do
+    # anything - see config.force_ipv4().
+    force_ipv4()
     try:
         r = requests.post(BULK_URL if bulk else API_URL, json=body, timeout=45,
                           headers={"x-api-key": api_key(),

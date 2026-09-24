@@ -77,8 +77,8 @@ jobs:
           print(f"cost        : {len(text)} chars, {sms.segments(text)} segment(s)")
           # The number a fork cannot guess: the longest alert this place can
           # produce, with this repository's URL in it. The link is part of the
-          # message, so a longer owner/repository name spends the headroom that
-          # keeps an alert inside one segment.
+          # message, so a longer settlement name or a longer owner/repository name
+          # spends the headroom that keeps an alert inside one segment.
           w = sms.worst_case()
           print(f"worst alert : {w['chars']} chars, {w['segments']} segment(s),"
                 f" {w['headroom']} to spare  [{w['kind']}, \"{w['place']}\"]")

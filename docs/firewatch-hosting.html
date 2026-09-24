@@ -302,7 +302,21 @@ docker run -d --name firewatch -p 8080:8080 \
   -e FIRMS_MAP_KEY=your_key_here \
   -e HTTPSMS_API_KEY=your_sms_key \
   -e HTTPSMS_FROM=+38761234567 \
+  -e TELEGRAM_BOT_TOKEN=your_bot_token \
+  -e FIREWATCH_TELEGRAM_CHANNEL=@your_channel \
   firewatch</code></pre>
+
+<div class="note crit">
+  <span class="lbl">The two env vars above are not enough &mdash; Telegram still needs turning on</span>
+  <p><code>telegram_enabled</code> defaults to <code>false</code>, the same as Sentinel-2
+  imagery, and unlike the credential and the channel handle it has no environment
+  variable of its own &mdash; it lives only in <code>config.json</code>. Set it the same
+  way <code>sms-add</code> reaches a running container's config file:</p>
+  <pre><code>docker exec firewatch python3 -c "from firewatch.config import CFG; CFG['telegram_enabled']=True; CFG.save()"</code></pre>
+  <p>Without this step the bot token and channel are both present, <code>telegram-status</code>
+  reports the reason plainly (<code>telegram_enabled is false</code>), and every cycle
+  silently skips the post &mdash; not a crash, just nothing landing in the channel.</p>
+</div>
 
 <div class="note good">
   <span class="lbl">This image is tested</span>
@@ -324,7 +338,7 @@ docker run -d --name firewatch -p 8080:8080 \
 
 <p>The image carries only what a server needs: no desktop packages, and no menu bar
 app. Everything else &mdash; polling, clustering, alerting, map rendering, the SMS
-channel &mdash; is present and works.</p>
+and Telegram channels &mdash; is present and works.</p>
 
 <p>The <code>HEALTHCHECK</code> has a five-minute <code>start-period</code> so a booting
 container is not killed while it legitimately reports <code>starting</code>.</p>
@@ -341,6 +355,8 @@ the environment; a container or systemd unit needs no file for it.</p>
     <tr><td class="mono">HTTPSMS_API_KEY</td><td>The SMS gateway key</td></tr>
     <tr><td class="mono">HTTPSMS_FROM</td><td>The gateway phone number alerts are sent from</td></tr>
     <tr><td class="mono">FIREWATCH_SMS_TO</td><td>Recipients, comma-separated. Optional &mdash; overrides <code>config.json</code></td></tr>
+    <tr><td class="mono">TELEGRAM_BOT_TOKEN</td><td>The Telegram bot token, from @BotFather</td></tr>
+    <tr><td class="mono">FIREWATCH_TELEGRAM_CHANNEL</td><td>The channel's <code>@handle</code>. Optional &mdash; overrides <code>telegram_channel</code> in <code>config.json</code>, same reasoning as <code>FIREWATCH_SMS_TO</code></td></tr>
     <tr><td class="mono">FIREWATCH_DATA_DIR</td><td>Database, log, snapshot, rendered map</td></tr>
     <tr><td class="mono">FIREWATCH_PUBLIC_DIR</td><td>The only directory ever served</td></tr>
     <tr><td class="mono">FIREWATCH_CONFIG_DIR</td><td>Where <code>config.json</code> is looked for</td></tr>

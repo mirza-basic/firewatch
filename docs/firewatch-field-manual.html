@@ -269,6 +269,7 @@ the arguments.</p>
     <tr><td class="mono">expose / unexpose / exposed</td><td>Publish the map, stop, show status</td></tr>
     <tr><td class="mono">sms / test-sms / set-sms-key</td><td>SMS settings, a test message, store the key</td></tr>
     <tr><td class="mono">sms-add / sms-remove &lt;number&gt;</td><td>Manage recipients</td></tr>
+    <tr><td class="mono">telegram / test-telegram / set-telegram-key</td><td>Telegram channel settings, a test post, store the bot token</td></tr>
   </tbody>
 </table>
 </div>
@@ -299,6 +300,7 @@ the arguments.</p>
     <tr><td class="mono">serve [host:port]</td><td>Poll and serve the map over HTTP. See <a href="https://claude.ai/code/artifact/09883c3e-dc41-4093-9db6-c2800a35bc30"><strong>Hosting FireWatch</strong></a></td></tr>
     <tr><td class="mono">expose / unexpose / expose-status</td><td>Public URL for the map</td></tr>
     <tr><td class="mono">sms-status / test-sms / set-sms-key</td><td>SMS plumbing</td></tr>
+    <tr><td class="mono">telegram-status / test-telegram / set-telegram-key</td><td>Telegram channel plumbing</td></tr>
     <tr><td class="mono">set-firms-key</td><td>Store a FIRMS key in the Keychain, out of config.json</td></tr>
     <tr><td class="mono">sms-add / sms-remove &lt;number&gt;</td><td>Manage recipients</td></tr>
     <tr><td class="mono">test-notify</td><td>Send a sample desktop notification</td></tr>
@@ -370,6 +372,22 @@ editing.</p>
         <td>Gateway phone, and the recipient list</td></tr>
     <tr><td class="mono">sms_kinds</td><td class="mono">4 kinds</td>
         <td>Which alerts are worth a text message</td></tr>
+    <tr><td class="mono">telegram_enabled</td><td class="mono">false</td>
+        <td>Master switch for the Telegram channel &mdash; off by default, like
+        Sentinel-2 imagery, because it needs a credential nothing else needs</td></tr>
+    <tr><td class="mono">telegram_channel</td><td class="mono">"" (no default)</td>
+        <td>The public channel alerts post to. Not sensitive the way a phone
+        number is, but ships with no built-in default anyway: one would mean a
+        fork that sets its own bot token and forgets this posts, with its own
+        bot, at <em>this</em> deployment's channel instead of failing cleanly.
+        Set via <code>config.json</code>, or <code>FIREWATCH_TELEGRAM_CHANNEL</code>
+        where there is no writable config file, same reasoning as
+        <code>FIREWATCH_SMS_TO</code></td></tr>
+    <tr><td class="mono">telegram_kinds</td><td class="mono">6 kinds</td>
+        <td>Which alerts post &mdash; includes <code>extinguished</code>, unlike
+        <code>sms_kinds</code>, since a channel post costs nothing per message</td></tr>
+    <tr><td class="mono">telegram_language</td><td class="mono">bs</td>
+        <td>Wording for the channel post, independent of <code>sms_language</code></td></tr>
     <tr><td class="mono">serve_host / serve_port</td><td class="mono">127.0.0.1 / 8080</td>
         <td>The built-in map server. Loopback until you say otherwise</td></tr>
     <tr><td class="mono">auto_expose</td><td class="mono">false</td>
@@ -480,9 +498,74 @@ your carrier charges, with no third-party sending fees.</p>
   &mdash; "Zavidovici", not "Zavidovići". Same information, a third of the segments.</p>
 </div>
 
-<p>SMS and desktop notifications are independent channels: a fire is marked notified if
-<em>either</em> succeeded, so a failing notification never silently suppresses the text
-message.</p>
+<h3>Telegram, through a public channel</h3>
+<p>Alerts can also post to a public Telegram channel through the
+<a href="https://core.telegram.org/bots/api">Bot API</a> &mdash; one recipient, the
+channel itself, rather than a list of numbers to manage. Anyone subscribes from the
+channel's own public link.</p>
+
+<ol class="stages">
+  <li>
+    <h3>Create the bot and the channel</h3>
+    <p>Message <a href="https://t.me/BotFather">@BotFather</a> on Telegram,
+    <code>/newbot</code>, and follow the prompts &mdash; it replies with a bot token.
+    Create a public channel with a <code>@handle</code> people can subscribe from
+    directly, then add the bot as a channel administrator (channel settings &rsaquo;
+    Administrators &rsaquo; Add Admin). That last step happens in Telegram itself;
+    nothing here can do it or verify it was done.</p>
+    <div class="note crit">
+      <span class="lbl">A valid token still fails silently until the bot is an admin</span>
+      <p>A bot token that has not been made an administrator of the channel gets an
+      ordinary HTTP 400 back from <code>sendMessage</code> &mdash; nothing in the
+      failure says "you forgot to add me as admin". <code>telegram-status</code> can
+      only confirm the token and channel are both <em>set</em>, the same limit
+      <code>sms-status</code> has for the httpSMS key. Send a real
+      <code>test-telegram</code> once before relying on it.</p>
+    </div>
+  </li>
+  <li>
+    <h3>Store the token in the Keychain</h3>
+    <pre><code>./firewatch-ctl set-telegram-key</code></pre>
+    <p>Never written to <code>config.json</code>. Read from the
+    <code>TELEGRAM_BOT_TOKEN</code> environment variable, or from the macOS Keychain
+    under the service <code>firewatch-telegram</code>.</p>
+  </li>
+  <li>
+    <h3>Turn it on</h3>
+    <p>Set <code>telegram_enabled: true</code> &mdash; off by default, since it needs a
+    credential nothing else needs, the same reasoning as Sentinel-2 imagery. The
+    channel handle itself is <code>telegram_channel</code> in
+    <code>config.json</code>, not a secret, since it is meant to be shared &mdash; or
+    <code>FIREWATCH_TELEGRAM_CHANNEL</code> in the environment, for a deployment with
+    no writable config file (this repo's own GitHub Actions run rewrites
+    <code>config.json</code> from a fixed literal every cycle, so that is the only way
+    to set the channel there without editing <code>poll.yml</code>).</p>
+    <pre><code>./firewatch-ctl telegram      <span class="c"># shows exactly what is missing, if anything</span>
+./firewatch-ctl test-telegram</code></pre>
+  </li>
+</ol>
+
+<div class="note">
+  <span class="lbl">No segment budget, so nothing is trimmed</span>
+  <p>Telegram's limit is 4096 characters against real alerts of 150&ndash;210, so unlike
+  SMS nothing here is transliterated or shortened &mdash; diacritics are sent as typed,
+  and the message carries lines SMS drops for cost: the detection count and its source
+  list, the footprint width, and an <code>IZVAN OPĆINE</code> marker for a fire outside
+  the municipality.</p>
+</div>
+
+<div class="note warn">
+  <span class="lbl">A channel has its own rate limit</span>
+  <p>Roughly one post per second. A 429 response names exactly how long to wait
+  (<code>retry_after</code>); ignoring it risks the bot being muted from the channel
+  for longer than the delay it originally asked for. FireWatch waits that long once,
+  capped at 5 seconds, then drops the post rather than block the next poll cycle on
+  it &mdash; a channel post is not worth stalling the fast Meteosat path over.</p>
+</div>
+
+<p>SMS, Telegram and desktop notifications are three independent channels: a fire is
+marked notified if <em>any</em> succeeded, so a failure in one never silently
+suppresses another.</p>
 
 <!-- ==================== 07 ==================== -->
 <h2 id="relocate"><span class="num">05</span> Watching somewhere else</h2>
@@ -700,7 +783,8 @@ environment variable &mdash; which is what containers and system services use.</
 </table>
 </div>
 <p>Credentials live outside all of it: in the environment, or in the macOS Keychain
-(services <code>firewatch-firms</code> and <code>firewatch-httpsms</code>). The
+(services <code>firewatch-firms</code>, <code>firewatch-httpsms</code> and
+<code>firewatch-telegram</code>). The
 service definition itself is platform-specific &mdash; a <code>launchd</code> plist or a
 systemd unit &mdash; and each platform guide covers its own.</p>
 

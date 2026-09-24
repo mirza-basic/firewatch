@@ -19,8 +19,8 @@ import os
 import shutil
 from pathlib import Path
 
-from . import geo, place
-from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR
+from . import geo, imagery, place
+from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON
 
 
 def html_escape(s: str) -> str:
@@ -68,6 +68,16 @@ TEMPLATE = r"""<!doctype html>
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;font-size:11.5px;color:var(--dim)}
   .chip b{color:var(--fg);font-weight:600}
+  /* A call-to-action, not a chip: full width and filled with --accent so it reads
+     as the one thing on this page worth clicking that is not a fire, distinct
+     from the quiet text link this used to be in the footer. Empty (no configured
+     channel) collapses to nothing rather than an empty gap - see renderHeader(). */
+  #tgbanner:empty{display:none}
+  #tgbanner{margin-top:12px}
+  #tgbanner a{display:flex;align-items:center;justify-content:center;gap:7px;
+    background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
+    font-size:12.5px;border-radius:8px;padding:9px 10px;transition:filter .13s}
+  #tgbanner a:hover,#tgbanner a:focus-visible{filter:brightness(1.08)}
   #list{overflow-y:auto;flex:1;padding:10px}
   .ev{background:var(--panel2);border:1px solid var(--line);border-left-width:3px;
     border-radius:9px;padding:12px 13px;margin-bottom:9px;cursor:pointer;transition:.14s}
@@ -126,10 +136,33 @@ TEMPLATE = r"""<!doctype html>
   #unit{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
     height:26px;min-width:44px;padding:0 7px;cursor:pointer;font:inherit;font-size:11.5px}
   #speed:hover,#play:hover,#unit:hover{background:#31404f}
-  .legend{background:rgba(21,26,33,.94);padding:9px 11px;border-radius:9px;
-    border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.7}
+  /* Collapsed by default at every width, not just on a phone: the outer .legend
+     div is just a layout wrapper, and the toggle button / expanded body each
+     carry their own card styling so only one of the two is ever on screen. */
+  .legend{line-height:1.6}
+  .legend-toggle{display:block;width:100%;max-width:min(74vw,300px);text-align:left;
+    cursor:pointer;background:rgba(21,26,33,.94);border:1px solid var(--line);
+    color:var(--fg);border-radius:9px;padding:8px 13px;font:inherit;font-size:12.5px;
+    line-height:1.4;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .legend-body{display:none;background:rgba(21,26,33,.96);border:1px solid var(--line);
+    border-radius:9px;padding:10px 12px;margin-bottom:6px;width:min(74vw,300px);
+    max-height:46dvh;overflow-y:auto;color:var(--dim);font-size:11.5px;line-height:1.7;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .legend.open .legend-body{display:block}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-  .legend-toggle{display:none}
+  /* Fire-danger panel reuses the .legend/.legend-toggle/.legend-body shell above -
+     same collapse behaviour at every width, same look - and adds only its own rows. */
+  .fwiPanel{margin-top:8px}
+  .fwi-badge{font-weight:600;color:var(--fg)}
+  .fwi-row{display:flex;justify-content:space-between;gap:14px}
+  .fwi-row+.fwi-row{margin-top:1px}
+  .fwi-codes,.fwi-note{opacity:.65;margin-top:6px;font-size:10.5px;line-height:1.5}
+  .leaflet-bar a.eye{display:flex;align-items:center;justify-content:center}
+  .imgnote{background:rgba(21,26,33,.94);padding:6px 10px;border-radius:9px;
+    border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.5;
+    max-width:230px}
+  .imgnote b{color:#e6edf3;font-weight:600}
+  .imgnote s{color:#f0a35e;text-decoration:none}
   .leaflet-bottom.leaflet-right,
   .leaflet-bottom.leaflet-left{margin-bottom:94px}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
@@ -178,9 +211,15 @@ TEMPLATE = r"""<!doctype html>
     color:var(--fg);border-radius:6px;padding:4px 9px;font:inherit;font-size:11.5px;
     cursor:pointer}
   .mpop button:hover{background:#31404f}
-  #langsw{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:1250;
-    display:flex;gap:2px;padding:2px;border-radius:9px;border:1px solid var(--line);
-    background:rgba(21,26,33,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  /* Centred over #map, not the viewport: #side docks at a fixed 370px on desktop,
+     so viewport-centre (50vw) sits 185px left of the map's own visual centre. On
+     a phone #side is an off-canvas overlay that takes no layout width, so #map
+     already spans the full viewport and plain 50vw is correct there - restored
+     in the mobile media query below. */
+  #langsw{position:fixed;top:10px;left:calc(50vw + 185px);transform:translateX(-50%);
+    z-index:1250;display:flex;gap:2px;padding:2px;border-radius:9px;
+    border:1px solid var(--line);background:rgba(21,26,33,.94);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
   #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
@@ -201,6 +240,9 @@ TEMPLATE = r"""<!doctype html>
       transition:transform .26s ease;box-shadow:0 0 42px rgba(0,0,0,.55)}
     #side.open{transform:none}
     #map{flex:1 1 auto;min-height:0}
+    /* #side is an off-canvas overlay here, not docked, so #map already spans the
+       full viewport width - the desktop offset above would be wrong here. */
+    #langsw{left:50%}
     #drawer-btn{display:flex;align-items:center;gap:7px;position:fixed;top:10px;left:10px;
       z-index:1300;background:rgba(21,26,33,.95);color:var(--fg);border:1px solid var(--line);
       border-radius:9px;padding:9px 12px;font:inherit;font-size:14px;cursor:pointer;
@@ -238,16 +280,6 @@ TEMPLATE = r"""<!doctype html>
       margin-bottom:calc(124px + env(safe-area-inset-bottom, 0px))}
     /* attribution must stay visible, but it can be smaller on a phone */
     .leaflet-control-attribution{font-size:9.5px;padding:1px 5px}
-    .legend{background:none;border:0;padding:0;line-height:1.6}
-    .legend-toggle{display:block;width:100%;text-align:left;cursor:pointer;
-      background:rgba(21,26,33,.94);border:1px solid var(--line);color:var(--fg);
-      border-radius:9px;padding:8px 13px;font:inherit;font-size:12.5px;
-      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-    .legend-body{display:none;background:rgba(21,26,33,.96);border:1px solid var(--line);
-      border-radius:9px;padding:10px 12px;margin-bottom:6px;max-width:74vw;
-      max-height:46dvh;overflow-y:auto;
-      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-    .legend.open .legend-body{display:block}
   }
   @media (prefers-reduced-motion:reduce){#side,#backdrop{transition:none}}
 </style></head><body>
@@ -266,6 +298,7 @@ TEMPLATE = r"""<!doctype html>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
       <div class="status" id="hchips"></div>
+      <div id="tgbanner"></div>
     </header>
     <div id="list"></div>
     <footer id="foot"></footer>
@@ -292,6 +325,10 @@ let DATA = __DATA__;
 const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
 const BUFFER = __BUFFER__;
+// Substituted from config rather than written out here: the sun test below is
+// the only consumer, but a town that quietly disagreed with config.TOWN_LAT
+// would be a needle in a haystack.
+const TOWN_LAT = __TOWN_LAT__, TOWN_LON = __TOWN_LON__;
 const SRC = {mtg:{c:"#4cc9f0",n:"Meteosat MTG (10 min)"},
              firms:{c:"#ffd166",n:"VIIRS/MODIS (NRT)"},
              s3:{c:"#b5179e",n:"Sentinel-3 SLSTR"}};
@@ -329,7 +366,7 @@ const I18N = {
     discoveredBy:"Reported by", savedAt:"saved",
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
     noDetRange:"no detections in range", boundary:"boundary",
-    docs:"Documentation",
+    docs:"Documentation", telegramSub:"Alerts on Telegram",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
     r_1y:"Last year",
     rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month", rs_1y:"Year",
@@ -337,6 +374,19 @@ const I18N = {
     animate:"Animate", pause:"Pause", speed:"Playback speed",
     step:"Timeline step", u_min:"min", u_hour:"hour", u_day:"day", u_week:"week",
     zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain",
+    hideFires:"Hide fire markers", showFires:"Show fire markers",
+    lNone:"No basemap",
+    imFire:"Meteosat fire temperature", imGeo:"Meteosat GeoColour",
+    imTrue:"Meteosat true colour", imHrfi:"Meteosat visible 0.6 km",
+    imIr:"Meteosat thermal IR", imViirs:"VIIRS true colour 250 m",
+    imSwir:"VIIRS fire bands 375 m", imHls:"Sentinel-2 / Landsat 30 m",
+    imLatest:"latest frame", imToday:"today, may still be filling in",
+    imS2:"Sentinel-2 10 m (latest scene)", imCloud:"cloud",
+    imDark:"dark here now — try fire temperature",
+    imNoScene:"no scene imaged on this date",
+    imNoArchive:"nothing in the archive this far back",
+    imNoFrame:"no frame published for this hour",
+    legImagery:"Imagery", legImNote:"fire temperature stacks on any one other layer",
     m_dist:"Measure distance", m_area:"Measure area", m_clear:"Clear measurements",
     m_hintDist:"Click the map to add points. Double-click, or Done, to finish.",
     m_hintArea:"Click round the area you want. Double-click, or Done, to close it.",
@@ -344,7 +394,14 @@ const I18N = {
     m_done:"Done", m_undo:"Undo", m_close:"Close", m_remove:"Remove",
     m_perimeter:"perimeter",
     lBuffer:"{km} km buffer", legZone:"Watched area",
-    zoneNote:"kept, flagged nearby"
+    zoneNote:"kept, flagged nearby",
+    fwTitle:"Fire danger", fwBadge:"Fire danger today: {cls}", fwToday:"Today",
+    fwLow:"Low", fwModerate:"Moderate", fwHigh:"High", fwVeryHigh:"Very High",
+    fwExtreme:"Extreme", fwVeryExtreme:"Very Extreme",
+    fwNote:"Canadian Fire Weather Index, from Open-Meteo weather at the "+
+      "municipality centre — not a satellite reading. Forecast beyond a "+
+      "few days grows less reliable.",
+    fwUpdated:"updated {t}"
   },
   bs: {
     sub:"{area} · ažurirano {t}", noActive:"Nema aktivnih požara",
@@ -370,7 +427,7 @@ const I18N = {
     discoveredBy:"Prvi prijavio", savedAt:"sačuvano",
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
     noDetRange:"nema detekcija u periodu", boundary:"granica",
-    docs:"Dokumentacija",
+    docs:"Dokumentacija", telegramSub:"Obavijesti na Telegramu",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
     r_1y:"Zadnja godina",
     rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec", rs_1y:"Godina",
@@ -378,6 +435,19 @@ const I18N = {
     animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
     step:"Korak vremenske ose", u_min:"min", u_hour:"sat", u_day:"dan", u_week:"sedm.",
     zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren",
+    hideFires:"Sakrij oznake požara", showFires:"Prikaži oznake požara",
+    lNone:"Bez karte",
+    imFire:"Meteosat temperatura vatre", imGeo:"Meteosat GeoColour",
+    imTrue:"Meteosat prave boje", imHrfi:"Meteosat vidljivi 0,6 km",
+    imIr:"Meteosat termalni IR", imViirs:"VIIRS prave boje 250 m",
+    imSwir:"VIIRS kanali vatre 375 m", imHls:"Sentinel-2 / Landsat 30 m",
+    imLatest:"najnoviji snimak", imToday:"danas, možda još nije potpun",
+    imS2:"Sentinel-2 10 m (zadnji snimak)", imCloud:"oblačnost",
+    imDark:"ovdje je mrak — probaj temperaturu vatre",
+    imNoScene:"za ovaj datum nema snimka",
+    imNoArchive:"arhiva ne ide tako daleko",
+    imNoFrame:"za ovaj sat nema snimka",
+    legImagery:"Snimci", legImNote:"temperatura vatre ide preko bilo kojeg drugog sloja",
     m_dist:"Izmjeri udaljenost", m_area:"Izmjeri površinu", m_clear:"Obriši mjerenja",
     m_hintDist:"Klikni po karti da dodaš točke. Dvoklik ili Gotovo za završetak.",
     m_hintArea:"Klikni oko površine koju mjeriš. Dvoklik ili Gotovo da se zatvori.",
@@ -385,7 +455,15 @@ const I18N = {
     m_done:"Gotovo", m_undo:"Vrati", m_close:"Zatvori", m_remove:"Ukloni",
     m_perimeter:"obim",
     lBuffer:"pojas {km} km", legZone:"Praćeno područje",
-    zoneNote:"prati se, označeno kao blizu"
+    zoneNote:"prati se, označeno kao blizu",
+    fwTitle:"Opasnost od požara", fwBadge:"Opasnost od požara danas: {cls}",
+    fwToday:"Danas",
+    fwLow:"Nizak", fwModerate:"Umjeren", fwHigh:"Visok", fwVeryHigh:"Vrlo visok",
+    fwExtreme:"Ekstreman", fwVeryExtreme:"Vrlo ekstreman",
+    fwNote:"Kanadski indeks požarne opasnosti (FWI), iz Open-Meteo podataka za "+
+      "centar općine — nije satelitsko očitanje. Prognoza nakon nekoliko dana "+
+      "postaje manje pouzdana.",
+    fwUpdated:"ažurirano {t}"
   }
 };
 // Compass points are computed server-side in English; translate the letters.
@@ -474,6 +552,309 @@ const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
   {maxZoom:17,attribution:"&copy; OpenTopoMap (CC-BY-SA)"});
 sat.addTo(map);          // satellite is the default: terrain and fuel are visible
 
+// "No basemap": an empty group, which Leaflet is happy to treat as a base layer
+// and which draws nothing at all. Selecting it leaves #map's own near-black
+// background, and that is the point - with no cartography competing, the fire
+// layers are all that is left. It reads especially well under
+// rgb_firetemperature, whose screen blend over near-black is close to the layer
+// untouched, so the hotspots come through at full strength.
+//
+// A base layer rather than a checkbox because Leaflet's base layers are a radio
+// group: one is always chosen, so there is no way to untick your way to nothing.
+const blank = L.layerGroup();
+
+// ------------------------------------------------------------------ imagery
+// All three basemaps above are archival - Esri World Imagery is months to
+// years old - so not one of them can show a fire that is burning now. These
+// can, and the split between the two providers is not about quality but about
+// what a small fire actually looks like from orbit.
+//
+// Meteosat is ~1.7 x 1.3 km per pixel here: Zavidovici sits at a ~54 degree
+// viewing zenith from 0E, which inflates FCI's 1 km nadir figure by 1/cos.
+// That cannot resolve a few-hectare fire - but it lands every 10 minutes,
+// which is the only cadence that shows a plume while the fire still burns.
+// GIBS polar imagery is 250 m and did show a plume for the 2026-09-05 event
+// at 44.354/18.225, yet it arrives 4-5 h late and once per satellite per day.
+// So the fast layer is the coarse one, which is the opposite of the intuition.
+//
+// Every field in IMAGERY was measured against the live services on
+// 2026-09-06, because the advertised metadata is wrong in both directions:
+//
+//   - Capabilities advertise an unbroken PT10M series from `from`, but
+//     rgb_truecolour and vis06_hrfi have a reproducible daily hole running
+//     00:00Z to 01:50Z, first frame at 02:00Z, confirmed on two separate
+//     days. That is `dayFrom`, in minutes into the UTC day. Ask inside the
+//     hole and the answer is a ServiceException carrying HTTP 200, which
+//     Leaflet renders as nothing whatsoever - a blank map, no error anywhere.
+//     Note this is a publication boundary and *not* darkness: those layers
+//     answer perfectly well at 20:00Z and 22:00Z, when the sun here is 27-38
+//     degrees below the horizon. A daylight test would be the obvious guess
+//     and it would be wrong in both directions.
+//   - The capabilities `default` value is conservative to the point of being
+//     misleading: it read 14:00Z at 14:30 wall clock, yet 15:30Z answered at
+//     15:37. So "latest" is never derived from it. Omitting `time` returns the
+//     newest frame the server has, byte-identical to time=current.
+const EUM_WMS = "https://view.eumetsat.int/geoserver/wms";
+const GIBS_WMTS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best";
+const IMG_OPACITY = .85;
+
+// `from` is only enforced for Meteosat, where rgb_firetemperature genuinely
+// starts inside the map's one-year range. Every GIBS layer here predates that
+// window, so there is no lower bound to police.
+// `grp` is what makes layers combinable. Within a group the layers are
+// alternatives and only one can be on; across groups they stack, because the
+// pairing that matters is a *thermal* layer over a *visible* one - Meteosat
+// hotspots on VIIRS terrain, with the plume visible in the same frame. That one
+// picture is worth more than either layer alone.
+//
+// `blend:"screen"` is what makes the stack readable, and it is not decoration.
+// Fire Temperature RGB is near-black everywhere except the fire (mean 3.4 of
+// 255 over this municipality), so screen compositing discards its background
+// completely and keeps only the hot pixels. Screen can only ever *lighten*, so
+// a blended layer physically cannot obscure the imagery underneath - which is
+// why this is safe in a way that stacking two rasters at 85% opacity is not.
+const IMAGERY = [
+  {k:"imFire", src:"eum", layer:"mtg_fd:rgb_firetemperature", from:"2025-08-05",
+   grp:"hot", blend:"screen"},
+  {k:"imIr",   src:"eum", layer:"mtg_fd:ir105_hrfi",          from:"2024-09-23", grp:"vis"},
+  {k:"imGeo",  src:"eum", layer:"mtg_fd:rgb_geocolour",       from:"2024-09-23", grp:"vis"},
+  {k:"imTrue", src:"eum", layer:"mtg_fd:rgb_truecolour",      from:"2024-09-23", dayFrom:120, needsSun:true, grp:"vis"},
+  {k:"imHrfi", src:"eum", layer:"mtg_fd:vis06_hrfi",          from:"2024-09-16", dayFrom:120, needsSun:true, grp:"vis"},
+  {k:"imViirs", src:"gibs", lvl:9, grp:"vis",
+   layer:"VIIRS_NOAA20_CorrectedReflectance_TrueColor"},
+  {k:"imSwir",  src:"gibs", lvl:9, grp:"vis",
+   layer:"VIIRS_NOAA20_CorrectedReflectance_BandsM11-I2-I1"},
+  {k:"imHls",   src:"gibs", lvl:12, grp:"vis",
+   layer:"HLS_S30_Nadir_BRDF_Adjusted_Reflectance"},
+];
+
+// Above tilePane (200) so imagery covers the archival basemap, below
+// overlayPane (400) so the boundary, the nearby band and the fire markers all
+// stay on top of it. Same trick as the measure pane further down.
+map.createPane("imagery").style.zIndex = 250;
+// The thermal pane sits above the visible one and blends instead of covering.
+// If a browser ever ignores mix-blend-mode the layer still renders, just
+// opaquely - so the fallback is ugly rather than wrong.
+const hotPane = map.createPane("imageryHot");
+hotPane.style.zIndex = 260;
+hotPane.style.mixBlendMode = "screen";
+
+// A GIBS tile requested past its own TileMatrixSet is HTTP 400 XML, not a
+// blank tile, so maxNativeZoom is load-bearing rather than an optimisation:
+// without it the layer vanishes the moment the reader zooms in past Level9.
+IMAGERY.forEach(im => {
+  // A screen-blended layer runs at full opacity: dimming it would only dim the
+  // hotspots, since the background it contributes is already black.
+  const pane = im.grp === "hot" ? "imageryHot" : "imagery";
+  const op = im.blend ? 1 : IMG_OPACITY;
+  im.op = op;
+  im.lyr = im.src === "eum"
+    ? L.tileLayer.wms(EUM_WMS, {layers:im.layer, format:"image/png",
+        transparent:true, pane:pane, opacity:op,
+        attribution:"EUMETSAT"})
+    : L.tileLayer(GIBS_WMTS + "/" + im.layer + "/default/{day}" +
+        "/GoogleMapsCompatible_Level" + im.lvl + "/{z}/{y}/{x}.jpg",
+        // Seeded with today rather than a placeholder: Leaflet starts fetching
+        // the moment the layer is added, before our overlayadd handler sets the
+        // real date, and a placeholder's 400s would land after that and raise a
+        // false "no scene" note.
+        {day:new Date().toISOString().slice(0,10), pane:pane, opacity:op,
+         maxNativeZoom:im.lvl, maxZoom:19, attribution:"NASA EOSDIS GIBS"});
+  // GIBS has no frame for a date it never imaged - HLS revisits every ~5 days
+  // and lands days later, so "today" is normally empty - and it says so with an
+  // HTTP error per tile rather than a blank one. Without this the reader gets an
+  // unexplained empty layer, which is the exact failure this whole readout
+  // exists to prevent. One flag per layer, cleared whenever a tile does load.
+  if(im.src === "gibs"){
+    im.lyr.on("tileerror", () => {
+      if(imgOn[im.grp] === im && !im.empty){ im.empty = true; syncImagery(sliderTime()); }
+    });
+    im.lyr.on("tileload", () => { im.empty = false; });
+  }
+});
+
+// Sentinel-2 at 10 m, rendered server-side because its credential cannot go in
+// a published page (see imagery.py). It is a still, not a tile layer: one scene
+// every 2-3 days here, so there is no clock to follow - the note carries the
+// scene date instead, and the reader is told rather than left guessing why
+// scrubbing does not move it.
+//
+// Rendered in EPSG:3857 for this exact reason: L.imageOverlay stretches its
+// image linearly between two *projected* corners, so a 4326 image would drift
+// vertically against the basemap.
+//
+// It goes through overlays() and a control rebuild rather than addOverlay,
+// because the control is thrown away and rebuilt on every language switch -
+// an entry added directly would survive exactly until the reader pressed BS.
+// A new scene lands every 2-3 days, so rebuilding then costs nothing.
+let s2Layer = null, s2Rec = null;
+function s2Sync(){
+  const d = DATA.imagery || null;
+  if(!d && !s2Rec) return;
+  if(d && s2Rec && d.file === s2Rec.file && d.day === s2Rec.day) return;
+  const wasOn = s2Layer && map.hasLayer(s2Layer);
+  if(s2Layer){ map.removeLayer(s2Layer); s2Layer = null; }
+  s2Rec = d;
+  if(d){
+    // Cache-bust on the scene date: the file name never changes, so a reader
+    // who has seen one render would otherwise keep the old picture for ever.
+    s2Layer = L.imageOverlay(d.file + "?v=" + encodeURIComponent(d.day),
+      L.latLngBounds(d.bounds[0], d.bounds[1]),
+      {pane:"imagery", opacity:IMG_OPACITY, attribution:"Copernicus Sentinel-2"});
+  }
+  rebuildControls();
+  if(wasOn && s2Layer) s2Layer.addTo(map);
+}
+
+// Solar elevation at the town. This is a *usefulness* test, not an availability
+// one, and the difference is the whole point: after sunset these two layers
+// still answer 200 with a perfectly valid frame, it is just a frame of night.
+// rgb_truecolour returns a fully transparent tile - so the reader sees the
+// basemap and thinks the layer failed to load - while vis06_hrfi returns an
+// opaque black rectangle. Two different flavours of the same nothing.
+//
+// Measured against the imagery on 2026-09-05: at +7.5 deg the frame reads 31/255
+// mean, at +2.2 deg it is 1.0, and below the horizon it is blank. So the cutoff
+// sits at +3, a little above the horizon rather than on it.
+//
+// Only the geostationary visible layers carry `needsSun`. The GIBS layers are
+// *daily composites* built from a daytime overpass, so they are perfectly
+// readable at midnight - flagging them would be wrong.
+const SUN_MIN_DEG = 3;
+function sunElev(ms){
+  const rad = Math.PI/180, n = ms/86400000 + 2440587.5 - 2451545.0;
+  const L = (280.460 + 0.9856474*n) % 360;
+  const g = ((357.528 + 0.9856003*n) % 360) * rad;
+  const lam = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * rad;
+  const eps = (23.439 - 0.0000004*n) * rad;
+  const dec = Math.asin(Math.sin(eps)*Math.sin(lam));
+  const ra = Math.atan2(Math.cos(eps)*Math.sin(lam), Math.cos(lam));
+  const gmst = (18.697374558 + 24.06570982441908*n) % 24;
+  const ha = (gmst*15 + TOWN_LON)*rad - ra, phi = TOWN_LAT*rad;
+  return Math.asin(Math.sin(phi)*Math.sin(dec) +
+                   Math.cos(phi)*Math.cos(dec)*Math.cos(ha)) / rad;
+}
+
+const utcMin = ms => {const d = new Date(ms); return d.getUTCHours()*60 + d.getUTCMinutes();};
+const utcDay = ms => new Date(ms).toISOString().slice(0,10);
+const tenMin = ms => Math.floor(ms/600000)*600000;
+
+// Any moment within this of now counts as "latest": we drop `time` and let the
+// server hand back its freshest frame. That single rule disposes of the whole
+// upper-bound problem, because the slider's own tMax is Date.now() and a
+// timestamp even one slot into the future is a ServiceException.
+const LIVE_EDGE_MS = 30*60000;
+
+function imgAvail(im, ms){
+  // "Live" only decides *which* frame we ask for - it must not short-circuit the
+  // checks. Getting that wrong hides the failure precisely where it matters
+  // most: the default view is the live edge, so a layer that is useless right
+  // now is the one the reader meets first.
+  const live = Date.now() - ms < LIVE_EDGE_MS;
+  const at = live ? Date.now() : ms;
+  if(!live){
+    if(im.from && at < Date.parse(im.from + "T00:00:00Z"))
+      return {ok:false, why:"imNoArchive"};
+    if(im.dayFrom && utcMin(at) < im.dayFrom)
+      return {ok:false, why:"imNoFrame"};
+  }
+  if(im.needsSun && sunElev(at) < SUN_MIN_DEG) return {ok:false, why:"imDark"};
+  return {ok:true, live:live};
+}
+
+// What the reader is actually looking at. Without this the imagery is a
+// mystery layer: the slider can read 12:03 while the frame is 12:00, "live" is
+// whatever the server happened to have, and a gap in the archive looks exactly
+// like a clear sky. It is also the only place a silent hole gets explained.
+let imgEl = null;
+const imgCtl = L.control({position:"bottomleft"});
+imgCtl.onAdd = () => {
+  imgEl = L.DomUtil.create("div","imgnote");
+  imgEl.style.display = "none";
+  return imgEl;
+};
+imgCtl.addTo(map);
+
+// One row per active layer: with two of them stacked, "which frame am I looking
+// at" has two answers and they are usually different - a live 10-minute thermal
+// frame over a daily visible composite.
+function imgNote(rows){
+  if(!imgEl) return;
+  if(!rows || !rows.length){ imgEl.style.display = "none"; return; }
+  imgEl.style.display = "";
+  imgEl.innerHTML = rows.map(r => `<b>${r.head}</b>` +
+    (r.detail ? (r.warn ? ` <s>${r.detail}</s>` : ` ${r.detail}`) : "")).join("<br>");
+}
+
+// One slot per group, so the two can be on at once.
+const imgOn = {vis:null, hot:null};
+const imgActive = () => [imgOn.vis, imgOn.hot].filter(Boolean);
+
+// Unavailable moments hide the raster by dropping its opacity to zero rather
+// than removing the layer. Removing it would fire overlayremove, which unticks
+// the reader's own checkbox and loses the selection, so scrubbing back into a
+// valid window would not bring the layer back.
+function syncOne(im, ms){
+  const a = imgAvail(im, ms);
+  if(!a.ok){
+    im.lyr.setOpacity(0);
+    return {head:t(im.k), detail:t(a.why), warn:true};
+  }
+  im.lyr.setOpacity(im.op);
+  if(im.src === "eum"){
+    const stamp = a.live ? null : new Date(tenMin(ms)).toISOString().slice(0,19) + "Z";
+    if(im.at !== stamp){
+      im.at = stamp;
+      if(stamp) im.lyr.wmsParams.time = stamp; else delete im.lyr.wmsParams.time;
+      im.lyr.redraw();
+    }
+    return {head:t(im.k), detail:a.live ? t("imLatest") : fmtLocal(tenMin(ms))};
+  }
+  const day = utcDay(a.live ? Date.now() : ms);
+  if(im.at !== day){
+    im.at = day;
+    im.empty = false;                 // a new date deserves a fresh verdict
+    im.lyr.options.day = day;
+    im.lyr.redraw();
+  }
+  if(im.empty) return {head:t(im.k), detail:t("imNoScene"), warn:true};
+  return {head:t(im.k), detail:day + (a.live ? " \u00b7 " + t("imToday") : "")};
+}
+
+function syncImagery(ms){
+  const rows = imgActive().map(im => syncOne(im, ms));
+  if(s2Layer && map.hasLayer(s2Layer))
+    rows.push({head:t("imS2"),
+               detail:s2Rec.day + " \u00b7 " + s2Rec.cloud + "% " + t("imCloud")});
+  imgNote(rows);
+}
+
+// Radio behaviour without a radio group: Leaflet gives base layers exclusivity
+// and overlays none, but two imagery rasters stacked at 85% are unreadable.
+// Exclusivity within a group only. Sentinel-2 is a visible layer like any
+// other, so it competes for the "vis" slot rather than clearing the map.
+map.on("overlayadd", e => {
+  if(s2Layer && e.layer === s2Layer){
+    if(imgOn.vis){ map.removeLayer(imgOn.vis.lyr); imgOn.vis = null; }
+    syncImagery(sliderTime());
+    return;
+  }
+  const im = IMAGERY.find(x => x.lyr === e.layer);
+  if(!im) return;
+  if(im.grp === "vis" && s2Layer && map.hasLayer(s2Layer)) map.removeLayer(s2Layer);
+  IMAGERY.forEach(o => {
+    if(o !== im && o.grp === im.grp && map.hasLayer(o.lyr)) map.removeLayer(o.lyr);
+  });
+  imgOn[im.grp] = im;
+  im.at = undefined;                 // force a param write on the next sync
+  syncImagery(sliderTime());
+});
+map.on("overlayremove", e => {
+  const im = IMAGERY.find(x => x.lyr === e.layer);
+  if(im && imgOn[im.grp] === im) imgOn[im.grp] = null;
+  syncImagery(sliderTime());
+});
+
 // The "nearby" band - everything within nearby_buffer_km of the outline, which is
 // exactly what the spatial clip keeps and flags `inside=0`. Pre-built into
 // data/zavidovici-buffer.geojson rather than offset in the browser: offsetting a
@@ -487,11 +868,24 @@ const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
 const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
   opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
 // A separate object each time: L.control.layers keeps a reference, so reusing one
-// across rebuilds would carry the old language's key with it.
-const overlays = () => bandLayer ? {[t("lBuffer",{km:bufKm()})]:bandLayer} : {};
+// across rebuilds would carry the old language's key with it. Both halves of the
+// control are built by a function for that reason - the base list used to be
+// written out at each of the two call sites, which is one edit away from a base
+// layer that disappears the moment the reader switches language.
+const bases = () => ({[t("lSat")]:sat, [t("lMap")]:osm,
+                      [t("lTopo")]:topo, [t("lNone")]:blank});
+// Imagery first, then the band: the control lists them in insertion order and
+// the imagery group is what a reader reaches for during a fire.
+const overlays = () => {
+  const o = {};
+  IMAGERY.forEach(im => { o[t(im.k)] = im.lyr; });
+  if(s2Layer) o[t("imS2")] = s2Layer;
+  if(bandLayer) o[t("lBuffer",{km:bufKm()})] = bandLayer;
+  return o;
+};
 
 let layersCtl = L.control.layers(
-  {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
+  bases(), overlays(),
   {position:"topright"}).addTo(map);
 
 // Brighter and slightly heavier than it needed to be on the pale street map -
@@ -517,6 +911,28 @@ zoomBtn.onAdd = () => {
 };
 zoomBtn.addTo(map);
 
+// ---- expandable corner panels -----------------------------------------------
+// The legend and the fire-danger panel share this: only one open at a time (an
+// expanded FFMC/DMC/DC readout behind an already-open legend would be a second
+// scroll-y panel stacked on the first), and clicking the map collapses whichever
+// is open, the same "click elsewhere to dismiss" convention as a popup.
+const expandablePanels = [];
+function setPanelOpen(ctl, open){
+  const d = ctl._el;
+  if(!d) return;
+  d.classList.toggle("open", open);
+  const btn = d.querySelector(".legend-toggle");
+  if(btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function closeExpandablePanels(){
+  expandablePanels.forEach(ctl => setPanelOpen(ctl, false));
+}
+function togglePanel(ctl){
+  const wasOpen = ctl._el && ctl._el.classList.contains("open");
+  expandablePanels.forEach(other => { if(other !== ctl) setPanelOpen(other, false); });
+  setPanelOpen(ctl, !wasOpen);
+}
+
 const legend = L.control({position:"bottomright"});
 legend.onAdd = () => {
   const d = L.DomUtil.create("div","legend");
@@ -528,6 +944,8 @@ legend.onAdd = () => {
     `<br><b style="color:#e6edf3">${t("legState")}</b><br>` +
     `<i style="background:#f4511e"></i>${t("legBurning")}<br>` +
     `<i style="background:none;border:1px dashed #f4511e"></i>${t("legQuiet")}` +
+    `<br><b style="color:#e6edf3">${t("legImagery")}</b> ` +
+    `<span style="opacity:.7">${t("legImNote")}</span>` +
     (bandLayer ? `<br><b style="color:#e6edf3">${t("legZone")}</b><br>` +
       `<i style="background:#7cc4ff;opacity:.9"></i>${t("boundary")}<br>` +
       `<i style="background:rgba(124,196,255,.14);border:1px dashed #7cc4ff"></i>` +
@@ -539,19 +957,147 @@ legend.onAdd = () => {
   // Without this, tapping the legend pans the map underneath it.
   L.DomEvent.disableClickPropagation(d);
   L.DomEvent.disableScrollPropagation(d);
-  const btn = d.querySelector(".legend-toggle");
-  btn.addEventListener("click", () => {
-    const open = d.classList.toggle("open");
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-  });
+  legend._el = d;
+  d.querySelector(".legend-toggle").addEventListener("click", () => togglePanel(legend));
   return d;
 };
 legend.addTo(map);
+expandablePanels.push(legend);
+
+// ---- fire danger panel ------------------------------------------------------
+// A single-point weather-derived index, not a spatial layer - see the module
+// notes in firedanger.py for why this is not a map overlay. Added after legend
+// so it stacks above it in the bottom-right corner. Content is patched in place
+// by fwiUpdate() (called from applyData() and applyStaticLabels()), the same
+// shape as the measure tool's mPanelUpdate() - not removed/re-added like the
+// language-dependent controls, since this one also changes on every poll.
+const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
+  very_high:"fwVeryHigh", extreme:"fwExtreme", very_extreme:"fwVeryExtreme"};
+const fwiCtl = L.control({position:"bottomright"});
+fwiCtl.onAdd = () => {
+  const d = L.DomUtil.create("div", "legend fwiPanel");
+  d.innerHTML = `<div class="legend-body"></div>` +
+    `<button class="legend-toggle" type="button" aria-expanded="false"></button>`;
+  L.DomEvent.disableClickPropagation(d);
+  L.DomEvent.disableScrollPropagation(d);
+  fwiCtl._el = d;
+  d.querySelector(".legend-toggle").addEventListener("click", () => togglePanel(fwiCtl));
+  // Not called here: onAdd runs synchronously from fwiCtl.addTo(map) below, which
+  // is well before monName/ago are assigned further down this script - calling
+  // it this early would hit each of those consts in its temporal dead zone.
+  // applyStaticLabels() and applyData() call it once everything is defined.
+  return d;
+};
+fwiCtl.addTo(map);
+expandablePanels.push(fwiCtl);
+// Clicking the map itself - not a control, which already stops the click here
+// via disableClickPropagation above - collapses whichever panel is open, the
+// same "click elsewhere to dismiss" convention as a popup.
+map.on("click", closeExpandablePanels);
+
+function fwiUpdate(){
+  const el = fwiCtl._el;
+  if(!el) return;
+  const fd = DATA.fire_danger;
+  // Nothing computed yet (feature disabled, or the first cycle hasn't run) -
+  // omit the panel entirely rather than show a placeholder or a stale guess.
+  if(!fd || !fd.today){ el.style.display = "none"; return; }
+  el.style.display = "";
+  const today = fd.today;
+  const clsLabel = e => t(FWI_CLASS_I18N[e.class] || "fwLow");
+  const swatch = c => `<i style="background:${c}"></i>`;
+  const badge = `${swatch(today.color)}<span class="fwi-badge">` +
+    `${t("fwBadge", {cls: clsLabel(today)})}</span>`;
+  // Collapsed state shows the same full phrase as the body's headline - the
+  // toggle button wraps rather than truncating (see .legend-toggle's max-width),
+  // so there is no narrow-screen reason to shorten it here.
+  el.querySelector(".legend-toggle").innerHTML = badge;
+
+  const rows = [today, ...(fd.forecast || [])].map(e => {
+    const [, mo, da] = e.date.split("-");
+    const label = e.date === today.date ? t("fwToday")
+      : `${parseInt(da, 10)} ${monName(mo)}`;
+    return `<div class="fwi-row"><span>${label}</span><span>` +
+      `${swatch(e.color)}${clsLabel(e)} <span style="opacity:.6">` +
+      `(${e.fwi.toFixed(1)})</span></span></div>`;
+  }).join("");
+
+  const mins = (Date.now() - new Date(fd.updated_at).getTime()) / 60000;
+  el.querySelector(".legend-body").innerHTML =
+    `<b style="color:#e6edf3">${t("fwTitle")}</b><br>${badge}` +
+    `<div style="margin-top:6px">${rows}</div>` +
+    `<div class="fwi-codes">FFMC ${today.ffmc} · DMC ${today.dmc} · DC ${today.dc}</div>` +
+    `<div class="fwi-note">${t("fwNote")}</div>` +
+    `<div class="fwi-note">${t("fwUpdated", {t: ago(mins)})}</div>`;
+}
 
 const detLayer = L.layerGroup().addTo(map);
 const evLayer  = L.layerGroup().addTo(map);
 const trail    = L.layerGroup().addTo(map);
 let selected = null;
+
+// Hide every fire graphic, so the imagery underneath can be read. The markers
+// are drawn to be impossible to miss - a pulsing ring, a footprint circle and a
+// halo per event - which is right until you have put a 250 m satellite frame
+// under them and want to look at the smoke.
+//
+// It removes the three *groups* from the map rather than clearing them or
+// hiding a pane. drawEvents() and drawDets() rebuild their contents from
+// scratch every refresh and on every zoom; clearing would last until the next
+// tick, and a detached group keeps accepting children that simply are not
+// shown, so the state survives without any of the draw paths knowing about it.
+// The sidebar list deliberately stays - hiding the map graphics should not cost
+// you the answer to "what is burning".
+//
+// Deliberately *not* remembered, unlike the language choice. Hiding the markers
+// is a momentary "let me look under them", not a preference, and this is a fire
+// monitor: a reload or a cycle that brings a new fire must not deliver it
+// invisibly. So the state resets to visible on load and whenever fresh data
+// lands - see applyData.
+let markersOn = true;
+
+function applyMarkers(){
+  [evLayer, detLayer, trail].forEach(g => {
+    if(markersOn) { if(!map.hasLayer(g)) g.addTo(map); }
+    else if(map.hasLayer(g)) map.removeLayer(g);
+  });
+  if(eyeEl){
+    eyeEl.innerHTML = markersOn ? EYE_ON : EYE_OFF;
+    eyeEl.title = t(markersOn ? "hideFires" : "showFires");
+    eyeEl.setAttribute("aria-pressed", markersOn ? "false" : "true");
+  }
+}
+
+// Inline SVG rather than an emoji: there is no eye-with-a-slash emoji that
+// renders the same way across platforms, and the pair has to read as one
+// control in two states.
+const EYE_ON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M1.6 12S5.3 5 12 5s10.4 7 10.4 7-3.7 7-10.4 7S1.6 12 1.6 12z"/>' +
+  '<circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M9.9 5.2A9.8 9.8 0 0 1 12 5c6.7 0 10.4 7 10.4 7a18 18 0 0 1-3.2 4.1"/>' +
+  '<path d="M6.4 6.5A17.6 17.6 0 0 0 1.6 12S5.3 19 12 19a9.9 9.9 0 0 0 4.2-.9"/>' +
+  '<path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>';
+
+let eyeEl = null;
+const eyeBtn = L.control({position:"topleft"});
+eyeBtn.onAdd = () => {
+  const d = L.DomUtil.create("div","leaflet-bar");
+  eyeEl = L.DomUtil.create("a","eye",d);
+  eyeEl.href = "#";
+  eyeEl.setAttribute("role","button");
+  L.DomEvent.on(eyeEl,"click",e => {
+    L.DomEvent.preventDefault(e);
+    L.DomEvent.stopPropagation(e);
+    markersOn = !markersOn;
+    applyMarkers();
+  });
+  applyMarkers();
+  return d;
+};
+eyeBtn.addTo(map);
 
 const MONTHS = {
   en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
@@ -700,6 +1246,10 @@ function popupHtml(e){
 }
 
 function drawDets(upto){
+  // Every path that changes the moment on screen already funnels through here
+  // - the timeline scroller, the keyboard, playback, a range change, the
+  // 60 s refresh - so this is the one place the imagery clock has to be wound.
+  syncImagery(upto);
   detLayer.clearLayers(); trail.clearLayers();
   const shown = dets.filter(d=>d.t<=upto);
   shown.forEach(d=>{
@@ -843,6 +1393,14 @@ function renderHeader(){
     ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
     `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}`;
+  // A banner, not a footer link: this is the one call-to-action on the page
+  // that is not a fire, so it sits at the top of the panel rather than buried
+  // below the fire list. Independent of public_url, unlike the docs link -
+  // the channel is a fixed deployment setting, not something published
+  // alongside this particular map instance, so it shows on a local file://
+  // map too. :empty in CSS collapses it to nothing when there is no channel.
+  document.getElementById("tgbanner").innerHTML = DATA.telegram_url
+    ? `<a href="${DATA.telegram_url}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>` : "";
 }
 
 // Chrome on Android reports the visible height in innerHeight, so this keeps a
@@ -1434,16 +1992,19 @@ function applyStaticLabels(){
   unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
     b.classList.toggle("on", b.dataset.l === LANG));
-  mLabels(); mPanelUpdate();
+  mLabels(); mPanelUpdate(); fwiUpdate();
 }
 
 function rebuildControls(){
   legend.remove(); legend.addTo(map);
   layersCtl.remove();
   layersCtl = L.control.layers(
-    {[t("lSat")]:sat,[t("lMap")]:osm,[t("lTopo")]:topo},overlays(),
+    bases(), overlays(),
     {position:"topright"}).addTo(map);
   zoomBtn.remove(); zoomBtn.addTo(map);
+  eyeBtn.remove(); eyeBtn.addTo(map);
+  imgCtl.remove(); imgCtl.addTo(map);
+  syncImagery(sliderTime());
   mCtl.remove(); mCtl.addTo(map);
   if(mMode){ mPanelCtl.remove(); mPanelCtl.addTo(map); mPanelUpdate(); }
   relabelShapes();
@@ -1451,6 +2012,7 @@ function rebuildControls(){
 
 function renderAll(){
   applyStaticLabels();
+  s2Sync();
   recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
   drawDets(sliderTime());
 }
@@ -1466,6 +2028,7 @@ document.querySelectorAll("#langsw button").forEach(b =>
   b.addEventListener("click", () => setLang(b.dataset.l)));
 
 applyStaticLabels();
+s2Sync();
 recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
 setSliderTime(tMax); drawDets(sliderTime());
 // ---- live refresh without losing the reader's place ------------------------
@@ -1490,13 +2053,21 @@ function applyData(d){
   if(d.generated_at === DATA.generated_at) return false;   // nothing new
   const at = sliderTime();                                 // remember the moment shown
   DATA = d;
+  // Past the generated_at guard above, so this is genuinely new data - never a
+  // quiet cycle. Markers come back on: whatever the reader was looking at
+  // underneath, a fire that has just changed outranks it.
+  if(!markersOn){ markersOn = true; applyMarkers(); }
+  // A new scene can arrive with any refresh. s2Sync rebuilds the layer control
+  // when it does, which is safe here only because it never touches the view -
+  // no fitBounds, no setView, no flyTo.
+  s2Sync();
   if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
   const wasOpen = popupOpenId;
   recompute();
-  renderRange(); renderHeader(); drawEvents(); renderList();
+  renderRange(); renderHeader(); drawEvents(); renderList(); fwiUpdate();
   setSliderTime(at);
   drawDets(sliderTime());
-  if(wasOpen && markerById[wasOpen]){
+  if(wasOpen && markersOn && markerById[wasOpen]){
     // openPopup() auto-pans to fit the popup, which would nudge the view the
     // reader chose. Suppress it for this programmatic restore only - a popup the
     // reader opens by clicking still pans normally.
@@ -1567,7 +2138,10 @@ def sync_public(html_path: Path | None = None) -> bool:
     if not PUBLIC_DIR.is_dir():
         return False
     src = Path(html_path or MAP_PATH)
-    for f in (src, data_path_for(src)):
+    # The Sentinel-2 render rides along. Leaving it out is a nasty failure mode:
+    # the local file:// map would look perfect while the published one - the URL
+    # in every SMS - showed an empty layer, because only this list is copied.
+    for f in (src, data_path_for(src), src.parent / imagery.IMAGE_NAME):
         if f.exists():
             shutil.copy2(f, PUBLIC_DIR / f.name)
     # Also publish the page as index.html so the bare URL opens the map instead
@@ -1593,7 +2167,9 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
             .replace("__PLACE__", json.dumps(place.PLACE["names"], ensure_ascii=False))
             .replace("__TITLE__", html_escape(place.name("title", lang)))
             .replace("__LANG__", lang)
-            .replace("__TZ__", place.PLACE["timezone"]))
+            .replace("__TZ__", place.PLACE["timezone"])
+            .replace("__TOWN_LAT__", repr(TOWN_LAT))
+            .replace("__TOWN_LON__", repr(TOWN_LON)))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     write_data(snapshot, out)

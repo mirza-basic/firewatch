@@ -1,0 +1,534 @@
+<title>Fire Danger Forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens are the FireWatch docs house palette, shared with the system
+     documentation, the API reference and the satellite-latency page so the
+     four read as one set. */
+  :root{
+    --bg:#f2f5f6; --surface:#ffffff; --surface-2:#e7ecee; --surface-3:#dbe3e6;
+    --ink:#111a1f; --ink-2:#3b4a53; --ink-3:#6a7b84; --rule:#cfd9dd;
+    --accent:#bf4318; --accent-soft:#f6e3da;
+    --mtg:#0b6a88; --firms:#8a6008; --s3:#8a1c6f;
+    --ok:#1a6b45; --warn:#95560a; --crit:#a81f2d;
+    --shadow:0 1px 2px rgba(17,26,31,.06), 0 8px 24px rgba(17,26,31,.05);
+    --measure:68ch;
+    /* Danger-class colours, read directly off EFFIS's own published legend
+       (mf010.fwi, GetLegendGraphic) and reused verbatim in firedanger.py. */
+    --fw-low:#4f9d6e; --fw-mod:#8a8e1f; --fw-high:#a37a00; --fw-vhigh:#a8560c;
+    --fw-ext:#a3170f; --fw-vext:#5a0a12;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+      --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+      --accent:#ff7a45; --accent-soft:#33201a;
+      --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+      --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+      --fw-low:#9cffc0; --fw-mod:#cde24e; --fw-high:#e6ac00; --fw-vhigh:#d97010;
+      --fw-ext:#ad060e; --fw-vext:#ff5a72;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1418; --surface:#161d23; --surface-2:#1e272e; --surface-3:#27333b;
+    --ink:#e7eef2; --ink-2:#aebcc5; --ink-3:#7c8c96; --rule:#2a353d;
+    --accent:#ff7a45; --accent-soft:#33201a;
+    --mtg:#4cc9f0; --firms:#ffd166; --s3:#e070c4;
+    --ok:#48bd85; --warn:#e0a23c; --crit:#ff6b78;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.32);
+    --fw-low:#9cffc0; --fw-mod:#cde24e; --fw-high:#e6ac00; --fw-vhigh:#d97010;
+    --fw-ext:#ad060e; --fw-vext:#ff5a72;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:232px minmax(0,1fr);
+    max-width:1180px; margin:0 auto}
+
+  nav{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:38px 22px 38px 26px; border-right:1px solid var(--rule);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif; font-size:13px;
+  }
+  nav .brand{font-weight:700; font-size:14px; letter-spacing:-.01em; margin-bottom:4px}
+  nav .brand-sub{color:var(--ink-3); font-size:11.5px; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:24px}
+  nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  nav a{display:flex; gap:9px; text-decoration:none; color:var(--ink-2);
+    padding:5px 8px; border-radius:5px; line-height:1.35}
+  nav a:hover{background:var(--surface-2); color:var(--ink)}
+  nav a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  nav a .n{color:var(--ink-3); font-variant-numeric:tabular-nums; font-weight:500;
+    min-width:13px}
+
+  main{padding:38px 46px 96px; min-width:0}
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:34px}
+  .eyebrow{font-family:Archivo,sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+  h1{font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    line-height:1.06; letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance}
+  .standfirst{font-size:19px; color:var(--ink-2); margin:0; max-width:60ch; text-wrap:pretty}
+
+  .facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px;
+    overflow:hidden; margin:26px 0 0}
+  .facts div{background:var(--surface); padding:12px 14px; display:flex;
+    flex-direction:column; justify-content:space-between; min-height:68px}
+  .facts dt{font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .facts dd{margin:0; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:19px;
+    font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+  h2{font-family:Archivo,sans-serif; font-weight:700; font-size:25px; letter-spacing:-.019em;
+    line-height:1.16; margin:54px 0 4px; padding-top:26px; border-top:1px solid var(--rule);
+    text-wrap:balance; display:flex; gap:12px; align-items:baseline}
+  h2 .num{font-family:"IBM Plex Mono",monospace; font-size:14px; font-weight:500;
+    color:var(--accent); flex:0 0 auto; padding-top:3px}
+  h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.012em;
+    margin:30px 0 6px}
+  h4{font-family:Archivo,sans-serif; font-weight:600; font-size:14px; letter-spacing:.01em;
+    margin:22px 0 4px; color:var(--ink-2)}
+  p{margin:0 0 15px; max-width:var(--measure); text-wrap:pretty}
+  .lede{color:var(--ink-2); font-size:18px; margin-bottom:20px; max-width:62ch}
+  ul,ol.body{margin:0 0 16px; padding-left:22px; max-width:var(--measure)}
+  li{margin-bottom:6px}
+  a{color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px}
+  strong{font-weight:600}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.855em;
+    background:var(--surface-2); padding:.1em .34em; border-radius:3px; word-break:break-word}
+
+  .tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+    background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; font-family:Archivo,sans-serif}
+  caption{text-align:left; font-family:Archivo,sans-serif; font-size:12px; color:var(--ink-3);
+    padding:10px 14px 0; caption-side:top}
+  th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule);
+    vertical-align:top}
+  thead th{font-size:10.5px; font-weight:600; letter-spacing:.075em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  td.mono{white-space:nowrap; color:var(--ink)}
+  td.num{font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  .src-mtg{color:var(--mtg); font-weight:600; font-family:Archivo,sans-serif; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase}
+  .src-firms{color:var(--firms); font-weight:600; font-family:Archivo,sans-serif; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase}
+  .src-s3{color:var(--s3); font-weight:600; font-family:Archivo,sans-serif; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase}
+  .swatch{display:inline-block; width:11px; height:11px; border-radius:3px;
+    margin-right:7px; vertical-align:-1px; border:1px solid rgba(0,0,0,.15)}
+
+  .note{border:1px solid var(--rule); border-left:3px solid var(--ink-3);
+    background:var(--surface); border-radius:6px; padding:14px 16px; margin:0 0 20px;
+    max-width:var(--measure); font-size:15.5px}
+  .note.warn{border-left-color:var(--warn)}
+  .note.crit{border-left-color:var(--crit)}
+  .note.good{border-left-color:var(--ok)}
+  .note .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px}
+  .note p:last-child{margin-bottom:0}
+  .note code{background:var(--surface-2)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;
+    margin:22px 0 26px}
+  .card{border:1px solid var(--rule); background:var(--surface); border-radius:8px;
+    padding:16px 18px}
+  .card h4{margin-top:0}
+  .card p{font-size:14.5px; margin-bottom:0; max-width:none}
+
+  .steps{counter-reset:step; list-style:none; margin:0 0 20px; padding:0; max-width:var(--measure)}
+  .steps li{counter-increment:step; position:relative; padding:2px 0 16px 38px; margin:0}
+  .steps li:last-child{padding-bottom:0}
+  .steps li::before{content:counter(step); position:absolute; left:0; top:1px;
+    width:24px; height:24px; border-radius:50%; background:var(--surface-2);
+    border:1px solid var(--rule); color:var(--ink-2); font-family:Archivo,sans-serif;
+    font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center}
+  .steps li::after{content:""; position:absolute; left:11px; top:25px; bottom:0;
+    width:1px; background:var(--rule)}
+  .steps li:last-child::after{display:none}
+  .steps b{display:block; font-family:Archivo,sans-serif; font-size:14.5px; margin-bottom:2px}
+
+  .formula{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:13.5px;
+    background:var(--surface-2); border:1px solid var(--rule); border-radius:7px;
+    padding:11px 14px; margin:0 0 12px; max-width:var(--measure); overflow-x:auto;
+    line-height:1.7; white-space:pre-wrap}
+  .formula .lbl{display:block; font-family:Archivo,sans-serif; font-size:10.5px;
+    font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);
+    margin-bottom:5px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:2px solid var(--ink);
+    font-family:Archivo,sans-serif; font-size:12.5px; color:var(--ink-3)}
+  footer p{max-width:74ch; margin-bottom:9px}
+  footer a{color:var(--ink-2)}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr)}
+    nav{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule);
+      padding:24px 20px 18px}
+    nav ol{flex-direction:row; flex-wrap:wrap; gap:2px 4px}
+    main{padding:26px 20px 72px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+<div class="wrap">
+<nav>
+  <div class="brand">FireWatch</div>
+  <div class="brand-sub">Fire danger forecast</div>
+  <ol>
+    <li><a href="#why"><span class="n">01</span><span>Why self-computed</span></a></li>
+    <li><a href="#system"><span class="n">02</span><span>The Canadian FWI System</span></a></li>
+    <li><a href="#data"><span class="n">03</span><span>Data source and point</span></a></li>
+    <li><a href="#validation"><span class="n">04</span><span>Validation</span></a></li>
+    <li><a href="#cadence"><span class="n">05</span><span>Update cadence</span></a></li>
+    <li><a href="#spinup"><span class="n">06</span><span>The daily replay</span></a></li>
+    <li><a href="#classes"><span class="n">07</span><span>Danger classes</span></a></li>
+    <li><a href="#map"><span class="n">08</span><span>On the map</span></a></li>
+    <li><a href="#sources"><span class="n">09</span><span>Sources</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="mast">
+  <div class="eyebrow">Method</div>
+  <h1>Fire danger forecast</h1>
+  <p class="standfirst">The three fire feeds report <strong>detections</strong> &mdash;
+  something is already hot. This is a different question: how conducive is today's
+  weather to a fire starting at all, independent of whether one has. FireWatch answers
+  it by computing the Canadian Forest Fire Weather Index (FWI) System itself, once or
+  twice a day, at a single point.</p>
+  <dl class="facts">
+    <div><dt>Algorithm</dt><dd style="font-size:15px">Canadian FWI System</dd></div>
+    <div><dt>Formula source</dt><dd style="font-size:15px">NRCan cffdrs, ported</dd></div>
+    <div><dt>Validated against</dt><dd style="font-size:15px">official 48-day fixture</dd></div>
+    <div><dt>Update frequency</dt><dd style="font-size:15px">1&ndash;2 &times; / day</dd></div>
+  </dl>
+</header>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="why"><span class="num">01</span> Why self-computed</h2>
+<p class="lede">The obvious move was to use EFFIS/GWIS, the free European fire-danger
+service that already runs this exact algorithm. Measuring it directly is why this page
+exists instead.</p>
+<p>EFFIS's own WMS (<code>maps.effis.emergency.copernicus.eu/effis</code>, layer
+<code>mf010.fwi</code>) is real, free and keyless &mdash; but at ~10&nbsp;km resolution
+it renders this entire municipality as three or four flat-coloured blocks, confirmed by
+rendering it directly. And querying it for &ldquo;today&rdquo; returned an empty
+<code>200</code> response on two separate days while yesterday and the days on either
+side had real data &mdash; a publication gap around the current date, not a quiet sky.</p>
+<div class="note warn">
+  <span class="lbl">Measured, not assumed</span>
+  <p>Both findings came from actually calling the service (<code>GetCapabilities</code>,
+  <code>GetMap</code>, <code>GetFeatureInfo</code>) and rendering the response, in the
+  same spirit as this project's other landmines: EFFIS's own capabilities document is
+  advertising, and the pixels are what settle it.</p>
+</div>
+<p>Computing the same standard algorithm ourselves removes both problems: the number is
+anchored to one exact point rather than a coarse grid cell, and it comes from a weather
+feed with no such gap. What it does <strong>not</strong> do is add spatial resolution
+&mdash; the underlying weather model is the same order of magnitude, ~7&ndash;9&nbsp;km,
+as EFFIS's own inputs. See <a href="#map">&sect;08</a> for why that keeps this off the
+map as a layer.</p>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="system"><span class="num">02</span> The Canadian FWI System</h2>
+<p class="lede">Six numbers, each built on the last, from four daily-noon weather
+readings. Developed for Canadian forests (Van Wagner 1987) and adopted by EFFIS itself
+as the harmonised standard for Europe, since Canada's temperate latitudes are close
+enough to the Mediterranean and Central Europe for the same day-length tables to hold.</p>
+<div class="tw">
+<table>
+  <thead><tr><th>Code / index</th><th>What it tracks</th><th class="num">Memory</th></tr></thead>
+  <tbody>
+    <tr><td><strong>FFMC</strong><br>Fine Fuel Moisture Code</td>
+        <td>Moisture in surface litter &mdash; twigs, needles, dry grass. Reacts fastest.</td>
+        <td class="num">~1 day</td></tr>
+    <tr><td><strong>DMC</strong><br>Duff Moisture Code</td>
+        <td>Moisture a few cm down, in the loosely compacted organic layer.</td>
+        <td class="num">~2 weeks</td></tr>
+    <tr><td><strong>DC</strong><br>Drought Code</td>
+        <td>Moisture in deep, compact organic soil layers &mdash; cumulative drought.</td>
+        <td class="num">~2 months</td></tr>
+    <tr><td><strong>ISI</strong><br>Initial Spread Index</td>
+        <td>Expected rate of fire spread, from FFMC and wind speed.</td>
+        <td class="num">&mdash;</td></tr>
+    <tr><td><strong>BUI</strong><br>Buildup Index</td>
+        <td>Total fuel available to burn, from DMC and DC.</td>
+        <td class="num">&mdash;</td></tr>
+    <tr><td><strong>FWI</strong><br>Fire Weather Index</td>
+        <td>Overall danger, from ISI and BUI &mdash; the number this page is about.</td>
+        <td class="num">&mdash;</td></tr>
+  </tbody>
+</table>
+</div>
+<p>FFMC, DMC and DC are recursive: each day's value is computed from that same code's
+value the day before, plus that day's noon weather. That is the whole reason this cannot
+be a stateless, one-shot calculation &mdash; see <a href="#spinup">&sect;06</a>.</p>
+
+<h3>How each is actually calculated</h3>
+<p class="lede">The real formulas branch on rain, sign and magnitude in ways the summary
+table above skips. What follows is the shape of each one; <code>firedanger.py</code>
+is the exact, line-for-line source of truth, not this page.</p>
+
+<div class="formula"><span class="lbl">FFMC &mdash; fine fuel moisture code</span>
+m&#8320; = 147.2 &times; (101&minus;FFMC<sub>yda</sub>) / (59.5+FFMC<sub>yda</sub>)&nbsp;&nbsp;<span style="color:var(--ink-3)"># yesterday's code, as a moisture %</span>
+if rain > 0.5mm: m&#8320; absorbs it (canopy loss, then a wetting curve)
+m dries toward E<sub>d</sub> or wets toward E<sub>w</sub> &mdash; both functions of RH and temp &mdash; at a
+&nbsp;&nbsp;rate set by wind speed and temperature
+FFMC = 59.5 &times; (250&minus;m) / (147.2+m)&nbsp;&nbsp;<span style="color:var(--ink-3)"># clamped to [0, 101]</span></div>
+
+<div class="formula"><span class="lbl">DMC &mdash; duff moisture code</span>
+if rain > 1.5mm: yesterday's DMC is reduced by a moisture-uptake curve first
+K = 1.894 &times; (T+1.1) &times; (100&minus;RH) &times; L<sub>e</sub> &times; 10&#8315;&#8308;&nbsp;&nbsp;<span style="color:var(--ink-3)"># L<sub>e</sub> = day-length factor, by month + latitude band</span>
+DMC = (rain-adjusted DMC) + K</div>
+
+<div class="formula"><span class="lbl">DC &mdash; drought code</span>
+if rain > 2.8mm: yesterday's DC is reduced, more so the higher DC already is
+PE = (0.36 &times; (T+2.8) + L<sub>f</sub>) / 2&nbsp;&nbsp;<span style="color:var(--ink-3)"># L<sub>f</sub> = day-length factor for DC, same idea as L<sub>e</sub></span>
+DC = (rain-adjusted DC) + PE</div>
+
+<div class="formula"><span class="lbl">ISI &mdash; initial spread index</span>
+ISI = 0.208 &times; exp(0.05039 &times; WS) &times; f(FFMC)&nbsp;&nbsp;<span style="color:var(--ink-3)"># wind term &times; fine-fuel term</span></div>
+
+<div class="formula"><span class="lbl">BUI &mdash; buildup index</span>
+BUI &asymp; 0.8 &times; DC &times; DMC / (DMC + 0.4&times;DC)&nbsp;&nbsp;<span style="color:var(--ink-3)"># corrected downward when this would exceed DMC</span></div>
+
+<div class="formula"><span class="lbl">FWI &mdash; fire weather index</span>
+B = 0.1 &times; ISI &times; f(BUI)&nbsp;&nbsp;<span style="color:var(--ink-3)"># f(BUI) has its own branch above/below BUI=80</span>
+FWI = B, if B &le; 1; otherwise exp(2.72 &times; (0.434 &times; ln B)<sup>0.647</sup>)</div>
+
+<p>Two numbers only mean anything with a month and a latitude attached: L<sub>e</sub> and
+L<sub>f</sub> are read from fixed tables (Jan&ndash;Dec, banded by latitude) that encode how
+much daylight a fuel layer gets to dry in. Zavidovi&#263;i's forecast point (44.39&deg;N)
+falls in the same &ldquo;temperate&rdquo; band the tables call <code>&ge;30&deg;N</code>
+for DMC and <code>&gt;20&deg;N</code> for DC &mdash; the same band most of Canada and all
+of Mediterranean/Central Europe fall in, which is why EFFIS applies the identical tables
+across Europe without modification. <code>firedanger.py</code> keeps every latitude band,
+not just this one, so the same code works unmodified if a fork's boundary file names a
+point at a very different latitude.</p>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="data"><span class="num">03</span> Data source and point</h2>
+<p>Weather comes from <a href="https://open-meteo.com/">Open-Meteo</a>
+(<code>api.open-meteo.com/v1/forecast</code>), free and keyless, already used elsewhere
+in this project for per-event spread-risk weather. One call per computation returns
+hourly temperature, relative humidity, 10&nbsp;m wind speed and precipitation, from
+which the noon reading and the 24&nbsp;hour rainfall ending at noon are extracted for
+each local date (<code>Europe/Sarajevo</code>).</p>
+<p>The point queried is <code>geo.forecast_point()</code> &mdash; the vertex-mean of the
+municipality boundary outline, <strong>not</strong> the town's own coordinates
+(<code>TOWN_LAT</code>/<code>TOWN_LON</code>). The town is not necessarily the
+geometric middle of the municipality around it, and this number is meant to
+characterise the whole area, the way the coarse EFFIS grid cell would. Because it is
+derived from whatever boundary file is configured, a fork that points that file at a
+different place's outline moves this point with it automatically.</p>
+<div class="tw">
+<table>
+  <thead><tr><th>Input</th><th>Unit</th><th>Open-Meteo field</th></tr></thead>
+  <tbody>
+    <tr><td>Temperature at noon</td><td class="mono">&deg;C</td><td class="mono">temperature_2m</td></tr>
+    <tr><td>Relative humidity at noon</td><td class="mono">%</td><td class="mono">relative_humidity_2m</td></tr>
+    <tr><td>Wind speed at noon</td><td class="mono">km/h</td><td class="mono">wind_speed_10m</td></tr>
+    <tr><td>Rain, 24h ending at noon</td><td class="mono">mm</td><td class="mono">precipitation (summed)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="validation"><span class="num">04</span> Validation</h2>
+<p class="lede">The six formulas are a line-for-line port of Natural Resources Canada's
+own reference implementation, not a reconstruction from memory.</p>
+<p>Every constant in <code>firedanger.py</code> was transcribed directly from
+<a href="https://github.com/cffdrs/cffdrs_py">github.com/cffdrs/cffdrs_py</a> (and its R
+sibling <code>cffdrs_r</code>) &mdash; the Canadian Forest Service's own published
+source. <code>tests_fwi.py</code> then replays that same package's own published
+48-day validation dataset (Van Wagner &amp; Pickett 1985) through this port and checks
+every day's six outputs against the published numbers.</p>
+<div class="note good">
+  <span class="lbl">Result</span>
+  <p>288 of 288 daily-output checks (48 days &times; FFMC/DMC/DC/ISI/BUI/FWI) matched
+  the official published values within 0.15 &mdash; comfortably inside that source's own
+  rounding precision. A transcription mistake in a constant would fail here rather than
+  silently mis-rating a real fire day.</p>
+</div>
+<p>As a second, independent check, this module's own output for Zavidovi&#263;i on
+2026-09-09 classified as <strong>Extreme</strong> &mdash; matching the dominant colour
+actually rendered by EFFIS's own WMS for that date over this municipality, seen by
+calling <code>GetMap</code> directly.</p>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="cadence"><span class="num">05</span> Update cadence</h2>
+<p class="lede">At most twice a day, never per poll cycle &mdash; and never less than
+once a day either.</p>
+<p>FFMC/DMC/DC are a daily-timestep bookkeeping system, so recomputing every four minutes
+would repeat the same day's arithmetic roughly 140 times for nothing.
+<code>firedanger.update()</code> is gated on today's date plus whether local noon has
+passed, the same shape as <code>imagery.refresh()</code>'s scene-date gate for
+Sentinel-2: cheap to check every cycle, rare to actually do work.</p>
+<div class="cards">
+  <div class="card">
+    <h4>First cycle after local midnight</h4>
+    <p>Today's entry is built from <strong>forecast</strong> noon values, since the real
+    noon observation has not happened yet.</p>
+  </div>
+  <div class="card">
+    <h4>First cycle after local noon</h4>
+    <p>Today's entry is rebuilt from the now-<strong>actual</strong> noon observation,
+    firming up the earlier forecast-based number.</p>
+  </div>
+  <div class="card">
+    <h4>Every other cycle</h4>
+    <p>The cached result is returned with <strong>no network call at all</strong>.</p>
+  </div>
+</div>
+<p>Without the second gate, a fetch-once-a-day design would show a stale, forecast-only
+number all afternoon, even once the real weather at noon was known.</p>
+
+<h3>What <code>update()</code> actually does, in order</h3>
+<p class="lede">Called once every poll cycle (poller.py), like
+<code>imagery.refresh()</code> &mdash; almost always a fast no-op.</p>
+<ol class="steps">
+  <li><b>Check the feature is on.</b> If <code>fire_danger_enabled</code> is false,
+  return <code>None</code> immediately &mdash; no read, no fetch, nothing shown.</li>
+  <li><b>Resolve the point and the local clock.</b>
+  <code>geo.forecast_point()</code> gives (lat, lon); the current moment in
+  <code>Europe/Sarajevo</code> gives today's date and whether the hour is &ge; 12.</li>
+  <li><b>Read what's already known.</b> Two small JSON blobs come out of the
+  <code>meta</code> table: the <em>gate</em> (the date last computed, and whether
+  noon had passed at that time) and the <em>cached payload</em> (the last result
+  actually shown).</li>
+  <li><b>Decide whether there is anything to do.</b> Unless called with
+  <code>force=True</code> (only the CLI's <code>--force</code> uses this), if the
+  gate's date is today <em>and</em> either noon was already accounted for or it
+  still hasn't passed &mdash; return the cached payload as-is. This is the fast
+  path almost every cycle takes.</li>
+  <li><b>Fetch.</b> One Open-Meteo call for noon temp/RH/wind and 24h-to-noon rain,
+  asking for up to <code>SPINUP_DAYS</code> back and
+  <code>fire_danger_forecast_days</code> forward (&sect;06 covers what actually
+  comes back). A network failure here logs a warning and returns the cached
+  payload &mdash; a hiccup never blanks the display.</li>
+  <li><b>Sanity-check the window.</b> If today's own date is not among the dates
+  the fetch returned &mdash; which should not normally happen &mdash; log a
+  warning and return the cached payload rather than compute on a window that
+  does not cover &ldquo;today&rdquo; at all.</li>
+  <li><b>Replay from the standard startup values</b> (FFMC=85, DMC=6, DC=15),
+  stepping through every returned date in order. Each day's <code>step()</code>
+  call feeds that day's noon weather in and produces that day's
+  FFMC/DMC/DC/ISI/BUI/FWI plus a danger class and colour (&sect;07), becoming
+  next day's input in turn.</li>
+  <li><b>Split the replayed trend</b> into the one entry whose date is today, and
+  every entry after it (the forecast).</li>
+  <li><b>Assemble and persist.</b> Point, today's entry, the forecast list and a
+  timestamp become the payload. The gate is written as
+  <code>{date: today, noon_passed}</code> and the payload is written alongside
+  it, both back into <code>meta</code> &mdash; then the payload is returned.</li>
+</ol>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="spinup"><span class="num">06</span> The daily replay</h2>
+<p class="lede">Rather than persisting yesterday's codes and bridging forward day by
+day, every run replays the <em>entire</em> available window from the standard startup
+values (FFMC=85, DMC=6, DC=15).</p>
+<p>Bridging forward would need a separate cold-start path and a separate
+&ldquo;gap too large to bridge&rdquo; path for whenever the poller was not running.
+Instead, one Open-Meteo call <em>asks</em> for <code>past_days=93</code> &mdash; one
+more than the API's own documented 92-day cap, so the earliest usable date still has a
+full 24h of hours behind it for the rain sum &mdash; and the whole window is stepped
+through the formulas from scratch, every time.</p>
+<div class="note warn">
+  <span class="lbl">Measured 2026-09-10 &mdash; the documented cap is not a guarantee</span>
+  <p>The response's hourly series did span the full 93 days asked for, but the earliest
+  ~28 of them came back with temperature, humidity and wind all <code>null</code>. Real
+  data reached back only <strong>65 days</strong>, not 92. <code>_fetch_daily()</code>
+  already drops any date with a null reading &mdash; a guard originally written for a
+  same-day hour Open-Meteo has not filled in yet, which turned out to catch this too
+  &mdash; so a shorter real window degrades gracefully rather than computing on missing
+  data. 65 days is still within the few-months window the fire-science literature treats
+  as enough for the Drought Code's memory of a wrong starting value to be washed out by
+  real rain events, but nothing in this design guarantees a particular depth on any
+  given day.</p>
+</div>
+<p>The upside of this design: a day the poller was not running for needs no special
+case, because there is no stored state for it to have gone stale. Everything downstream
+is real weather, replayed, not a persisted guess.</p>
+
+<!-- ==================== 07 ==================== -->
+<h2 id="classes"><span class="num">07</span> Danger classes</h2>
+<p>Thresholds and colours are read directly off EFFIS's own published legend
+(<code>mf010.fwi</code>, <code>GetLegendGraphic</code>), so a class computed here lines
+up with what the official map would show the same day.</p>
+<div class="tw">
+<table>
+  <thead><tr><th>Class</th><th class="num">FWI range</th></tr></thead>
+  <tbody>
+    <tr><td><span class="swatch" style="background:var(--fw-low)"></span>Low</td><td class="num">&lt; 11.2</td></tr>
+    <tr><td><span class="swatch" style="background:var(--fw-mod)"></span>Moderate</td><td class="num">11.2 &ndash; 21.3</td></tr>
+    <tr><td><span class="swatch" style="background:var(--fw-high)"></span>High</td><td class="num">21.3 &ndash; 38.0</td></tr>
+    <tr><td><span class="swatch" style="background:var(--fw-vhigh)"></span>Very High</td><td class="num">38.0 &ndash; 50.0</td></tr>
+    <tr><td><span class="swatch" style="background:var(--fw-ext)"></span>Extreme</td><td class="num">50.0 &ndash; 70.0</td></tr>
+    <tr><td><span class="swatch" style="background:var(--fw-vext)"></span>Very Extreme</td><td class="num">&gt; 70.0</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Example output for Zavidovi&#263;i, 2026-09-10 (<code>python3 -m firewatch
+fire-danger</code>):</p>
+<div class="tw">
+<table>
+  <thead><tr><th>Date</th><th class="num">FWI</th><th>Class</th></tr></thead>
+  <tbody>
+    <tr><td>10 Sep (today)</td><td class="num">23.6</td><td><span class="swatch" style="background:var(--fw-high)"></span>High</td></tr>
+    <tr><td>11 Sep</td><td class="num">12.4</td><td><span class="swatch" style="background:var(--fw-mod)"></span>Moderate</td></tr>
+    <tr><td>12 Sep</td><td class="num">4.1</td><td><span class="swatch" style="background:var(--fw-low)"></span>Low</td></tr>
+    <tr><td>13 Sep</td><td class="num">13.9</td><td><span class="swatch" style="background:var(--fw-mod)"></span>Moderate</td></tr>
+    <tr><td>14 Sep</td><td class="num">21.0</td><td><span class="swatch" style="background:var(--fw-mod)"></span>Moderate</td></tr>
+    <tr><td>15 Sep</td><td class="num">21.5</td><td><span class="swatch" style="background:var(--fw-high)"></span>High</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ==================== 08 ==================== -->
+<h2 id="map"><span class="num">08</span> On the map</h2>
+<p class="lede">Deliberately not a map layer, and not a marker on the map canvas.</p>
+<p>Danger-class colours sit in the same orange-red family as the fire severity colours
+already used for real detections (low/moderate/high/severe). A coloured dot for
+&ldquo;today's weather danger&rdquo; drawn in that same palette would read as another
+fire, not a background index &mdash; and this number covers one point, not an area, so
+drawing it as a spatial layer would imply a coverage it does not have.</p>
+<p>Instead it is a small panel beside the map's legend: a one-line badge
+(&ldquo;Fire danger today: High&rdquo;) that expands, on click, to the short forecast,
+the underlying FFMC/DMC/DC, and when it was last computed. It is collapsed by default
+at every screen size &mdash; both this panel and the legend used to stay permanently
+expanded on a desktop-sized screen, which took up too much of the map's corner, so both
+now share one collapse-by-default rule regardless of viewport width, rather than
+treating desktop and phone as two different interaction patterns.</p>
+
+<!-- ==================== 09 ==================== -->
+<h2 id="sources"><span class="num">09</span> Sources</h2>
+<ul>
+  <li><a href="https://cfs.nrcan.gc.ca/pubwarehouse/pdfs/19973.pdf">Van Wagner, C.E.; Pickett, T.L. 1985. Equations and FORTRAN program for the Canadian Forest Fire Weather Index System.</a> Can. For. Serv. Tech. Rep. 33.</li>
+  <li><a href="https://cfs.nrcan.gc.ca/pubwarehouse/pdfs/19927.pdf">Van Wagner, C.E. 1987. Development and structure of the Canadian Forest Fire Weather Index System.</a> Can. For. Serv. Tech. Rep. 35.</li>
+  <li><a href="https://cfs.nrcan.gc.ca/pubwarehouse/pdfs/29152.pdf">Lawson, B.D.; Armitage, O.B. 2008. Weather guide for the Canadian Forest Fire Danger Rating System.</a></li>
+  <li><a href="https://github.com/cffdrs/cffdrs_py">github.com/cffdrs/cffdrs_py</a> &mdash; the official Python reference implementation this project's formulas are ported from, including its published 48-day validation fixture.</li>
+  <li><a href="https://github.com/cffdrs/cffdrs_r">github.com/cffdrs/cffdrs_r</a> &mdash; the R sibling package, cross-checked during the port.</li>
+  <li><a href="https://forest-fire.emergency.copernicus.eu/about-effis/technical-background/fire-danger-forecast">EFFIS &mdash; Fire Danger Forecast</a> &mdash; the official European service this page's design was measured against.</li>
+  <li><a href="https://open-meteo.com/en/docs">Open-Meteo API documentation</a> &mdash; the keyless weather source this module fetches.</li>
+</ul>
+
+<footer>
+  <p><strong>FireWatch</strong> &mdash; near-live wildfire monitoring from Meteosat MTG,
+  NASA FIRMS and Sentinel-3 SLSTR. Boundary and settlement data © OpenStreetMap
+  contributors, ODbL 1.0.</p>
+  <p>Figures on this page were measured directly against the live services described
+  (EFFIS's WMS, Open-Meteo's API) and this project's own test suite, in September 2026.
+  Both drift: re-measure before citing this page as current.</p>
+</footer>
+</main>
+</div>
