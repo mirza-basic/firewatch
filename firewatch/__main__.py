@@ -631,16 +631,16 @@ def cmd_reclip(apply: bool = False) -> int:
 
         by_place = {}
         for d in gone:
-            place = geo.describe_location(d["lat"], d["lon"])
-            e = by_place.setdefault(place, {"n": 0, "km": 0.0, "first": d["ts"], "last": d["ts"]})
+            where = geo.describe_location(d["lat"], d["lon"])
+            e = by_place.setdefault(where, {"n": 0, "km": 0.0, "first": d["ts"], "last": d["ts"]})
             e["n"] += 1
             e["km"] = max(e["km"], geo.distance_to_boundary_km(d["lat"], d["lon"]))
             e["first"] = min(e["first"], d["ts"])
             e["last"] = max(e["last"], d["ts"])
         print(f"  {len(gone)} of {total} detections fall outside it:\n")
-        for place, e in sorted(by_place.items(), key=lambda kv: -kv[1]["km"]):
+        for where, e in sorted(by_place.items(), key=lambda kv: -kv[1]["km"]):
             print(f"    {e['km']:5.2f} km out  {e['n']:3} det  "
-                  f"{e['first'][:10]}..{e['last'][:10]}  {place}")
+                  f"{e['first'][:10]}..{e['last'][:10]}  {where}")
 
         if not apply:
             print("\n  dry run - re-run with --apply to delete them\n")
