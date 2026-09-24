@@ -6,7 +6,16 @@
     "short_name": "Banja Luka",
     "name_en": "City of Banja Luka",
     "id": "banja-luka",
-    "telegram_channel": "@fw_ba_banja_luka"
+    "telegram_channel": "@fw_ba_banja_luka",
+    "boundary": "banja-luka.geojson",
+    "settlements": "banja-luka-settlements.json",
+    "town": {
+      "lat": 44.7720845,
+      "lon": 17.1917651
+    },
+    "town_matched": true,
+    "n_vertices": 12047,
+    "n_settlements": 356
   },
   {
     "osm_relation": 2528157,
@@ -15,7 +24,16 @@
     "short_name": "Banovići",
     "name_en": "Banovici municipality",
     "id": "banovici",
-    "telegram_channel": "@fw_ba_banovici"
+    "telegram_channel": "@fw_ba_banovici",
+    "boundary": "banovici.geojson",
+    "settlements": "banovici-settlements.json",
+    "town": {
+      "lat": 44.4088812,
+      "lon": 18.5292365
+    },
+    "town_matched": true,
+    "n_vertices": 238,
+    "n_settlements": 321
   },
   {
     "osm_relation": 2528158,
@@ -24,7 +42,16 @@
     "short_name": "Berkovići",
     "name_en": "Berkovići municipality",
     "id": "berkovici",
-    "telegram_channel": "@fw_ba_berkovici"
+    "telegram_channel": "@fw_ba_berkovici",
+    "boundary": "berkovici.geojson",
+    "settlements": "berkovici-settlements.json",
+    "town": {
+      "lat": 43.0950122,
+      "lon": 18.1203775
+    },
+    "town_matched": false,
+    "n_vertices": 2907,
+    "n_settlements": 356
   },
   {
     "osm_relation": 2528159,
@@ -33,7 +60,16 @@
     "short_name": "Bihać",
     "name_en": "City of Bihać",
     "id": "bihac",
-    "telegram_channel": "@fw_ba_bihac"
+    "telegram_channel": "@fw_ba_bihac",
+    "boundary": "bihac.geojson",
+    "settlements": "bihac-settlements.json",
+    "town": {
+      "lat": 44.6110129,
+      "lon": 16.0773
+    },
+    "town_matched": false,
+    "n_vertices": 2507,
+    "n_settlements": 186
   },
   {
     "osm_relation": 2528160,
@@ -42,7 +78,16 @@
     "short_name": "Bijeljina",
     "name_en": "City of Bijeljina",
     "id": "bijeljina",
-    "telegram_channel": "@fw_ba_bijeljina"
+    "telegram_channel": "@fw_ba_bijeljina",
+    "boundary": "bijeljina.geojson",
+    "settlements": "bijeljina-settlements.json",
+    "town": {
+      "lat": 44.7573656,
+      "lon": 19.2175336
+    },
+    "town_matched": true,
+    "n_vertices": 6416,
+    "n_settlements": 309
   },
   {
     "osm_relation": 2528161,
@@ -51,7 +96,16 @@
     "short_name": "Bileća",
     "name_en": "Bileca municipality",
     "id": "bileca",
-    "telegram_channel": "@fw_ba_bileca"
+    "telegram_channel": "@fw_ba_bileca",
+    "boundary": "bileca.geojson",
+    "settlements": "bileca-settlements.json",
+    "town": {
+      "lat": 42.8748513,
+      "lon": 18.4279766
+    },
+    "town_matched": true,
+    "n_vertices": 1845,
+    "n_settlements": 333
   },
   {
     "osm_relation": 2528164,
@@ -60,7 +114,16 @@
     "short_name": "Bosanska Krupa",
     "name_en": "Town of Bosanska Krupa",
     "id": "bosanska-krupa",
-    "telegram_channel": "@fw_ba_bosanska_krupa"
+    "telegram_channel": "@fw_ba_bosanska_krupa",
+    "boundary": "bosanska-krupa.geojson",
+    "settlements": "bosanska-krupa-settlements.json",
+    "town": {
+      "lat": 44.8824428,
+      "lon": 16.1577
+    },
+    "town_matched": true,
+    "n_vertices": 1221,
+    "n_settlements": 337
   },
   {
     "osm_relation": 2528168,
@@ -69,7 +132,16 @@
     "short_name": "Bosanski Petrovac",
     "name_en": "Bosanski Petrovac municipality",
     "id": "bosanski-petrovac",
-    "telegram_channel": "@fw_ba_bosanski_petrovac"
+    "telegram_channel": "@fw_ba_bosanski_petrovac",
+    "boundary": "bosanski-petrovac.geojson",
+    "settlements": "bosanski-petrovac-settlements.json",
+    "town": {
+      "lat": 44.5543706,
+      "lon": 16.3686978
+    },
+    "town_matched": true,
+    "n_vertices": 396,
+    "n_settlements": 146
   },
   {
     "osm_relation": 2528170,
@@ -78,7 +150,16 @@
     "short_name": "Bosansko Grahovo",
     "name_en": "Bosansko Grahovo municipality",
     "id": "bosansko-grahovo",
-    "telegram_channel": "@fw_ba_bosansko_grahovo"
+    "telegram_channel": "@fw_ba_bosansko_grahovo",
+    "boundary": "bosansko-grahovo.geojson",
+    "settlements": "bosansko-grahovo-settlements.json",
+    "town": {
+      "lat": 44.1794878,
+      "lon": 16.3639977
+    },
+    "town_matched": true,
+    "n_vertices": 923,
+    "n_settlements": 329
   },
   {
     "osm_relation": 2530647,
@@ -87,7 +168,16 @@
     "short_name": "Bratunac",
     "name_en": "Bratunac municipality",
     "id": "bratunac",
-    "telegram_channel": "@fw_ba_bratunac"
+    "telegram_channel": "@fw_ba_bratunac",
+    "boundary": "bratunac.geojson",
+    "settlements": "bratunac-settlements.json",
+    "town": {
+      "lat": 44.1840152,
+      "lon": 19.3310341
+    },
+    "town_matched": true,
+    "n_vertices": 1539,
+    "n_settlements": 428
   },
   {
     "osm_relation": 2528171,
@@ -96,7 +186,16 @@
     "short_name": "Breza",
     "name_en": "Breza municipality",
     "id": "breza",
-    "telegram_channel": "@fw_ba_breza"
+    "telegram_channel": "@fw_ba_breza",
+    "boundary": "breza.geojson",
+    "settlements": "breza-settlements.json",
+    "town": {
+      "lat": 44.0182913,
+      "lon": 18.2608652
+    },
+    "town_matched": true,
+    "n_vertices": 407,
+    "n_settlements": 562
   },
   {
     "osm_relation": 2528166,
@@ -105,7 +204,16 @@
     "short_name": "Brod",
     "name_en": "",
     "id": "brod",
-    "telegram_channel": "@fw_ba_brod"
+    "telegram_channel": "@fw_ba_brod",
+    "boundary": "brod.geojson",
+    "settlements": "brod-settlements.json",
+    "town": {
+      "lat": 45.1464044,
+      "lon": 17.9991557
+    },
+    "town_matched": true,
+    "n_vertices": 1226,
+    "n_settlements": 281
   },
   {
     "osm_relation": 2528143,
@@ -114,7 +222,16 @@
     "short_name": "Brčko",
     "name_en": "Brčko District",
     "id": "brcko",
-    "telegram_channel": "@fw_ba_brcko"
+    "telegram_channel": "@fw_ba_brcko",
+    "boundary": "brcko.geojson",
+    "settlements": "brcko-settlements.json",
+    "town": {
+      "lat": 44.8771222,
+      "lon": 18.8095022
+    },
+    "town_matched": true,
+    "n_vertices": 10934,
+    "n_settlements": 314
   },
   {
     "osm_relation": 2528172,
@@ -123,7 +240,16 @@
     "short_name": "Bugojno",
     "name_en": "Bugojno Municipality",
     "id": "bugojno",
-    "telegram_channel": "@fw_ba_bugojno"
+    "telegram_channel": "@fw_ba_bugojno",
+    "boundary": "bugojno.geojson",
+    "settlements": "bugojno-settlements.json",
+    "town": {
+      "lat": 44.0558542,
+      "lon": 17.4509043
+    },
+    "town_matched": true,
+    "n_vertices": 2126,
+    "n_settlements": 288
   },
   {
     "osm_relation": 2528173,
@@ -132,7 +258,16 @@
     "short_name": "Busovača",
     "name_en": "Busovaca municipality",
     "id": "busovaca",
-    "telegram_channel": "@fw_ba_busovaca"
+    "telegram_channel": "@fw_ba_busovaca",
+    "boundary": "busovaca.geojson",
+    "settlements": "busovaca-settlements.json",
+    "town": {
+      "lat": 44.0984764,
+      "lon": 17.8791295
+    },
+    "town_matched": true,
+    "n_vertices": 557,
+    "n_settlements": 554
   },
   {
     "osm_relation": 2528174,
@@ -141,7 +276,16 @@
     "short_name": "Bužim",
     "name_en": "Buzim municipality",
     "id": "buzim",
-    "telegram_channel": "@fw_ba_buzim"
+    "telegram_channel": "@fw_ba_buzim",
+    "boundary": "buzim.geojson",
+    "settlements": "buzim-settlements.json",
+    "town": {
+      "lat": 45.0612916,
+      "lon": 16.0323903
+    },
+    "town_matched": true,
+    "n_vertices": 712,
+    "n_settlements": 488
   },
   {
     "osm_relation": 2528177,
@@ -150,7 +294,16 @@
     "short_name": "Cazin",
     "name_en": "City of Cazin",
     "id": "cazin",
-    "telegram_channel": "@fw_ba_cazin"
+    "telegram_channel": "@fw_ba_cazin",
+    "boundary": "cazin.geojson",
+    "settlements": "cazin-settlements.json",
+    "town": {
+      "lat": 44.9665331,
+      "lon": 15.9422967
+    },
+    "town_matched": true,
+    "n_vertices": 2793,
+    "n_settlements": 422
   },
   {
     "osm_relation": 2528180,
@@ -159,7 +312,16 @@
     "short_name": "Centar",
     "name_en": "Centar Municipality",
     "id": "centar",
-    "telegram_channel": "@fw_ba_centar"
+    "telegram_channel": "@fw_ba_centar",
+    "boundary": "centar.geojson",
+    "settlements": "centar-settlements.json",
+    "town": {
+      "lat": 43.8992312,
+      "lon": 18.4151611
+    },
+    "town_matched": false,
+    "n_vertices": 996,
+    "n_settlements": 437
   },
   {
     "osm_relation": 2528182,
@@ -168,7 +330,16 @@
     "short_name": "Derventa",
     "name_en": "Town of Derventa",
     "id": "derventa",
-    "telegram_channel": "@fw_ba_derventa"
+    "telegram_channel": "@fw_ba_derventa",
+    "boundary": "derventa.geojson",
+    "settlements": "derventa-settlements.json",
+    "town": {
+      "lat": 44.9767094,
+      "lon": 17.906959
+    },
+    "town_matched": true,
+    "n_vertices": 11179,
+    "n_settlements": 404
   },
   {
     "osm_relation": 2528185,
@@ -177,7 +348,16 @@
     "short_name": "Doboj",
     "name_en": "City of Doboj",
     "id": "doboj",
-    "telegram_channel": "@fw_ba_doboj"
+    "telegram_channel": "@fw_ba_doboj",
+    "boundary": "doboj.geojson",
+    "settlements": "doboj-settlements.json",
+    "town": {
+      "lat": 44.7324559,
+      "lon": 18.0850157
+    },
+    "town_matched": true,
+    "n_vertices": 8505,
+    "n_settlements": 498
   },
   {
     "osm_relation": 2528183,
@@ -186,7 +366,16 @@
     "short_name": "Doboj Istok",
     "name_en": "Doboj Istok Municipality",
     "id": "doboj-istok",
-    "telegram_channel": "@fw_ba_doboj_istok"
+    "telegram_channel": "@fw_ba_doboj_istok",
+    "boundary": "doboj-istok.geojson",
+    "settlements": "doboj-istok-settlements.json",
+    "town": {
+      "lat": 44.7381908,
+      "lon": 18.190292
+    },
+    "town_matched": false,
+    "n_vertices": 573,
+    "n_settlements": 497
   },
   {
     "osm_relation": 2528184,
@@ -195,7 +384,16 @@
     "short_name": "Doboj Jug",
     "name_en": "Doboj Jug Municipality",
     "id": "doboj-jug",
-    "telegram_channel": "@fw_ba_doboj_jug"
+    "telegram_channel": "@fw_ba_doboj_jug",
+    "boundary": "doboj-jug.geojson",
+    "settlements": "doboj-jug-settlements.json",
+    "town": {
+      "lat": 44.6787798,
+      "lon": 18.0579222
+    },
+    "town_matched": false,
+    "n_vertices": 320,
+    "n_settlements": 501
   },
   {
     "osm_relation": 2528186,
@@ -204,7 +402,16 @@
     "short_name": "Dobretići",
     "name_en": "Dobretici municipality",
     "id": "dobretici",
-    "telegram_channel": "@fw_ba_dobretici"
+    "telegram_channel": "@fw_ba_dobretici",
+    "boundary": "dobretici.geojson",
+    "settlements": "dobretici-settlements.json",
+    "town": {
+      "lat": 44.3942737,
+      "lon": 17.4201333
+    },
+    "town_matched": false,
+    "n_vertices": 731,
+    "n_settlements": 379
   },
   {
     "osm_relation": 2528187,
@@ -213,7 +420,16 @@
     "short_name": "Domaljevac-Šamac",
     "name_en": "Domaljevac-Šamac Municipality",
     "id": "domaljevac-samac",
-    "telegram_channel": "@fw_ba_domaljevac_samac"
+    "telegram_channel": "@fw_ba_domaljevac_samac",
+    "boundary": "domaljevac-samac.geojson",
+    "settlements": "domaljevac-samac-settlements.json",
+    "town": {
+      "lat": 45.0561508,
+      "lon": 18.5695572
+    },
+    "town_matched": false,
+    "n_vertices": 274,
+    "n_settlements": 266
   },
   {
     "osm_relation": 2528188,
@@ -222,7 +438,16 @@
     "short_name": "Donji Vakuf",
     "name_en": "Donji Vakuf Municipality",
     "id": "donji-vakuf",
-    "telegram_channel": "@fw_ba_donji_vakuf"
+    "telegram_channel": "@fw_ba_donji_vakuf",
+    "boundary": "donji-vakuf.geojson",
+    "settlements": "donji-vakuf-settlements.json",
+    "town": {
+      "lat": 44.144488,
+      "lon": 17.3949964
+    },
+    "town_matched": true,
+    "n_vertices": 1698,
+    "n_settlements": 329
   },
   {
     "osm_relation": 2528189,
@@ -231,7 +456,16 @@
     "short_name": "Donji Žabar",
     "name_en": "Donji Zabar municipality",
     "id": "donji-zabar",
-    "telegram_channel": "@fw_ba_donji_zabar"
+    "telegram_channel": "@fw_ba_donji_zabar",
+    "boundary": "donji-zabar.geojson",
+    "settlements": "donji-zabar-settlements.json",
+    "town": {
+      "lat": 44.9659666,
+      "lon": 18.6649715
+    },
+    "town_matched": false,
+    "n_vertices": 1004,
+    "n_settlements": 300
   },
   {
     "osm_relation": 2528190,
@@ -240,7 +474,16 @@
     "short_name": "Drvar",
     "name_en": "Drvar municipality",
     "id": "drvar",
-    "telegram_channel": "@fw_ba_drvar"
+    "telegram_channel": "@fw_ba_drvar",
+    "boundary": "drvar.geojson",
+    "settlements": "drvar-settlements.json",
+    "town": {
+      "lat": 44.3740882,
+      "lon": 16.3845503
+    },
+    "town_matched": true,
+    "n_vertices": 232,
+    "n_settlements": 183
   },
   {
     "osm_relation": 2528197,
@@ -249,7 +492,16 @@
     "short_name": "Fojnica",
     "name_en": "Fojnica municipality",
     "id": "fojnica",
-    "telegram_channel": "@fw_ba_fojnica"
+    "telegram_channel": "@fw_ba_fojnica",
+    "boundary": "fojnica.geojson",
+    "settlements": "fojnica-settlements.json",
+    "town": {
+      "lat": 43.9634432,
+      "lon": 17.8990217
+    },
+    "town_matched": true,
+    "n_vertices": 812,
+    "n_settlements": 469
   },
   {
     "osm_relation": 2528284,
@@ -258,7 +510,16 @@
     "short_name": "Foča (FBiH)",
     "name_en": "Foča Municipality (FBiH)",
     "id": "foca-fbih",
-    "telegram_channel": "@fw_ba_foca_fbih"
+    "telegram_channel": "@fw_ba_foca_fbih",
+    "boundary": "foca-fbih.geojson",
+    "settlements": "foca-fbih-settlements.json",
+    "town": {
+      "lat": 43.6254849,
+      "lon": 18.6695194
+    },
+    "town_matched": false,
+    "n_vertices": 293,
+    "n_settlements": 534
   },
   {
     "osm_relation": 2528196,
@@ -267,7 +528,16 @@
     "short_name": "Foča (RS)",
     "name_en": "Foča Municipality (RS)",
     "id": "foca-rs",
-    "telegram_channel": "@fw_ba_foca_rs"
+    "telegram_channel": "@fw_ba_foca_rs",
+    "boundary": "foca-rs.geojson",
+    "settlements": "foca-rs-settlements.json",
+    "town": {
+      "lat": 43.4344421,
+      "lon": 18.7778764
+    },
+    "town_matched": false,
+    "n_vertices": 6153,
+    "n_settlements": 480
   },
   {
     "osm_relation": 2528198,
@@ -276,7 +546,16 @@
     "short_name": "Gacko",
     "name_en": "Gacko municipality",
     "id": "gacko",
-    "telegram_channel": "@fw_ba_gacko"
+    "telegram_channel": "@fw_ba_gacko",
+    "boundary": "gacko.geojson",
+    "settlements": "gacko-settlements.json",
+    "town": {
+      "lat": 43.1664068,
+      "lon": 18.5357977
+    },
+    "town_matched": true,
+    "n_vertices": 2436,
+    "n_settlements": 209
   },
   {
     "osm_relation": 2528199,
@@ -285,7 +564,16 @@
     "short_name": "Glamoč",
     "name_en": "Glamoč municipality",
     "id": "glamoc",
-    "telegram_channel": "@fw_ba_glamoc"
+    "telegram_channel": "@fw_ba_glamoc",
+    "boundary": "glamoc.geojson",
+    "settlements": "glamoc-settlements.json",
+    "town": {
+      "lat": 44.0449852,
+      "lon": 16.8499014
+    },
+    "town_matched": true,
+    "n_vertices": 756,
+    "n_settlements": 216
   },
   {
     "osm_relation": 2528200,
@@ -294,7 +582,16 @@
     "short_name": "Goražde",
     "name_en": "City of Goražde",
     "id": "gorazde",
-    "telegram_channel": "@fw_ba_gorazde"
+    "telegram_channel": "@fw_ba_gorazde",
+    "boundary": "gorazde.geojson",
+    "settlements": "gorazde-settlements.json",
+    "town": {
+      "lat": 43.6684413,
+      "lon": 18.9759044
+    },
+    "town_matched": true,
+    "n_vertices": 489,
+    "n_settlements": 705
   },
   {
     "osm_relation": 2528201,
@@ -303,7 +600,16 @@
     "short_name": "Gornji Vakuf-Uskoplje",
     "name_en": "Gornji Vakuf-Uskoplje municipality",
     "id": "gornji-vakuf-uskoplje",
-    "telegram_channel": "@fw_ba_gornji_vakuf_uskoplje"
+    "telegram_channel": "@fw_ba_gornji_vakuf_uskoplje",
+    "boundary": "gornji-vakuf-uskoplje.geojson",
+    "settlements": "gornji-vakuf-uskoplje-settlements.json",
+    "town": {
+      "lat": 43.9385698,
+      "lon": 17.5853035
+    },
+    "town_matched": true,
+    "n_vertices": 1195,
+    "n_settlements": 295
   },
   {
     "osm_relation": 2528203,
@@ -312,7 +618,16 @@
     "short_name": "Gradačac",
     "name_en": "Town of Gradačac",
     "id": "gradacac",
-    "telegram_channel": "@fw_ba_gradacac"
+    "telegram_channel": "@fw_ba_gradacac",
+    "boundary": "gradacac.geojson",
+    "settlements": "gradacac-settlements.json",
+    "town": {
+      "lat": 44.8781486,
+      "lon": 18.4254813
+    },
+    "town_matched": true,
+    "n_vertices": 1586,
+    "n_settlements": 413
   },
   {
     "osm_relation": 2528162,
@@ -321,7 +636,16 @@
     "short_name": "Gradiška",
     "name_en": "Town of Gradiška",
     "id": "gradiska",
-    "telegram_channel": "@fw_ba_gradiska"
+    "telegram_channel": "@fw_ba_gradiska",
+    "boundary": "gradiska.geojson",
+    "settlements": "gradiska-settlements.json",
+    "town": {
+      "lat": 45.1461945,
+      "lon": 17.2520748
+    },
+    "town_matched": true,
+    "n_vertices": 6678,
+    "n_settlements": 227
   },
   {
     "osm_relation": 2528202,
@@ -330,7 +654,16 @@
     "short_name": "Gračanica",
     "name_en": "Town of Gračanica",
     "id": "gracanica",
-    "telegram_channel": "@fw_ba_gracanica"
+    "telegram_channel": "@fw_ba_gracanica",
+    "boundary": "gracanica.geojson",
+    "settlements": "gracanica-settlements.json",
+    "town": {
+      "lat": 44.7043396,
+      "lon": 18.310107
+    },
+    "town_matched": true,
+    "n_vertices": 1668,
+    "n_settlements": 441
   },
   {
     "osm_relation": 2528204,
@@ -339,7 +672,16 @@
     "short_name": "Grude",
     "name_en": "Grude municipality",
     "id": "grude",
-    "telegram_channel": "@fw_ba_grude"
+    "telegram_channel": "@fw_ba_grude",
+    "boundary": "grude.geojson",
+    "settlements": "grude-settlements.json",
+    "town": {
+      "lat": 43.3723256,
+      "lon": 17.4141836
+    },
+    "town_matched": true,
+    "n_vertices": 1319,
+    "n_settlements": 913
   },
   {
     "osm_relation": 2528205,
@@ -348,7 +690,16 @@
     "short_name": "Hadžići",
     "name_en": "Hadzici municipality",
     "id": "hadzici",
-    "telegram_channel": "@fw_ba_hadzici"
+    "telegram_channel": "@fw_ba_hadzici",
+    "boundary": "hadzici.geojson",
+    "settlements": "hadzici-settlements.json",
+    "town": {
+      "lat": 43.8223256,
+      "lon": 18.2031453
+    },
+    "town_matched": true,
+    "n_vertices": 640,
+    "n_settlements": 418
   },
   {
     "osm_relation": 2528206,
@@ -357,7 +708,16 @@
     "short_name": "Han Pijesak",
     "name_en": "Han Pijesak Municipality",
     "id": "han-pijesak",
-    "telegram_channel": "@fw_ba_han_pijesak"
+    "telegram_channel": "@fw_ba_han_pijesak",
+    "boundary": "han-pijesak.geojson",
+    "settlements": "han-pijesak-settlements.json",
+    "town": {
+      "lat": 44.0812895,
+      "lon": 18.9530643
+    },
+    "town_matched": true,
+    "n_vertices": 592,
+    "n_settlements": 456
   },
   {
     "osm_relation": 2528207,
@@ -366,7 +726,16 @@
     "short_name": "Ilidža",
     "name_en": "Ilidža Municipality",
     "id": "ilidza",
-    "telegram_channel": "@fw_ba_ilidza"
+    "telegram_channel": "@fw_ba_ilidza",
+    "boundary": "ilidza.geojson",
+    "settlements": "ilidza-settlements.json",
+    "town": {
+      "lat": 43.8306182,
+      "lon": 18.3077357
+    },
+    "town_matched": true,
+    "n_vertices": 1333,
+    "n_settlements": 447
   },
   {
     "osm_relation": 2528208,
@@ -375,7 +744,16 @@
     "short_name": "Ilijaš",
     "name_en": "Ilijas municipality",
     "id": "ilijas",
-    "telegram_channel": "@fw_ba_ilijas"
+    "telegram_channel": "@fw_ba_ilijas",
+    "boundary": "ilijas.geojson",
+    "settlements": "ilijas-settlements.json",
+    "town": {
+      "lat": 43.95645,
+      "lon": 18.2661553
+    },
+    "town_matched": true,
+    "n_vertices": 941,
+    "n_settlements": 427
   },
   {
     "osm_relation": 2528192,
@@ -384,7 +762,16 @@
     "short_name": "Istočna Ilidža",
     "name_en": "Istočna Ilidža Municipality",
     "id": "istocna-ilidza",
-    "telegram_channel": "@fw_ba_istocna_ilidza"
+    "telegram_channel": "@fw_ba_istocna_ilidza",
+    "boundary": "istocna-ilidza.geojson",
+    "settlements": "istocna-ilidza-settlements.json",
+    "town": {
+      "lat": 43.7897021,
+      "lon": 18.3730051
+    },
+    "town_matched": false,
+    "n_vertices": 781,
+    "n_settlements": 365
   },
   {
     "osm_relation": 2528191,
@@ -393,7 +780,16 @@
     "short_name": "Istočni Drvar",
     "name_en": "Istočni Drvar Мunicipality",
     "id": "istocni-drvar",
-    "telegram_channel": "@fw_ba_istocni_drvar"
+    "telegram_channel": "@fw_ba_istocni_drvar",
+    "boundary": "istocni-drvar.geojson",
+    "settlements": "istocni-drvar-settlements.json",
+    "town": {
+      "lat": 44.4055752,
+      "lon": 16.609625
+    },
+    "town_matched": false,
+    "n_vertices": 9,
+    "n_settlements": 182
   },
   {
     "osm_relation": 2528193,
@@ -402,7 +798,16 @@
     "short_name": "Istočni Mostar",
     "name_en": "Eastern Mostar municipality",
     "id": "istocni-mostar",
-    "telegram_channel": "@fw_ba_istocni_mostar"
+    "telegram_channel": "@fw_ba_istocni_mostar",
+    "boundary": "istocni-mostar.geojson",
+    "settlements": "istocni-mostar-settlements.json",
+    "town": {
+      "lat": 43.4089256,
+      "lon": 18.0113961
+    },
+    "town_matched": false,
+    "n_vertices": 1037,
+    "n_settlements": 212
   },
   {
     "osm_relation": 2528195,
@@ -411,7 +816,16 @@
     "short_name": "Istočni Stari Grad",
     "name_en": "Istočni Stari Grad Municipality",
     "id": "istocni-stari-grad",
-    "telegram_channel": "@fw_ba_istocni_stari_grad"
+    "telegram_channel": "@fw_ba_istocni_stari_grad",
+    "boundary": "istocni-stari-grad.geojson",
+    "settlements": "istocni-stari-grad-settlements.json",
+    "town": {
+      "lat": 43.8835288,
+      "lon": 18.5121747
+    },
+    "town_matched": false,
+    "n_vertices": 1384,
+    "n_settlements": 358
   },
   {
     "osm_relation": 2528194,
@@ -420,7 +834,16 @@
     "short_name": "Istočno Novo Sarajevo",
     "name_en": "Istočno Novo Sarajevo Municipality",
     "id": "istocno-novo-sarajevo",
-    "telegram_channel": "@fw_ba_istocno_novo_sarajevo"
+    "telegram_channel": "@fw_ba_istocno_novo_sarajevo",
+    "boundary": "istocno-novo-sarajevo.geojson",
+    "settlements": "istocno-novo-sarajevo-settlements.json",
+    "town": {
+      "lat": 43.8023988,
+      "lon": 18.4288446
+    },
+    "town_matched": false,
+    "n_vertices": 1378,
+    "n_settlements": 345
   },
   {
     "osm_relation": 2567396,
@@ -429,7 +852,16 @@
     "short_name": "Istočno Sarajevo",
     "name_en": "City of Istočno Sarajevo",
     "id": "istocno-sarajevo",
-    "telegram_channel": "@fw_ba_istocno_sarajevo"
+    "telegram_channel": "@fw_ba_istocno_sarajevo",
+    "boundary": "istocno-sarajevo.geojson",
+    "settlements": "istocno-sarajevo-settlements.json",
+    "town": {
+      "lat": 43.8983532,
+      "lon": 18.7332166
+    },
+    "town_matched": false,
+    "n_vertices": 777,
+    "n_settlements": 372
   },
   {
     "osm_relation": 2528209,
@@ -438,7 +870,16 @@
     "short_name": "Jablanica",
     "name_en": "Jablanica municipality",
     "id": "jablanica",
-    "telegram_channel": "@fw_ba_jablanica"
+    "telegram_channel": "@fw_ba_jablanica",
+    "boundary": "jablanica.geojson",
+    "settlements": "jablanica-settlements.json",
+    "town": {
+      "lat": 43.6617485,
+      "lon": 17.7618471
+    },
+    "town_matched": true,
+    "n_vertices": 510,
+    "n_settlements": 251
   },
   {
     "osm_relation": 2528210,
@@ -447,7 +888,16 @@
     "short_name": "Jajce",
     "name_en": "Jajce Municipality",
     "id": "jajce",
-    "telegram_channel": "@fw_ba_jajce"
+    "telegram_channel": "@fw_ba_jajce",
+    "boundary": "jajce.geojson",
+    "settlements": "jajce-settlements.json",
+    "town": {
+      "lat": 44.3396706,
+      "lon": 17.2711786
+    },
+    "town_matched": true,
+    "n_vertices": 888,
+    "n_settlements": 418
   },
   {
     "osm_relation": 2528212,
@@ -456,7 +906,16 @@
     "short_name": "Jezero",
     "name_en": "Jezero municipality",
     "id": "jezero",
-    "telegram_channel": "@fw_ba_jezero"
+    "telegram_channel": "@fw_ba_jezero",
+    "boundary": "jezero.geojson",
+    "settlements": "jezero-settlements.json",
+    "town": {
+      "lat": 44.3324939,
+      "lon": 17.1723366
+    },
+    "town_matched": false,
+    "n_vertices": 4622,
+    "n_settlements": 396
   },
   {
     "osm_relation": 2528213,
@@ -465,7 +924,16 @@
     "short_name": "Kakanj",
     "name_en": "Kakanj municipality",
     "id": "kakanj",
-    "telegram_channel": "@fw_ba_kakanj"
+    "telegram_channel": "@fw_ba_kakanj",
+    "boundary": "kakanj.geojson",
+    "settlements": "kakanj-settlements.json",
+    "town": {
+      "lat": 44.128571,
+      "lon": 18.1184071
+    },
+    "town_matched": true,
+    "n_vertices": 601,
+    "n_settlements": 506
   },
   {
     "osm_relation": 2528214,
@@ -474,7 +942,16 @@
     "short_name": "Kalesija",
     "name_en": "Kalesija municipality",
     "id": "kalesija",
-    "telegram_channel": "@fw_ba_kalesija"
+    "telegram_channel": "@fw_ba_kalesija",
+    "boundary": "kalesija.geojson",
+    "settlements": "kalesija-settlements.json",
+    "town": {
+      "lat": 44.4429857,
+      "lon": 18.8756758
+    },
+    "town_matched": true,
+    "n_vertices": 251,
+    "n_settlements": 551
   },
   {
     "osm_relation": 2528215,
@@ -483,7 +960,16 @@
     "short_name": "Kalinovik",
     "name_en": "Kalinovik municipality",
     "id": "kalinovik",
-    "telegram_channel": "@fw_ba_kalinovik"
+    "telegram_channel": "@fw_ba_kalinovik",
+    "boundary": "kalinovik.geojson",
+    "settlements": "kalinovik-settlements.json",
+    "town": {
+      "lat": 43.5043116,
+      "lon": 18.4467193
+    },
+    "town_matched": true,
+    "n_vertices": 4207,
+    "n_settlements": 180
   },
   {
     "osm_relation": 2528216,
@@ -492,7 +978,16 @@
     "short_name": "Kiseljak",
     "name_en": "Kiseljak municipality",
     "id": "kiseljak",
-    "telegram_channel": "@fw_ba_kiseljak"
+    "telegram_channel": "@fw_ba_kiseljak",
+    "boundary": "kiseljak.geojson",
+    "settlements": "kiseljak-settlements.json",
+    "town": {
+      "lat": 43.9431668,
+      "lon": 18.0774711
+    },
+    "town_matched": true,
+    "n_vertices": 750,
+    "n_settlements": 575
   },
   {
     "osm_relation": 2528217,
@@ -501,7 +996,16 @@
     "short_name": "Kladanj",
     "name_en": "Kladanj municipality",
     "id": "kladanj",
-    "telegram_channel": "@fw_ba_kladanj"
+    "telegram_channel": "@fw_ba_kladanj",
+    "boundary": "kladanj.geojson",
+    "settlements": "kladanj-settlements.json",
+    "town": {
+      "lat": 44.2252216,
+      "lon": 18.6940672
+    },
+    "town_matched": true,
+    "n_vertices": 218,
+    "n_settlements": 274
   },
   {
     "osm_relation": 2528218,
@@ -510,7 +1014,16 @@
     "short_name": "Ključ",
     "name_en": "Ključ Municipality",
     "id": "kljuc",
-    "telegram_channel": "@fw_ba_kljuc"
+    "telegram_channel": "@fw_ba_kljuc",
+    "boundary": "kljuc.geojson",
+    "settlements": "kljuc-settlements.json",
+    "town": {
+      "lat": 44.533341,
+      "lon": 16.7761951
+    },
+    "town_matched": true,
+    "n_vertices": 278,
+    "n_settlements": 220
   },
   {
     "osm_relation": 2528266,
@@ -519,7 +1032,16 @@
     "short_name": "Kneževo",
     "name_en": "Kneževo municipality",
     "id": "knezevo",
-    "telegram_channel": "@fw_ba_knezevo"
+    "telegram_channel": "@fw_ba_knezevo",
+    "boundary": "knezevo.geojson",
+    "settlements": "knezevo-settlements.json",
+    "town": {
+      "lat": 44.4899319,
+      "lon": 17.3800905
+    },
+    "town_matched": true,
+    "n_vertices": 4258,
+    "n_settlements": 426
   },
   {
     "osm_relation": 2528219,
@@ -528,7 +1050,16 @@
     "short_name": "Konjic",
     "name_en": "City of Konjic",
     "id": "konjic",
-    "telegram_channel": "@fw_ba_konjic"
+    "telegram_channel": "@fw_ba_konjic",
+    "boundary": "konjic.geojson",
+    "settlements": "konjic-settlements.json",
+    "town": {
+      "lat": 43.6544405,
+      "lon": 17.9606621
+    },
+    "town_matched": true,
+    "n_vertices": 1013,
+    "n_settlements": 284
   },
   {
     "osm_relation": 2528163,
@@ -537,7 +1068,16 @@
     "short_name": "Kostajnica",
     "name_en": "Kostajnica municipality",
     "id": "kostajnica",
-    "telegram_channel": "@fw_ba_kostajnica"
+    "telegram_channel": "@fw_ba_kostajnica",
+    "boundary": "kostajnica.geojson",
+    "settlements": "kostajnica-settlements.json",
+    "town": {
+      "lat": 45.2187079,
+      "lon": 16.5463194
+    },
+    "town_matched": true,
+    "n_vertices": 3242,
+    "n_settlements": 467
   },
   {
     "osm_relation": 2528220,
@@ -546,7 +1086,16 @@
     "short_name": "Kotor Varoš",
     "name_en": "Kotor Varos municipality",
     "id": "kotor-varos",
-    "telegram_channel": "@fw_ba_kotor_varos"
+    "telegram_channel": "@fw_ba_kotor_varos",
+    "boundary": "kotor-varos.geojson",
+    "settlements": "kotor-varos-settlements.json",
+    "town": {
+      "lat": 44.6202944,
+      "lon": 17.3701203
+    },
+    "town_matched": true,
+    "n_vertices": 5973,
+    "n_settlements": 304
   },
   {
     "osm_relation": 2528165,
@@ -555,7 +1104,16 @@
     "short_name": "Kozarska Dubica",
     "name_en": "Kozarska Dubica Municipality",
     "id": "kozarska-dubica",
-    "telegram_channel": "@fw_ba_kozarska_dubica"
+    "telegram_channel": "@fw_ba_kozarska_dubica",
+    "boundary": "kozarska-dubica.geojson",
+    "settlements": "kozarska-dubica-settlements.json",
+    "town": {
+      "lat": 45.1827099,
+      "lon": 16.8086377
+    },
+    "town_matched": true,
+    "n_vertices": 7676,
+    "n_settlements": 277
   },
   {
     "osm_relation": 2528221,
@@ -564,7 +1122,16 @@
     "short_name": "Kreševo",
     "name_en": "Kresevo municipality",
     "id": "kresevo",
-    "telegram_channel": "@fw_ba_kresevo"
+    "telegram_channel": "@fw_ba_kresevo",
+    "boundary": "kresevo.geojson",
+    "settlements": "kresevo-settlements.json",
+    "town": {
+      "lat": 43.8657424,
+      "lon": 18.0421665
+    },
+    "town_matched": true,
+    "n_vertices": 254,
+    "n_settlements": 518
   },
   {
     "osm_relation": 2528222,
@@ -573,7 +1140,16 @@
     "short_name": "Krupa na Uni",
     "name_en": "Krupa na Uni municipality",
     "id": "krupa-na-uni",
-    "telegram_channel": "@fw_ba_krupa_na_uni"
+    "telegram_channel": "@fw_ba_krupa_na_uni",
+    "boundary": "krupa-na-uni.geojson",
+    "settlements": "krupa-na-uni-settlements.json",
+    "town": {
+      "lat": 44.9038436,
+      "lon": 16.2957294
+    },
+    "town_matched": false,
+    "n_vertices": 7855,
+    "n_settlements": 383
   },
   {
     "osm_relation": 2528224,
@@ -582,7 +1158,16 @@
     "short_name": "Kupres",
     "name_en": "Kupres Мunicipality",
     "id": "kupres",
-    "telegram_channel": "@fw_ba_kupres"
+    "telegram_channel": "@fw_ba_kupres",
+    "boundary": "kupres.geojson",
+    "settlements": "kupres-settlements.json",
+    "town": {
+      "lat": 43.9927632,
+      "lon": 17.2774677
+    },
+    "town_matched": true,
+    "n_vertices": 1393,
+    "n_settlements": 185
   },
   {
     "osm_relation": 2528223,
@@ -591,7 +1176,16 @@
     "short_name": "Kupres (RS)",
     "name_en": "Kupres (RS) municipality",
     "id": "kupres-rs",
-    "telegram_channel": "@fw_ba_kupres_rs"
+    "telegram_channel": "@fw_ba_kupres_rs",
+    "boundary": "kupres-rs.geojson",
+    "settlements": "kupres-rs-settlements.json",
+    "town": {
+      "lat": 44.0888743,
+      "lon": 17.1456149
+    },
+    "town_matched": false,
+    "n_vertices": 236,
+    "n_settlements": 214
   },
   {
     "osm_relation": 2528225,
@@ -600,7 +1194,16 @@
     "short_name": "Laktaši",
     "name_en": "Town of Laktaši",
     "id": "laktasi",
-    "telegram_channel": "@fw_ba_laktasi"
+    "telegram_channel": "@fw_ba_laktasi",
+    "boundary": "laktasi.geojson",
+    "settlements": "laktasi-settlements.json",
+    "town": {
+      "lat": 44.9068353,
+      "lon": 17.3017914
+    },
+    "town_matched": true,
+    "n_vertices": 5613,
+    "n_settlements": 367
   },
   {
     "osm_relation": 2528226,
@@ -609,7 +1212,16 @@
     "short_name": "Livno",
     "name_en": "City of Livno",
     "id": "livno",
-    "telegram_channel": "@fw_ba_livno"
+    "telegram_channel": "@fw_ba_livno",
+    "boundary": "livno.geojson",
+    "settlements": "livno-settlements.json",
+    "town": {
+      "lat": 43.8259136,
+      "lon": 17.0042416
+    },
+    "town_matched": true,
+    "n_vertices": 1046,
+    "n_settlements": 343
   },
   {
     "osm_relation": 2528227,
@@ -618,7 +1230,16 @@
     "short_name": "Ljubinje",
     "name_en": "Ljubinje municipality",
     "id": "ljubinje",
-    "telegram_channel": "@fw_ba_ljubinje"
+    "telegram_channel": "@fw_ba_ljubinje",
+    "boundary": "ljubinje.geojson",
+    "settlements": "ljubinje-settlements.json",
+    "town": {
+      "lat": 42.95172,
+      "lon": 18.086178
+    },
+    "town_matched": true,
+    "n_vertices": 1260,
+    "n_settlements": 326
   },
   {
     "osm_relation": 2528228,
@@ -627,7 +1248,16 @@
     "short_name": "Ljubuški",
     "name_en": "",
     "id": "ljubuski",
-    "telegram_channel": "@fw_ba_ljubuski"
+    "telegram_channel": "@fw_ba_ljubuski",
+    "boundary": "ljubuski.geojson",
+    "settlements": "ljubuski-settlements.json",
+    "town": {
+      "lat": 43.1963022,
+      "lon": 17.5447857
+    },
+    "town_matched": true,
+    "n_vertices": 1422,
+    "n_settlements": 790
   },
   {
     "osm_relation": 2528229,
@@ -636,7 +1266,16 @@
     "short_name": "Lopare",
     "name_en": "Lopare municipality",
     "id": "lopare",
-    "telegram_channel": "@fw_ba_lopare"
+    "telegram_channel": "@fw_ba_lopare",
+    "boundary": "lopare.geojson",
+    "settlements": "lopare-settlements.json",
+    "town": {
+      "lat": 44.6356497,
+      "lon": 18.8441138
+    },
+    "town_matched": true,
+    "n_vertices": 4868,
+    "n_settlements": 569
   },
   {
     "osm_relation": 2528230,
@@ -645,7 +1284,16 @@
     "short_name": "Lukavac",
     "name_en": "Town of Lukavac",
     "id": "lukavac",
-    "telegram_channel": "@fw_ba_lukavac"
+    "telegram_channel": "@fw_ba_lukavac",
+    "boundary": "lukavac.geojson",
+    "settlements": "lukavac-settlements.json",
+    "town": {
+      "lat": 44.5344136,
+      "lon": 18.5325309
+    },
+    "town_matched": true,
+    "n_vertices": 589,
+    "n_settlements": 424
   },
   {
     "osm_relation": 2528231,
@@ -654,7 +1302,16 @@
     "short_name": "Maglaj",
     "name_en": "Maglaj municipality",
     "id": "maglaj",
-    "telegram_channel": "@fw_ba_maglaj"
+    "telegram_channel": "@fw_ba_maglaj",
+    "boundary": "maglaj.geojson",
+    "settlements": "maglaj-settlements.json",
+    "town": {
+      "lat": 44.5468713,
+      "lon": 18.1010166
+    },
+    "town_matched": true,
+    "n_vertices": 1713,
+    "n_settlements": 463
   },
   {
     "osm_relation": 2528232,
@@ -663,7 +1320,16 @@
     "short_name": "Milići",
     "name_en": "Milici municipality",
     "id": "milici",
-    "telegram_channel": "@fw_ba_milici"
+    "telegram_channel": "@fw_ba_milici",
+    "boundary": "milici.geojson",
+    "settlements": "milici-settlements.json",
+    "town": {
+      "lat": 44.1691997,
+      "lon": 19.0789283
+    },
+    "town_matched": true,
+    "n_vertices": 942,
+    "n_settlements": 515
   },
   {
     "osm_relation": 2528233,
@@ -672,7 +1338,16 @@
     "short_name": "Modriča",
     "name_en": "Modrica municipality",
     "id": "modrica",
-    "telegram_channel": "@fw_ba_modrica"
+    "telegram_channel": "@fw_ba_modrica",
+    "boundary": "modrica.geojson",
+    "settlements": "modrica-settlements.json",
+    "town": {
+      "lat": 44.9565236,
+      "lon": 18.3011351
+    },
+    "town_matched": true,
+    "n_vertices": 5621,
+    "n_settlements": 405
   },
   {
     "osm_relation": 2528234,
@@ -681,7 +1356,16 @@
     "short_name": "Mostar",
     "name_en": "City of Mostar",
     "id": "mostar",
-    "telegram_channel": "@fw_ba_mostar"
+    "telegram_channel": "@fw_ba_mostar",
+    "boundary": "mostar.geojson",
+    "settlements": "mostar-settlements.json",
+    "town": {
+      "lat": 43.3435855,
+      "lon": 17.8076584
+    },
+    "town_matched": true,
+    "n_vertices": 1439,
+    "n_settlements": 246
   },
   {
     "osm_relation": 2528235,
@@ -690,7 +1374,16 @@
     "short_name": "Mrkonjić Grad",
     "name_en": "Mrkonjić Grad Municipality",
     "id": "mrkonjic-grad",
-    "telegram_channel": "@fw_ba_mrkonjic_grad"
+    "telegram_channel": "@fw_ba_mrkonjic_grad",
+    "boundary": "mrkonjic-grad.geojson",
+    "settlements": "mrkonjic-grad-settlements.json",
+    "town": {
+      "lat": 44.4166023,
+      "lon": 17.0842585
+    },
+    "town_matched": true,
+    "n_vertices": 9441,
+    "n_settlements": 412
   },
   {
     "osm_relation": 2528236,
@@ -699,7 +1392,16 @@
     "short_name": "Neum",
     "name_en": "Neum municipality",
     "id": "neum",
-    "telegram_channel": "@fw_ba_neum"
+    "telegram_channel": "@fw_ba_neum",
+    "boundary": "neum.geojson",
+    "settlements": "neum-settlements.json",
+    "town": {
+      "lat": 42.9258614,
+      "lon": 17.6157205
+    },
+    "town_matched": true,
+    "n_vertices": 553,
+    "n_settlements": 435
   },
   {
     "osm_relation": 2528237,
@@ -708,7 +1410,16 @@
     "short_name": "Nevesinje",
     "name_en": "Nevesinje municipality",
     "id": "nevesinje",
-    "telegram_channel": "@fw_ba_nevesinje"
+    "telegram_channel": "@fw_ba_nevesinje",
+    "boundary": "nevesinje.geojson",
+    "settlements": "nevesinje-settlements.json",
+    "town": {
+      "lat": 43.2573362,
+      "lon": 18.111879
+    },
+    "town_matched": true,
+    "n_vertices": 3460,
+    "n_settlements": 239
   },
   {
     "osm_relation": 2528167,
@@ -717,7 +1428,16 @@
     "short_name": "Novi Grad",
     "name_en": "Novi Grad municipality",
     "id": "novi-grad-2528167",
-    "telegram_channel": "@fw_ba_novi_grad_2528167"
+    "telegram_channel": "@fw_ba_novi_grad_2528167",
+    "boundary": "novi-grad-2528167.geojson",
+    "settlements": "novi-grad-2528167-settlements.json",
+    "town": {
+      "lat": 45.0489865,
+      "lon": 16.3776502
+    },
+    "town_matched": true,
+    "n_vertices": 12248,
+    "n_settlements": 523
   },
   {
     "osm_relation": 2528240,
@@ -726,7 +1446,16 @@
     "short_name": "Novi Grad",
     "name_en": "Novi Grad Municipality",
     "id": "novi-grad-2528240",
-    "telegram_channel": "@fw_ba_novi_grad_2528240"
+    "telegram_channel": "@fw_ba_novi_grad_2528240",
+    "boundary": "novi-grad-2528240.geojson",
+    "settlements": "novi-grad-2528240-settlements.json",
+    "town": {
+      "lat": 43.8681493,
+      "lon": 18.3339168
+    },
+    "town_matched": false,
+    "n_vertices": 1095,
+    "n_settlements": 499
   },
   {
     "osm_relation": 2528241,
@@ -735,7 +1464,16 @@
     "short_name": "Novi Travnik",
     "name_en": "Town of Novi Travnik",
     "id": "novi-travnik",
-    "telegram_channel": "@fw_ba_novi_travnik"
+    "telegram_channel": "@fw_ba_novi_travnik",
+    "boundary": "novi-travnik.geojson",
+    "settlements": "novi-travnik-settlements.json",
+    "town": {
+      "lat": 44.1707502,
+      "lon": 17.6576521
+    },
+    "town_matched": true,
+    "n_vertices": 901,
+    "n_settlements": 448
   },
   {
     "osm_relation": 2528238,
@@ -744,7 +1482,16 @@
     "short_name": "Novo Goražde",
     "name_en": "New Goražde Municipality",
     "id": "novo-gorazde",
-    "telegram_channel": "@fw_ba_novo_gorazde"
+    "telegram_channel": "@fw_ba_novo_gorazde",
+    "boundary": "novo-gorazde.geojson",
+    "settlements": "novo-gorazde-settlements.json",
+    "town": {
+      "lat": 43.6481054,
+      "lon": 19.0363427
+    },
+    "town_matched": false,
+    "n_vertices": 2828,
+    "n_settlements": 795
   },
   {
     "osm_relation": 2528239,
@@ -753,7 +1500,16 @@
     "short_name": "Novo Sarajevo",
     "name_en": "Novo Sarajevo Municipality",
     "id": "novo-sarajevo",
-    "telegram_channel": "@fw_ba_novo_sarajevo"
+    "telegram_channel": "@fw_ba_novo_sarajevo",
+    "boundary": "novo-sarajevo.geojson",
+    "settlements": "novo-sarajevo-settlements.json",
+    "town": {
+      "lat": 43.8568489,
+      "lon": 18.3849891
+    },
+    "town_matched": false,
+    "n_vertices": 433,
+    "n_settlements": 445
   },
   {
     "osm_relation": 2528242,
@@ -762,7 +1518,16 @@
     "short_name": "Odžak",
     "name_en": "Odžak Municipality",
     "id": "odzak",
-    "telegram_channel": "@fw_ba_odzak"
+    "telegram_channel": "@fw_ba_odzak",
+    "boundary": "odzak.geojson",
+    "settlements": "odzak-settlements.json",
+    "town": {
+      "lat": 45.0120287,
+      "lon": 18.3261358
+    },
+    "town_matched": true,
+    "n_vertices": 491,
+    "n_settlements": 307
   },
   {
     "osm_relation": 2528244,
@@ -771,7 +1536,16 @@
     "short_name": "Olovo",
     "name_en": "Olovo municipality",
     "id": "olovo",
-    "telegram_channel": "@fw_ba_olovo"
+    "telegram_channel": "@fw_ba_olovo",
+    "boundary": "olovo.geojson",
+    "settlements": "olovo-settlements.json",
+    "town": {
+      "lat": 44.1269033,
+      "lon": 18.580233
+    },
+    "town_matched": true,
+    "n_vertices": 366,
+    "n_settlements": 262
   },
   {
     "osm_relation": 2528245,
@@ -780,7 +1554,16 @@
     "short_name": "Orašje",
     "name_en": "Town of Orašje",
     "id": "orasje",
-    "telegram_channel": "@fw_ba_orasje"
+    "telegram_channel": "@fw_ba_orasje",
+    "boundary": "orasje.geojson",
+    "settlements": "orasje-settlements.json",
+    "town": {
+      "lat": 45.0342753,
+      "lon": 18.6943254
+    },
+    "town_matched": true,
+    "n_vertices": 540,
+    "n_settlements": 242
   },
   {
     "osm_relation": 2528246,
@@ -789,7 +1572,16 @@
     "short_name": "Osmaci",
     "name_en": "Osmaci municipality",
     "id": "osmaci",
-    "telegram_channel": "@fw_ba_osmaci"
+    "telegram_channel": "@fw_ba_osmaci",
+    "boundary": "osmaci.geojson",
+    "settlements": "osmaci-settlements.json",
+    "town": {
+      "lat": 44.3948278,
+      "lon": 18.906558
+    },
+    "town_matched": false,
+    "n_vertices": 474,
+    "n_settlements": 550
   },
   {
     "osm_relation": 2528247,
@@ -798,7 +1590,16 @@
     "short_name": "Oštra Luka",
     "name_en": "Ostra Luka municipality",
     "id": "ostra-luka",
-    "telegram_channel": "@fw_ba_ostra_luka"
+    "telegram_channel": "@fw_ba_ostra_luka",
+    "boundary": "ostra-luka.geojson",
+    "settlements": "ostra-luka-settlements.json",
+    "town": {
+      "lat": 44.7713337,
+      "lon": 16.7939593
+    },
+    "town_matched": false,
+    "n_vertices": 6722,
+    "n_settlements": 346
   },
   {
     "osm_relation": 2528249,
@@ -807,7 +1608,16 @@
     "short_name": "Pale (FBiH)",
     "name_en": "Pale Municipality (FBiH)",
     "id": "pale-fbih",
-    "telegram_channel": "@fw_ba_pale_fbih"
+    "telegram_channel": "@fw_ba_pale_fbih",
+    "boundary": "pale-fbih.geojson",
+    "settlements": "pale-fbih-settlements.json",
+    "town": {
+      "lat": 43.717493,
+      "lon": 18.7535302
+    },
+    "town_matched": false,
+    "n_vertices": 358,
+    "n_settlements": 627
   },
   {
     "osm_relation": 2528248,
@@ -816,7 +1626,16 @@
     "short_name": "Pale (RS)",
     "name_en": "Pale Municipality (RS)",
     "id": "pale-rs",
-    "telegram_channel": "@fw_ba_pale_rs"
+    "telegram_channel": "@fw_ba_pale_rs",
+    "boundary": "pale-rs.geojson",
+    "settlements": "pale-rs-settlements.json",
+    "town": {
+      "lat": 43.8231678,
+      "lon": 18.6530858
+    },
+    "town_matched": false,
+    "n_vertices": 2341,
+    "n_settlements": 421
   },
   {
     "osm_relation": 2528250,
@@ -825,7 +1644,16 @@
     "short_name": "Pelagićevo",
     "name_en": "Pelagićevo Municipality",
     "id": "pelagicevo",
-    "telegram_channel": "@fw_ba_pelagicevo"
+    "telegram_channel": "@fw_ba_pelagicevo",
+    "boundary": "pelagicevo.geojson",
+    "settlements": "pelagicevo-settlements.json",
+    "town": {
+      "lat": 44.8973288,
+      "lon": 18.5681331
+    },
+    "town_matched": false,
+    "n_vertices": 331,
+    "n_settlements": 388
   },
   {
     "osm_relation": 2528251,
@@ -834,7 +1662,16 @@
     "short_name": "Petrovac",
     "name_en": "Petrovac Municipality",
     "id": "petrovac",
-    "telegram_channel": "@fw_ba_petrovac"
+    "telegram_channel": "@fw_ba_petrovac",
+    "boundary": "petrovac.geojson",
+    "settlements": "petrovac-settlements.json",
+    "town": {
+      "lat": 44.4733928,
+      "lon": 16.5452465
+    },
+    "town_matched": false,
+    "n_vertices": 355,
+    "n_settlements": 146
   },
   {
     "osm_relation": 2528252,
@@ -843,7 +1680,16 @@
     "short_name": "Petrovo",
     "name_en": "Petrovo municipality",
     "id": "petrovo",
-    "telegram_channel": "@fw_ba_petrovo"
+    "telegram_channel": "@fw_ba_petrovo",
+    "boundary": "petrovo.geojson",
+    "settlements": "petrovo-settlements.json",
+    "town": {
+      "lat": 44.6356272,
+      "lon": 18.3181382
+    },
+    "town_matched": false,
+    "n_vertices": 935,
+    "n_settlements": 459
   },
   {
     "osm_relation": 2528253,
@@ -852,7 +1698,16 @@
     "short_name": "Posušje",
     "name_en": "Posušje Municipality",
     "id": "posusje",
-    "telegram_channel": "@fw_ba_posusje"
+    "telegram_channel": "@fw_ba_posusje",
+    "boundary": "posusje.geojson",
+    "settlements": "posusje-settlements.json",
+    "town": {
+      "lat": 43.4712288,
+      "lon": 17.3271281
+    },
+    "town_matched": true,
+    "n_vertices": 1199,
+    "n_settlements": 687
   },
   {
     "osm_relation": 5729592,
@@ -861,7 +1716,16 @@
     "short_name": "Prijedor",
     "name_en": "City of Prijedor",
     "id": "prijedor",
-    "telegram_channel": "@fw_ba_prijedor"
+    "telegram_channel": "@fw_ba_prijedor",
+    "boundary": "prijedor.geojson",
+    "settlements": "prijedor-settlements.json",
+    "town": {
+      "lat": 44.9801369,
+      "lon": 16.7123704
+    },
+    "town_matched": true,
+    "n_vertices": 9383,
+    "n_settlements": 345
   },
   {
     "osm_relation": 2528255,
@@ -870,7 +1734,16 @@
     "short_name": "Prnjavor",
     "name_en": "Town of Prnjavor",
     "id": "prnjavor",
-    "telegram_channel": "@fw_ba_prnjavor"
+    "telegram_channel": "@fw_ba_prnjavor",
+    "boundary": "prnjavor.geojson",
+    "settlements": "prnjavor-settlements.json",
+    "town": {
+      "lat": 44.8686369,
+      "lon": 17.6631777
+    },
+    "town_matched": true,
+    "n_vertices": 9051,
+    "n_settlements": 397
   },
   {
     "osm_relation": 2528256,
@@ -879,7 +1752,16 @@
     "short_name": "Prozor-Rama",
     "name_en": "Prozor-Rama municipality",
     "id": "prozor-rama",
-    "telegram_channel": "@fw_ba_prozor_rama"
+    "telegram_channel": "@fw_ba_prozor_rama",
+    "boundary": "prozor-rama.geojson",
+    "settlements": "prozor-rama-settlements.json",
+    "town": {
+      "lat": 43.7800879,
+      "lon": 17.5499952
+    },
+    "town_matched": false,
+    "n_vertices": 991,
+    "n_settlements": 250
   },
   {
     "osm_relation": 2528257,
@@ -888,7 +1770,16 @@
     "short_name": "Ravno",
     "name_en": "Ravno municipality",
     "id": "ravno",
-    "telegram_channel": "@fw_ba_ravno"
+    "telegram_channel": "@fw_ba_ravno",
+    "boundary": "ravno.geojson",
+    "settlements": "ravno-settlements.json",
+    "town": {
+      "lat": 42.7773488,
+      "lon": 18.0404617
+    },
+    "town_matched": false,
+    "n_vertices": 512,
+    "n_settlements": 314
   },
   {
     "osm_relation": 2528258,
@@ -897,7 +1788,16 @@
     "short_name": "Ribnik",
     "name_en": "Ribnik municipality",
     "id": "ribnik",
-    "telegram_channel": "@fw_ba_ribnik"
+    "telegram_channel": "@fw_ba_ribnik",
+    "boundary": "ribnik.geojson",
+    "settlements": "ribnik-settlements.json",
+    "town": {
+      "lat": 44.4605493,
+      "lon": 16.7658724
+    },
+    "town_matched": false,
+    "n_vertices": 5529,
+    "n_settlements": 234
   },
   {
     "osm_relation": 2528259,
@@ -906,7 +1806,16 @@
     "short_name": "Rogatica",
     "name_en": "Rogatica municipality",
     "id": "rogatica",
-    "telegram_channel": "@fw_ba_rogatica"
+    "telegram_channel": "@fw_ba_rogatica",
+    "boundary": "rogatica.geojson",
+    "settlements": "rogatica-settlements.json",
+    "town": {
+      "lat": 43.8003256,
+      "lon": 19.0019083
+    },
+    "town_matched": true,
+    "n_vertices": 1818,
+    "n_settlements": 597
   },
   {
     "osm_relation": 2528260,
@@ -915,7 +1824,16 @@
     "short_name": "Rudo",
     "name_en": "Rudo Municipality",
     "id": "rudo",
-    "telegram_channel": "@fw_ba_rudo"
+    "telegram_channel": "@fw_ba_rudo",
+    "boundary": "rudo.geojson",
+    "settlements": "rudo-settlements.json",
+    "town": {
+      "lat": 43.6174355,
+      "lon": 19.3656216
+    },
+    "town_matched": true,
+    "n_vertices": 3533,
+    "n_settlements": 579
   },
   {
     "osm_relation": 2528261,
@@ -924,7 +1842,16 @@
     "short_name": "Sanski Most",
     "name_en": "Sanski Most municipality",
     "id": "sanski-most",
-    "telegram_channel": "@fw_ba_sanski_most"
+    "telegram_channel": "@fw_ba_sanski_most",
+    "boundary": "sanski-most.geojson",
+    "settlements": "sanski-most-settlements.json",
+    "town": {
+      "lat": 44.7651882,
+      "lon": 16.6656827
+    },
+    "town_matched": true,
+    "n_vertices": 593,
+    "n_settlements": 276
   },
   {
     "osm_relation": 2528262,
@@ -933,7 +1860,16 @@
     "short_name": "Sapna",
     "name_en": "Sapna municipality",
     "id": "sapna",
-    "telegram_channel": "@fw_ba_sapna"
+    "telegram_channel": "@fw_ba_sapna",
+    "boundary": "sapna.geojson",
+    "settlements": "sapna-settlements.json",
+    "town": {
+      "lat": 44.5182978,
+      "lon": 18.9645532
+    },
+    "town_matched": false,
+    "n_vertices": 530,
+    "n_settlements": 561
   },
   {
     "osm_relation": 2567380,
@@ -942,7 +1878,16 @@
     "short_name": "Sarajevo",
     "name_en": "City of Sarajevo",
     "id": "sarajevo",
-    "telegram_channel": "@fw_ba_sarajevo"
+    "telegram_channel": "@fw_ba_sarajevo",
+    "boundary": "sarajevo.geojson",
+    "settlements": "sarajevo-settlements.json",
+    "town": {
+      "lat": 43.8570713,
+      "lon": 18.4126147
+    },
+    "town_matched": true,
+    "n_vertices": 1457,
+    "n_settlements": 419
   },
   {
     "osm_relation": 2528267,
@@ -951,7 +1896,16 @@
     "short_name": "Sokolac",
     "name_en": "Sokolac municipality",
     "id": "sokolac",
-    "telegram_channel": "@fw_ba_sokolac"
+    "telegram_channel": "@fw_ba_sokolac",
+    "boundary": "sokolac.geojson",
+    "settlements": "sokolac-settlements.json",
+    "town": {
+      "lat": 43.9358936,
+      "lon": 18.7963138
+    },
+    "town_matched": true,
+    "n_vertices": 1936,
+    "n_settlements": 301
   },
   {
     "osm_relation": 2528268,
@@ -960,7 +1914,16 @@
     "short_name": "Srbac",
     "name_en": "Srbac Municipality",
     "id": "srbac",
-    "telegram_channel": "@fw_ba_srbac"
+    "telegram_channel": "@fw_ba_srbac",
+    "boundary": "srbac.geojson",
+    "settlements": "srbac-settlements.json",
+    "town": {
+      "lat": 45.0954444,
+      "lon": 17.5198587
+    },
+    "town_matched": true,
+    "n_vertices": 6901,
+    "n_settlements": 383
   },
   {
     "osm_relation": 2528269,
@@ -969,7 +1932,16 @@
     "short_name": "Srebrenica",
     "name_en": "Srebrenica municipality",
     "id": "srebrenica",
-    "telegram_channel": "@fw_ba_srebrenica"
+    "telegram_channel": "@fw_ba_srebrenica",
+    "boundary": "srebrenica.geojson",
+    "settlements": "srebrenica-settlements.json",
+    "town": {
+      "lat": 44.1063188,
+      "lon": 19.2952783
+    },
+    "town_matched": true,
+    "n_vertices": 2385,
+    "n_settlements": 509
   },
   {
     "osm_relation": 2528270,
@@ -978,7 +1950,16 @@
     "short_name": "Srebrenik",
     "name_en": "Town of Srebrenik",
     "id": "srebrenik",
-    "telegram_channel": "@fw_ba_srebrenik"
+    "telegram_channel": "@fw_ba_srebrenik",
+    "boundary": "srebrenik.geojson",
+    "settlements": "srebrenik-settlements.json",
+    "town": {
+      "lat": 44.7048957,
+      "lon": 18.4912709
+    },
+    "town_matched": true,
+    "n_vertices": 1082,
+    "n_settlements": 482
   },
   {
     "osm_relation": 11507203,
@@ -987,7 +1968,16 @@
     "short_name": "Stanari",
     "name_en": "Stanari Municipality",
     "id": "stanari",
-    "telegram_channel": "@fw_ba_stanari"
+    "telegram_channel": "@fw_ba_stanari",
+    "boundary": "stanari.geojson",
+    "settlements": "stanari-settlements.json",
+    "town": {
+      "lat": 44.7517257,
+      "lon": 17.8379451
+    },
+    "town_matched": true,
+    "n_vertices": 4910,
+    "n_settlements": 563
   },
   {
     "osm_relation": 2528243,
@@ -996,7 +1986,16 @@
     "short_name": "Stari Grad",
     "name_en": "Stari Grad Municipality",
     "id": "stari-grad",
-    "telegram_channel": "@fw_ba_stari_grad"
+    "telegram_channel": "@fw_ba_stari_grad",
+    "boundary": "stari-grad.geojson",
+    "settlements": "stari-grad-settlements.json",
+    "town": {
+      "lat": 43.8966626,
+      "lon": 18.4563083
+    },
+    "town_matched": false,
+    "n_vertices": 596,
+    "n_settlements": 411
   },
   {
     "osm_relation": 2528271,
@@ -1005,7 +2004,16 @@
     "short_name": "Stolac",
     "name_en": "Town of Stolac",
     "id": "stolac",
-    "telegram_channel": "@fw_ba_stolac"
+    "telegram_channel": "@fw_ba_stolac",
+    "boundary": "stolac.geojson",
+    "settlements": "stolac-settlements.json",
+    "town": {
+      "lat": 43.0830587,
+      "lon": 17.9580026
+    },
+    "town_matched": true,
+    "n_vertices": 600,
+    "n_settlements": 468
   },
   {
     "osm_relation": 2528272,
@@ -1014,7 +2022,16 @@
     "short_name": "Teočak",
     "name_en": "Teočak Municipality",
     "id": "teocak",
-    "telegram_channel": "@fw_ba_teocak"
+    "telegram_channel": "@fw_ba_teocak",
+    "boundary": "teocak.geojson",
+    "settlements": "teocak-settlements.json",
+    "town": {
+      "lat": 44.5928276,
+      "lon": 19.0248297
+    },
+    "town_matched": false,
+    "n_vertices": 462,
+    "n_settlements": 513
   },
   {
     "osm_relation": 2528274,
@@ -1023,7 +2040,16 @@
     "short_name": "Teslić",
     "name_en": "City of Teslic",
     "id": "teslic",
-    "telegram_channel": "@fw_ba_teslic"
+    "telegram_channel": "@fw_ba_teslic",
+    "boundary": "teslic.geojson",
+    "settlements": "teslic-settlements.json",
+    "town": {
+      "lat": 44.6065761,
+      "lon": 17.8595061
+    },
+    "town_matched": true,
+    "n_vertices": 3525,
+    "n_settlements": 379
   },
   {
     "osm_relation": 2528273,
@@ -1032,7 +2058,16 @@
     "short_name": "Tešanj",
     "name_en": "Tesanj municipality",
     "id": "tesanj",
-    "telegram_channel": "@fw_ba_tesanj"
+    "telegram_channel": "@fw_ba_tesanj",
+    "boundary": "tesanj.geojson",
+    "settlements": "tesanj-settlements.json",
+    "town": {
+      "lat": 44.6129188,
+      "lon": 17.9858051
+    },
+    "town_matched": true,
+    "n_vertices": 1385,
+    "n_settlements": 505
   },
   {
     "osm_relation": 2528275,
@@ -1041,7 +2076,16 @@
     "short_name": "Tomislavgrad",
     "name_en": "Tomislavgrad municipality",
     "id": "tomislavgrad",
-    "telegram_channel": "@fw_ba_tomislavgrad"
+    "telegram_channel": "@fw_ba_tomislavgrad",
+    "boundary": "tomislavgrad.geojson",
+    "settlements": "tomislavgrad-settlements.json",
+    "town": {
+      "lat": 43.7169169,
+      "lon": 17.2278277
+    },
+    "town_matched": true,
+    "n_vertices": 1256,
+    "n_settlements": 248
   },
   {
     "osm_relation": 2528276,
@@ -1050,7 +2094,16 @@
     "short_name": "Travnik",
     "name_en": "Travnik municipality",
     "id": "travnik",
-    "telegram_channel": "@fw_ba_travnik"
+    "telegram_channel": "@fw_ba_travnik",
+    "boundary": "travnik.geojson",
+    "settlements": "travnik-settlements.json",
+    "town": {
+      "lat": 44.2259454,
+      "lon": 17.6661738
+    },
+    "town_matched": true,
+    "n_vertices": 1572,
+    "n_settlements": 383
   },
   {
     "osm_relation": 2528277,
@@ -1059,7 +2112,16 @@
     "short_name": "Trebinje",
     "name_en": "City of Trebinje",
     "id": "trebinje",
-    "telegram_channel": "@fw_ba_trebinje"
+    "telegram_channel": "@fw_ba_trebinje",
+    "boundary": "trebinje.geojson",
+    "settlements": "trebinje-settlements.json",
+    "town": {
+      "lat": 42.7115264,
+      "lon": 18.34468
+    },
+    "town_matched": true,
+    "n_vertices": 1695,
+    "n_settlements": 402
   },
   {
     "osm_relation": 2528280,
@@ -1068,7 +2130,16 @@
     "short_name": "Trnovo (FBiH)",
     "name_en": "Trnovo Municipality (FBiH)",
     "id": "trnovo-fbih",
-    "telegram_channel": "@fw_ba_trnovo_fbih"
+    "telegram_channel": "@fw_ba_trnovo_fbih",
+    "boundary": "trnovo-fbih.geojson",
+    "settlements": "trnovo-fbih-settlements.json",
+    "town": {
+      "lat": 43.672248,
+      "lon": 18.4488153
+    },
+    "town_matched": false,
+    "n_vertices": 543,
+    "n_settlements": 290
   },
   {
     "osm_relation": 2568824,
@@ -1077,7 +2148,16 @@
     "short_name": "Trnovo (RS)",
     "name_en": "Trnovo Municipality (RS)",
     "id": "trnovo-rs",
-    "telegram_channel": "@fw_ba_trnovo_rs"
+    "telegram_channel": "@fw_ba_trnovo_rs",
+    "boundary": "trnovo-rs.geojson",
+    "settlements": "trnovo-rs-settlements.json",
+    "town": {
+      "lat": 43.6298127,
+      "lon": 18.4430228
+    },
+    "town_matched": false,
+    "n_vertices": 1431,
+    "n_settlements": 251
   },
   {
     "osm_relation": 2528281,
@@ -1086,7 +2166,16 @@
     "short_name": "Tuzla",
     "name_en": "City of Tuzla",
     "id": "tuzla",
-    "telegram_channel": "@fw_ba_tuzla"
+    "telegram_channel": "@fw_ba_tuzla",
+    "boundary": "tuzla.geojson",
+    "settlements": "tuzla-settlements.json",
+    "town": {
+      "lat": 44.539298,
+      "lon": 18.6749337
+    },
+    "town_matched": true,
+    "n_vertices": 445,
+    "n_settlements": 526
   },
   {
     "osm_relation": 2528282,
@@ -1095,7 +2184,16 @@
     "short_name": "Ugljevik",
     "name_en": "Ugljevik municipality",
     "id": "ugljevik",
-    "telegram_channel": "@fw_ba_ugljevik"
+    "telegram_channel": "@fw_ba_ugljevik",
+    "boundary": "ugljevik.geojson",
+    "settlements": "ugljevik-settlements.json",
+    "town": {
+      "lat": 44.6930533,
+      "lon": 18.9945989
+    },
+    "town_matched": true,
+    "n_vertices": 3475,
+    "n_settlements": 468
   },
   {
     "osm_relation": 2528283,
@@ -1104,7 +2202,16 @@
     "short_name": "Usora",
     "name_en": "Usora Municipality",
     "id": "usora",
-    "telegram_channel": "@fw_ba_usora"
+    "telegram_channel": "@fw_ba_usora",
+    "boundary": "usora.geojson",
+    "settlements": "usora-settlements.json",
+    "town": {
+      "lat": 44.6890659,
+      "lon": 17.9863846
+    },
+    "town_matched": false,
+    "n_vertices": 858,
+    "n_settlements": 512
   },
   {
     "osm_relation": 2528285,
@@ -1113,7 +2220,16 @@
     "short_name": "Vareš",
     "name_en": "Vares municipality",
     "id": "vares",
-    "telegram_channel": "@fw_ba_vares"
+    "telegram_channel": "@fw_ba_vares",
+    "boundary": "vares.geojson",
+    "settlements": "vares-settlements.json",
+    "town": {
+      "lat": 44.1633731,
+      "lon": 18.3285369
+    },
+    "town_matched": true,
+    "n_vertices": 527,
+    "n_settlements": 365
   },
   {
     "osm_relation": 2528286,
@@ -1122,7 +2238,16 @@
     "short_name": "Velika Kladuša",
     "name_en": "Velika Kladuša municipality",
     "id": "velika-kladusa",
-    "telegram_channel": "@fw_ba_velika_kladusa"
+    "telegram_channel": "@fw_ba_velika_kladusa",
+    "boundary": "velika-kladusa.geojson",
+    "settlements": "velika-kladusa-settlements.json",
+    "town": {
+      "lat": 45.1843299,
+      "lon": 15.8069257
+    },
+    "town_matched": true,
+    "n_vertices": 2690,
+    "n_settlements": 742
   },
   {
     "osm_relation": 2528288,
@@ -1131,7 +2256,16 @@
     "short_name": "Visoko",
     "name_en": "",
     "id": "visoko",
-    "telegram_channel": "@fw_ba_visoko"
+    "telegram_channel": "@fw_ba_visoko",
+    "boundary": "visoko.geojson",
+    "settlements": "visoko-settlements.json",
+    "town": {
+      "lat": 43.9894986,
+      "lon": 18.1816434
+    },
+    "town_matched": true,
+    "n_vertices": 549,
+    "n_settlements": 625
   },
   {
     "osm_relation": 2528289,
@@ -1140,7 +2274,16 @@
     "short_name": "Vitez",
     "name_en": "Vitez municipality",
     "id": "vitez",
-    "telegram_channel": "@fw_ba_vitez"
+    "telegram_channel": "@fw_ba_vitez",
+    "boundary": "vitez.geojson",
+    "settlements": "vitez-settlements.json",
+    "town": {
+      "lat": 44.1507747,
+      "lon": 17.7915356
+    },
+    "town_matched": true,
+    "n_vertices": 952,
+    "n_settlements": 454
   },
   {
     "osm_relation": 2528287,
@@ -1149,7 +2292,16 @@
     "short_name": "Višegrad",
     "name_en": "Visegrad municipality",
     "id": "visegrad",
-    "telegram_channel": "@fw_ba_visegrad"
+    "telegram_channel": "@fw_ba_visegrad",
+    "boundary": "visegrad.geojson",
+    "settlements": "visegrad-settlements.json",
+    "town": {
+      "lat": 43.7861605,
+      "lon": 19.293958
+    },
+    "town_matched": true,
+    "n_vertices": 3018,
+    "n_settlements": 561
   },
   {
     "osm_relation": 2528290,
@@ -1158,7 +2310,16 @@
     "short_name": "Vlasenica",
     "name_en": "Vlasenica municipality",
     "id": "vlasenica",
-    "telegram_channel": "@fw_ba_vlasenica"
+    "telegram_channel": "@fw_ba_vlasenica",
+    "boundary": "vlasenica.geojson",
+    "settlements": "vlasenica-settlements.json",
+    "town": {
+      "lat": 44.1821345,
+      "lon": 18.9411618
+    },
+    "town_matched": true,
+    "n_vertices": 834,
+    "n_settlements": 496
   },
   {
     "osm_relation": 2528291,
@@ -1167,7 +2328,16 @@
     "short_name": "Vogošća",
     "name_en": "Vogošća Municipality",
     "id": "vogosca",
-    "telegram_channel": "@fw_ba_vogosca"
+    "telegram_channel": "@fw_ba_vogosca",
+    "boundary": "vogosca.geojson",
+    "settlements": "vogosca-settlements.json",
+    "town": {
+      "lat": 43.9018326,
+      "lon": 18.3432927
+    },
+    "town_matched": true,
+    "n_vertices": 904,
+    "n_settlements": 534
   },
   {
     "osm_relation": 2531450,
@@ -1176,7 +2346,16 @@
     "short_name": "Vukosavlje",
     "name_en": "Vukosavlje municipality",
     "id": "vukosavlje",
-    "telegram_channel": "@fw_ba_vukosavlje"
+    "telegram_channel": "@fw_ba_vukosavlje",
+    "boundary": "vukosavlje.geojson",
+    "settlements": "vukosavlje-settlements.json",
+    "town": {
+      "lat": 45.017313,
+      "lon": 18.2472179
+    },
+    "town_matched": false,
+    "n_vertices": 1737,
+    "n_settlements": 326
   },
   {
     "osm_relation": 2528292,
@@ -1185,7 +2364,16 @@
     "short_name": "Zavidovići",
     "name_en": "Town of Zavidovići",
     "id": "zavidovici",
-    "telegram_channel": "@fw_ba_zavidovici"
+    "telegram_channel": "@fw_ba_zavidovici",
+    "boundary": "zavidovici.geojson",
+    "settlements": "zavidovici-settlements.json",
+    "town": {
+      "lat": 44.4388706,
+      "lon": 18.1458239
+    },
+    "town_matched": true,
+    "n_vertices": 731,
+    "n_settlements": 275
   },
   {
     "osm_relation": 2528293,
@@ -1194,7 +2382,16 @@
     "short_name": "Zenica",
     "name_en": "City of Zenica",
     "id": "zenica",
-    "telegram_channel": "@fw_ba_zenica"
+    "telegram_channel": "@fw_ba_zenica",
+    "boundary": "zenica.geojson",
+    "settlements": "zenica-settlements.json",
+    "town": {
+      "lat": 44.199828,
+      "lon": 17.9093012
+    },
+    "town_matched": true,
+    "n_vertices": 905,
+    "n_settlements": 421
   },
   {
     "osm_relation": 2528296,
@@ -1203,7 +2400,16 @@
     "short_name": "Zvornik",
     "name_en": "City of Zvornik",
     "id": "zvornik",
-    "telegram_channel": "@fw_ba_zvornik"
+    "telegram_channel": "@fw_ba_zvornik",
+    "boundary": "zvornik.geojson",
+    "settlements": "zvornik-settlements.json",
+    "town": {
+      "lat": 44.3854067,
+      "lon": 19.1027717
+    },
+    "town_matched": true,
+    "n_vertices": 2065,
+    "n_settlements": 512
   },
   {
     "osm_relation": 2528175,
@@ -1212,7 +2418,16 @@
     "short_name": "Čajniče",
     "name_en": "Čajniče Municipality",
     "id": "cajnice",
-    "telegram_channel": "@fw_ba_cajnice"
+    "telegram_channel": "@fw_ba_cajnice",
+    "boundary": "cajnice.geojson",
+    "settlements": "cajnice-settlements.json",
+    "town": {
+      "lat": 43.5565653,
+      "lon": 19.0721914
+    },
+    "town_matched": true,
+    "n_vertices": 3863,
+    "n_settlements": 746
   },
   {
     "osm_relation": 2528176,
@@ -1221,7 +2436,16 @@
     "short_name": "Čapljina",
     "name_en": "City of Čapljina",
     "id": "capljina",
-    "telegram_channel": "@fw_ba_capljina"
+    "telegram_channel": "@fw_ba_capljina",
+    "boundary": "capljina.geojson",
+    "settlements": "capljina-settlements.json",
+    "town": {
+      "lat": 43.1133536,
+      "lon": 17.705039
+    },
+    "town_matched": true,
+    "n_vertices": 1269,
+    "n_settlements": 576
   },
   {
     "osm_relation": 2528179,
@@ -1230,7 +2454,16 @@
     "short_name": "Čelinac",
     "name_en": "Celinac municipality",
     "id": "celinac",
-    "telegram_channel": "@fw_ba_celinac"
+    "telegram_channel": "@fw_ba_celinac",
+    "boundary": "celinac.geojson",
+    "settlements": "celinac-settlements.json",
+    "town": {
+      "lat": 44.7241731,
+      "lon": 17.319359
+    },
+    "town_matched": true,
+    "n_vertices": 9064,
+    "n_settlements": 371
   },
   {
     "osm_relation": 2528178,
@@ -1239,7 +2472,16 @@
     "short_name": "Čelić",
     "name_en": "Celic municipality",
     "id": "celic",
-    "telegram_channel": "@fw_ba_celic"
+    "telegram_channel": "@fw_ba_celic",
+    "boundary": "celic.geojson",
+    "settlements": "celic-settlements.json",
+    "town": {
+      "lat": 44.722508,
+      "lon": 18.8200011
+    },
+    "town_matched": true,
+    "n_vertices": 1255,
+    "n_settlements": 570
   },
   {
     "osm_relation": 2528181,
@@ -1248,7 +2490,16 @@
     "short_name": "Čitluk",
     "name_en": "Čitluk municipality",
     "id": "citluk",
-    "telegram_channel": "@fw_ba_citluk"
+    "telegram_channel": "@fw_ba_citluk",
+    "boundary": "citluk.geojson",
+    "settlements": "citluk-settlements.json",
+    "town": {
+      "lat": 43.2267192,
+      "lon": 17.6963313
+    },
+    "town_matched": true,
+    "n_vertices": 819,
+    "n_settlements": 639
   },
   {
     "osm_relation": 2528169,
@@ -1257,7 +2508,16 @@
     "short_name": "Šamac",
     "name_en": "Šamac Municipality",
     "id": "samac",
-    "telegram_channel": "@fw_ba_samac"
+    "telegram_channel": "@fw_ba_samac",
+    "boundary": "samac.geojson",
+    "settlements": "samac-settlements.json",
+    "town": {
+      "lat": 45.0606892,
+      "lon": 18.4693465
+    },
+    "town_matched": true,
+    "n_vertices": 3434,
+    "n_settlements": 313
   },
   {
     "osm_relation": 2528263,
@@ -1266,7 +2526,16 @@
     "short_name": "Šekovići",
     "name_en": "Sekovici municipality",
     "id": "sekovici",
-    "telegram_channel": "@fw_ba_sekovici"
+    "telegram_channel": "@fw_ba_sekovici",
+    "boundary": "sekovici.geojson",
+    "settlements": "sekovici-settlements.json",
+    "town": {
+      "lat": 44.2978089,
+      "lon": 18.8523779
+    },
+    "town_matched": true,
+    "n_vertices": 687,
+    "n_settlements": 510
   },
   {
     "osm_relation": 2528264,
@@ -1275,7 +2544,16 @@
     "short_name": "Šipovo",
     "name_en": "Sipovo municipality",
     "id": "sipovo",
-    "telegram_channel": "@fw_ba_sipovo"
+    "telegram_channel": "@fw_ba_sipovo",
+    "boundary": "sipovo.geojson",
+    "settlements": "sipovo-settlements.json",
+    "town": {
+      "lat": 44.2809431,
+      "lon": 17.0853048
+    },
+    "town_matched": true,
+    "n_vertices": 35,
+    "n_settlements": 282
   },
   {
     "osm_relation": 2528265,
@@ -1284,7 +2562,16 @@
     "short_name": "Široki Brijeg",
     "name_en": "City of Široki Brijeg",
     "id": "siroki-brijeg",
-    "telegram_channel": "@fw_ba_siroki_brijeg"
+    "telegram_channel": "@fw_ba_siroki_brijeg",
+    "boundary": "siroki-brijeg.geojson",
+    "settlements": "siroki-brijeg-settlements.json",
+    "town": {
+      "lat": 43.3831944,
+      "lon": 17.5929153
+    },
+    "town_matched": true,
+    "n_vertices": 1371,
+    "n_settlements": 501
   },
   {
     "osm_relation": 2528294,
@@ -1293,7 +2580,16 @@
     "short_name": "Žepče",
     "name_en": "Zepce municipality",
     "id": "zepce",
-    "telegram_channel": "@fw_ba_zepce"
+    "telegram_channel": "@fw_ba_zepce",
+    "boundary": "zepce.geojson",
+    "settlements": "zepce-settlements.json",
+    "town": {
+      "lat": 44.4242172,
+      "lon": 18.0375597
+    },
+    "town_matched": true,
+    "n_vertices": 1732,
+    "n_settlements": 318
   },
   {
     "osm_relation": 2528295,
@@ -1302,6 +2598,15 @@
     "short_name": "Živinice",
     "name_en": "Town of Živinice",
     "id": "zivinice",
-    "telegram_channel": "@fw_ba_zivinice"
+    "telegram_channel": "@fw_ba_zivinice",
+    "boundary": "zivinice.geojson",
+    "settlements": "zivinice-settlements.json",
+    "town": {
+      "lat": 44.451574,
+      "lon": 18.6501306
+    },
+    "town_matched": true,
+    "n_vertices": 364,
+    "n_settlements": 446
   }
 ]
