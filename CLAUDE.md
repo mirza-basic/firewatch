@@ -529,16 +529,29 @@ cycle, not a dead one.
 
 ## Landmine: IPv6 without a route
 
-`FIREWATCH_FORCE_IPV4=1` makes urllib3 resolve A records only. Of the four hosts
-this talks to, **only `firms.modaps.eosdis.nasa.gov` publishes an AAAA record** -
-`view.eumetsat.int` (MTG and Sentinel-3) and `api.open-meteo.com` are IPv4-only. So
-on a network with no IPv6 egress, FIRMS is the *only* feed that breaks, with
-`[Errno 101] Network is unreachable` after ~90 s of retries per dataset, while
-everything else looks healthy. GitHub Actions runners are exactly that network.
+`FIREWATCH_FORCE_IPV4=1` makes urllib3 resolve A records only - `config.force_ipv4()`,
+called from every module that makes an outbound request (`sources._session()`,
+`sms.send()`, `telegram._post()`), not just the WFS/FIRMS sources it started as. Of
+the hosts FireWatch talks to, `firms.modaps.eosdis.nasa.gov`, `api.telegram.org` and
+`api.httpsms.com` (via its `ghs.googlehosted.com` CNAME) all publish AAAA records -
+`view.eumetsat.int` (MTG and Sentinel-3) and `api.open-meteo.com` are IPv4-only. So on
+a network with no IPv6 egress, FIRMS, SMS and Telegram are the ones that break, with
+`[Errno 101] Network is unreachable` after retries, while everything else looks
+healthy. GitHub Actions runners are exactly that network.
 
 It is opt-in on purpose: a working dual-stack network handles the fallback itself,
-and forcing IPv4 would break an IPv6-only host. The failure is easy to misread as a
-FIRMS outage or a bad key, so check `dig AAAA` before believing either.
+and forcing IPv4 would break an IPv6-only host. The failure is easy to misread as an
+outage or a bad key, so check `dig AAAA` before believing either.
+
+**The SMS half of this was broken from the day `test-sms.yml` was written.** That
+workflow has set `FIREWATCH_FORCE_IPV4` since it started, on the correct belief that
+`api.httpsms.com` needed it - but the function that makes the variable do anything
+lived only inside `sources._session()`, which `sms.send()` never called. The
+variable was set, read, and had no effect; a test-sms run on a runner with no IPv6
+route would have failed with the Errno 101 the variable exists to prevent. Moving
+the function to `config.py` and calling it from `sms.send()` and `telegram._post()`
+directly - rather than only from the one module that happened to need it first -
+is what actually closes this for both.
 
 ## Running on a Linux host
 
@@ -733,8 +746,9 @@ holds the whole production deployment, and it is the one described in
 `docs/firewatch-fork.html`.
 
 ```
-poll.yml     the cycle: fetch → cluster → alert → render → publish
-test-sms.yml manual SMS delivery check; previews by default, sending is a checkbox
+poll.yml          the cycle: fetch → cluster → alert → render → publish
+test-sms.yml      manual SMS delivery check; previews by default, sending is a checkbox
+test-telegram.yml manual Telegram delivery check; same shape as test-sms.yml
 ```
 
 Four facts drive everything about it:
