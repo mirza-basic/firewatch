@@ -1,13 +1,17 @@
 """Fire danger forecast: the Canadian Forest Fire Weather Index (FWI) System,
-computed once (twice, around local noon) a day for a single point.
+computed once (twice, around local noon) a day, independently for each of BiH's
+145 municipalities.
 
 This exists because EFFIS/GWIS - the free, official European fire-danger product -
-only reaches ~8-10 km resolution and, measured against this municipality, has a
-publication gap around "today" (querying its WMS for the current date returned an
-empty 200 response on two separate days, while yesterday and the forecast days on
-either side had real data). Both problems disappear by computing the same public,
-standard algorithm ourselves, anchored exactly at this municipality's centroid,
-from a weather feed with no such gap.
+only reaches ~8-10 km resolution and, measured against this deployment's original
+single municipality, has a publication gap around "today" (querying its WMS for
+the current date returned an empty 200 response on two separate days, while
+yesterday and the forecast days on either side had real data). Both problems
+disappear by computing the same public, standard algorithm ourselves, anchored at
+each municipality's own centroid, from a weather feed with no such gap - one point
+per municipality rather than one for the whole country, which is what keeps this
+at roughly EFFIS's own per-area resolution instead of averaging over an area far
+too large for one number to mean anything.
 
 The six formulas below (fine_fuel_moisture_code, duff_moisture_code, drought_code,
 initial_spread_index, buildup_index, fire_weather_index) are a line-for-line port
@@ -29,23 +33,23 @@ References:
 Day length adjustment tables (Le for DMC, Lf for DC) are latitude-banded, not
 Canada-specific - the ">=30N" band all of Bosnia and Herzegovina falls in is also
 what EFFIS itself applies across Mediterranean and Central Europe, since that
-latitude range is
-close enough to southern Canada's for the same tables to hold. Keeping every band
-(not just the one this municipality needs) is what lets this module work unmodified
-if `geo.forecast_point()` ever names a point at a different latitude - a fork onto
-another region, in particular.
+latitude range is close enough to southern Canada's for the same tables to hold.
+Keeping every band (not just the one this country's municipalities need) is what
+lets this module work unmodified if a municipality's own forecast point (or a
+fork's, at another region entirely) ever falls at a different latitude.
 """
 from __future__ import annotations
 
 import json
 import logging
 import math
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
 
-from . import geo, store
+from . import geo_bih, store
 from .config import CFG
 from .store import iso, utcnow
 
@@ -288,9 +292,25 @@ def _fetch_daily(lat: float, lon: float, forecast_days: int) -> dict[str, dict]:
 
 
 # ------------------------------------------------------------------------ update
+# One gate and one payload per municipality, not one pair for the whole
+# deployment - each of the 145 recomputes (or skips) independently, so a fetch
+# failure for one does not touch the other 144, and a fork with only some
+# municipalities set up loses nothing for the rest.
 
-_GATE_KEY = "fwi_gate"
-_PAYLOAD_KEY = "fwi_payload"
+# Politeness towards a free, keyless API being asked up to 145 times in a row
+# (from update_all()), not a documented requirement of it - Open-Meteo
+# publishes no rate limit for this endpoint. 145 requests at this pace is
+# under a minute in total, and it is only ever charged per real request (see
+# update_one()'s finally below), not per municipality checked.
+_FETCH_DELAY_S = 0.3
+
+
+def _gate_key(municipality_id: str) -> str:
+    return f"fwi_gate:{municipality_id}"
+
+
+def _payload_key(municipality_id: str) -> str:
+    return f"fwi_payload:{municipality_id}"
 
 
 def _load_json_meta(con, key: str):
@@ -303,18 +323,21 @@ def _load_json_meta(con, key: str):
         return None
 
 
-def update(con, force: bool = False) -> dict | None:
-    """Recompute today's fire danger (and the short forecast) if due.
+def update_one(con, municipality_id: str, lat: float, lon: float,
+              force: bool = False) -> dict | None:
+    """Recompute today's fire danger (and the short forecast) for one
+    municipality, if due.
 
     `force` bypasses the once/twice-a-day gate - only the CLI's `fire-danger
     --force` uses it, for checking the module against a live fetch on demand.
 
-    Runs at most twice a day - once for whichever cycle first runs after local
-    midnight (today's entry is then built from forecast noon values), and once
-    more for the first cycle after local noon (today's entry is rebuilt from the
-    now-actual noon observation, per Open-Meteo's own `past_days` window). Every
-    other cycle returns the cached payload with no network call at all, the same
-    shape as imagery.refresh()'s scene-date gate.
+    Runs at most twice a day per municipality - once for whichever cycle
+    first runs after local midnight (today's entry is then built from
+    forecast noon values), and once more for the first cycle after local noon
+    (today's entry is rebuilt from the now-actual noon observation, per
+    Open-Meteo's own `past_days` window). Every other cycle returns the
+    cached payload with no network call at all, the same shape as
+    imagery.refresh()'s scene-date gate.
 
     Deliberately stateless across days: rather than persisting yesterday's codes
     and bridging forward (which needs separate cold-start and gap-repair paths),
@@ -325,15 +348,13 @@ def update(con, force: bool = False) -> dict | None:
     guess, so a day the poller was not running for needs no special case: there
     is no stored state for it to have gone stale.
     """
-    if not CFG.get("fire_danger_enabled", True):
-        return None
-    lat, lon = geo.forecast_point()
     now = datetime.now(ZoneInfo(TIMEZONE))
     today = now.date().isoformat()
     noon_passed = now.hour >= 12
 
-    gate = _load_json_meta(con, _GATE_KEY)
-    cached = _load_json_meta(con, _PAYLOAD_KEY)
+    gate_key, payload_key = _gate_key(municipality_id), _payload_key(municipality_id)
+    gate = _load_json_meta(con, gate_key)
+    cached = _load_json_meta(con, payload_key)
     if not force and gate and gate.get("date") == today \
             and (gate.get("noon_passed") or not noon_passed):
         return cached
@@ -341,13 +362,21 @@ def update(con, force: bool = False) -> dict | None:
     try:
         daily = _fetch_daily(lat, lon, int(CFG["fire_danger_forecast_days"]))
     except Exception as exc:
-        log.warning("fire danger fetch failed: %s", exc)
+        log.warning("fire danger fetch failed for %s: %s", municipality_id, exc)
         return cached
+    finally:
+        # Politeness towards a free, keyless API being asked up to 145 times
+        # in a row (from update_all()), not a documented requirement of it -
+        # Open-Meteo publishes no rate limit for this endpoint. Only charged
+        # when a request actually went out, so a routine cycle - where the
+        # gate above skips all 145 - costs nothing here.
+        time.sleep(_FETCH_DELAY_S)
 
     dates = sorted(daily)
     if today not in dates:
-        log.warning("fire danger: %s not in the fetched window (%s..%s)", today,
-                    dates[0] if dates else "?", dates[-1] if dates else "?")
+        log.warning("fire danger: %s not in %s's fetched window (%s..%s)", today,
+                    municipality_id, dates[0] if dates else "?",
+                    dates[-1] if dates else "?")
         return cached
 
     codes = {"ffmc": FFMC0, "dmc": DMC0, "dc": DC0}
@@ -367,6 +396,26 @@ def update(con, force: bool = False) -> dict | None:
         "forecast": future,
         "updated_at": iso(utcnow()),
     }
-    store.set_meta(con, _GATE_KEY, json.dumps({"date": today, "noon_passed": noon_passed}))
-    store.set_meta(con, _PAYLOAD_KEY, json.dumps(payload, ensure_ascii=False))
+    store.set_meta(con, gate_key, json.dumps({"date": today, "noon_passed": noon_passed}))
+    store.set_meta(con, payload_key, json.dumps(payload, ensure_ascii=False))
     return payload
+
+
+def update_all(con, force: bool = False) -> dict[str, dict]:
+    """update_one() for every one of BiH's 145 municipalities.
+
+    One HTTP call per municipality that is actually due (most cycles, none
+    are - see update_one()'s gate), so a routine cycle costs nothing here and
+    the twice-daily real run costs at most 145 short requests, not one. A
+    fetch failure for one municipality is logged and skipped, same as any
+    other per-source failure in this project - the other 144 are unaffected.
+    """
+    out: dict[str, dict] = {}
+    if not CFG.get("fire_danger_enabled", True):
+        return out
+    for m in geo_bih.municipalities():
+        lat, lon = m.forecast_point
+        payload = update_one(con, m.id, lat, lon, force=force)
+        if payload:
+            out[m.id] = payload
+    return out

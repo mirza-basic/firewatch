@@ -159,13 +159,14 @@ class Poller:
             s2 = imagery.refresh(con)
 
             # Same "cheap to check, rare to actually do work" shape: gated inside
-            # to at most twice a day, so calling it every cycle costs nothing on
-            # the ~140 cycles that are not one of those two.
+            # per municipality to at most twice a day each, so calling it every
+            # cycle costs nothing on the ~140 cycles that are not one of those
+            # two. dict, not one payload - see firedanger.update_all().
             try:
-                fire_danger = firedanger.update(con)
+                fire_danger = firedanger.update_all(con)
             except Exception:
                 log.exception("fire danger update failed")
-                fire_danger = None
+                fire_danger = {}
 
             alerts = events.diff(previous, current)
             store.save_events(con, current)
@@ -232,9 +233,11 @@ class Poller:
                 # rather than drawing an empty rectangle, exactly as it does for
                 # a missing buffer band.
                 "imagery": s2,
-                # None when disabled, or before the first successful computation -
-                # the map's fire-danger panel omits itself rather than showing a
-                # stale or fabricated reading.
+                # Keyed by municipality id, one entry per municipality that has
+                # actually computed at least once - empty when disabled, or
+                # before the first successful computation. A municipality
+                # missing from this dict gets no fire-danger reading in its
+                # popup rather than a stale or fabricated one.
                 "fire_danger": fire_danger,
                 # None unless a public channel is actually configured - see
                 # _telegram_channel_url().
@@ -342,7 +345,7 @@ def _empty_snapshot() -> dict:
             "source_status": {}, "window_hours": CFG["window_hours"],
             "buffer_km": CFG["nearby_buffer_km"], "n_detections": 0,
             "alerts_sent": [], "notify_backend": notify.backend(),
-            "imagery": None, "fire_danger": None, "telegram_url": None}
+            "imagery": None, "fire_danger": {}, "telegram_url": None}
 
 
 def load_snapshot() -> dict:

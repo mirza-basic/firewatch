@@ -42,7 +42,7 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class Municipality:
-    __slots__ = ("id", "short_name", "rings", "bbox")
+    __slots__ = ("id", "short_name", "rings", "bbox", "forecast_point")
 
     def __init__(self, id_: str, short_name: str,
                 rings: tuple[tuple[tuple[float, float], ...], ...]):
@@ -52,6 +52,12 @@ class Municipality:
         lons = [x for ring in rings for x, _ in ring]
         lats = [y for ring in rings for _, y in ring]
         self.bbox = (min(lons), min(lats), max(lons), max(lats))
+        # Vertex-mean, same approximation geo.forecast_point() uses for the
+        # single-boundary case (fine at this scale - see its docstring) - one
+        # point per municipality for firedanger.py, replacing the one point
+        # for the whole country that stood in before per-municipality FWI
+        # existed.
+        self.forecast_point = (sum(lats) / len(lats), sum(lons) / len(lons))
 
     def bbox_contains(self, lat: float, lon: float) -> bool:
         min_lon, min_lat, max_lon, max_lat = self.bbox
@@ -85,6 +91,11 @@ class Municipality:
 
     def distance_to_boundary_km(self, lat: float, lon: float) -> float:
         return min(_haversine_km(lat, lon, y, x) for ring in self.rings for x, y in ring)
+
+
+@lru_cache(maxsize=1)
+def by_id() -> dict[str, Municipality]:
+    return {m.id: m for m in municipalities()}
 
 
 @lru_cache(maxsize=1)

@@ -154,10 +154,7 @@ TEMPLATE = r"""<!doctype html>
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
   .legend.open .legend-body{display:block}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-  /* Fire-danger panel reuses the .legend/.legend-toggle/.legend-body shell above -
-     same collapse behaviour at every width, same look - and adds only its own rows. */
-  .fwiPanel{margin-top:8px}
-  .fwi-badge{font-weight:600;color:var(--fg)}
+  /* Fire-danger detail inside a municipality's popup - see fwiDetail() in mapgen.py. */
   .fwi-row{display:flex;justify-content:space-between;gap:14px}
   .fwi-row+.fwi-row{margin-top:1px}
   .fwi-codes,.fwi-note{opacity:.65;margin-top:6px;font-size:10.5px;line-height:1.5}
@@ -169,6 +166,12 @@ TEMPLATE = r"""<!doctype html>
   .imgnote s{color:#f0a35e;text-decoration:none}
   .leaflet-bottom.leaflet-right,
   .leaflet-bottom.leaflet-left{margin-bottom:94px}
+  /* Leaflet's own popup pane is z-index 700 - comfortably below this page's own
+     fixed UI (langsw at 1250, the mobile drawer at 1300), so a municipality
+     popup near the top of the visible map could in principle end up under one
+     of them. Guaranteed on top of all of it instead, since a popup a reader
+     just opened should never be the thing something else covers. */
+  .leaflet-popup-pane{z-index:1400}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
   .leaflet-popup-tip{background:var(--panel)}
   .leaflet-popup-content{margin:11px 13px;font-size:12.5px}
@@ -866,8 +869,11 @@ map.on("overlayremove", e => {
 // geometry, not the stale config value that came with the data.
 const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
   || DATA.buffer_km || 6;
-const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
-  opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
+// interactive:false for the same reason as bLayer below: no popup/tooltip of
+// its own, so it should never be what a click hits instead of a municipality
+// shape.
+const bandLayer = BUFFER ? L.geoJSON(BUFFER,{interactive:false,style:{color:"#7cc4ff",
+  weight:1.1,opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
 // Canvas, not the default SVG renderer: 145 boundaries is ~330k vertices
 // combined, and SVG means one DOM path per feature - fine for the single
 // municipality BOUNDARY already draws, not for two orders of magnitude more.
@@ -875,11 +881,21 @@ const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
 // bandLayer is faint: 145 of these at full strength would be visual noise,
 // and Sarajevo/Istocno Sarajevo's deliberately overlapping shapes would
 // otherwise read as a rendering bug rather than the real, documented overlap.
+// A function, not a fixed string, so re-opening a popup after applyData() has
+// swapped in a fresh DATA object shows this cycle's fire-danger reading, not
+// whatever was current when the popup was first bound - the boundaries
+// themselves never change, but fwiDetail()'s source does, every cycle.
+function muniPopupHtml(f){
+  return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}`;
+}
 const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
     && BIH_MUNICIPALITIES.features.length)
   ? L.geoJSON(BIH_MUNICIPALITIES,{renderer:L.canvas({padding:0.5}),
       style:{color:"#9fb3c8",weight:1,opacity:.6,fillColor:"#9fb3c8",fillOpacity:.02},
-      onEachFeature:(f,lyr)=>lyr.bindTooltip(f.properties.name,{sticky:true})})
+      onEachFeature:(f,lyr)=>{
+        lyr.bindTooltip(f.properties.name,{sticky:true});
+        lyr.bindPopup(() => muniPopupHtml(f), {maxWidth:260});
+      }})
     .addTo(map)
   : null;
 // A separate object each time: L.control.layers keeps a reference, so reusing one
@@ -906,8 +922,13 @@ let layersCtl = L.control.layers(
 
 // Brighter and slightly heavier than it needed to be on the pale street map -
 // a mid-blue hairline disappears against dark forest imagery.
-const bLayer = L.geoJSON(BOUNDARY,{style:{color:"#7cc4ff",weight:2.4,opacity:.95,
-  fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
+// interactive:false is load-bearing, not decorative: this is one shape
+// covering the whole country's fill area, added after (so stacked above)
+// muniLayer's 145 smaller ones - without this, every click anywhere in Bosnia
+// hits this layer's own (popup-less) hit area first and never reaches the
+// municipality shape underneath it.
+const bLayer = L.geoJSON(BOUNDARY,{interactive:false,style:{color:"#7cc4ff",weight:2.4,
+  opacity:.95,fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
 map.fitBounds(bLayer.getBounds(),{padding:[24,24]});
 
 // Jump straight to what is burning - at municipality zoom a single fire is a
@@ -980,55 +1001,30 @@ legend.onAdd = () => {
 legend.addTo(map);
 expandablePanels.push(legend);
 
-// ---- fire danger panel ------------------------------------------------------
-// A single-point weather-derived index, not a spatial layer - see the module
-// notes in firedanger.py for why this is not a map overlay. Added after legend
-// so it stacks above it in the bottom-right corner. Content is patched in place
-// by fwiUpdate() (called from applyData() and applyStaticLabels()), the same
-// shape as the measure tool's mPanelUpdate() - not removed/re-added like the
-// language-dependent controls, since this one also changes on every poll.
+// ---- fire danger -------------------------------------------------------------
+// One weather-derived index per municipality now, not one for the whole
+// country - see firedanger.py's module docstring - so there is no longer one
+// single reading a corner badge could show. Each municipality's own today
+// class/FWI is shown in its popup instead (muniPopupHtml(), on the
+// municipality overlay built above) - see fwiDetail() below for the shared
+// formatting both that popup and the CLI's `fire-danger <id>` conceptually
+// mirror.
 const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
   very_high:"fwVeryHigh", extreme:"fwExtreme", very_extreme:"fwVeryExtreme"};
-const fwiCtl = L.control({position:"bottomright"});
-fwiCtl.onAdd = () => {
-  const d = L.DomUtil.create("div", "legend fwiPanel");
-  d.innerHTML = `<div class="legend-body"></div>` +
-    `<button class="legend-toggle" type="button" aria-expanded="false"></button>`;
-  L.DomEvent.disableClickPropagation(d);
-  L.DomEvent.disableScrollPropagation(d);
-  fwiCtl._el = d;
-  d.querySelector(".legend-toggle").addEventListener("click", () => togglePanel(fwiCtl));
-  // Not called here: onAdd runs synchronously from fwiCtl.addTo(map) below, which
-  // is well before monName/ago are assigned further down this script - calling
-  // it this early would hit each of those consts in its temporal dead zone.
-  // applyStaticLabels() and applyData() call it once everything is defined.
-  return d;
-};
-fwiCtl.addTo(map);
-expandablePanels.push(fwiCtl);
-// Clicking the map itself - not a control, which already stops the click here
-// via disableClickPropagation above - collapses whichever panel is open, the
-// same "click elsewhere to dismiss" convention as a popup.
+// Clicking the map itself collapses whichever panel is open (the legend, or a
+// municipality popup Leaflet already handles this way) - the same "click
+// elsewhere to dismiss" convention throughout this page.
 map.on("click", closeExpandablePanels);
 
-function fwiUpdate(){
-  const el = fwiCtl._el;
-  if(!el) return;
-  const fd = DATA.fire_danger;
-  // Nothing computed yet (feature disabled, or the first cycle hasn't run) -
-  // omit the panel entirely rather than show a placeholder or a stale guess.
-  if(!fd || !fd.today){ el.style.display = "none"; return; }
-  el.style.display = "";
+function fwiDetail(mid){
+  const fd = (DATA.fire_danger || {})[mid];
+  // Nothing computed yet for this one (feature disabled, this municipality's
+  // channel/data not set up yet, or the first cycle hasn't run) - omit the
+  // section entirely rather than show a placeholder or a fabricated reading.
+  if(!fd || !fd.today) return "";
   const today = fd.today;
   const clsLabel = e => t(FWI_CLASS_I18N[e.class] || "fwLow");
   const swatch = c => `<i style="background:${c}"></i>`;
-  const badge = `${swatch(today.color)}<span class="fwi-badge">` +
-    `${t("fwBadge", {cls: clsLabel(today)})}</span>`;
-  // Collapsed state shows the same full phrase as the body's headline - the
-  // toggle button wraps rather than truncating (see .legend-toggle's max-width),
-  // so there is no narrow-screen reason to shorten it here.
-  el.querySelector(".legend-toggle").innerHTML = badge;
-
   const rows = [today, ...(fd.forecast || [])].map(e => {
     const [, mo, da] = e.date.split("-");
     const label = e.date === today.date ? t("fwToday")
@@ -1037,10 +1033,9 @@ function fwiUpdate(){
       `${swatch(e.color)}${clsLabel(e)} <span style="opacity:.6">` +
       `(${e.fwi.toFixed(1)})</span></span></div>`;
   }).join("");
-
   const mins = (Date.now() - new Date(fd.updated_at).getTime()) / 60000;
-  el.querySelector(".legend-body").innerHTML =
-    `<b style="color:#e6edf3">${t("fwTitle")}</b><br>${badge}` +
+  return `<hr><b style="color:#e6edf3">${t("fwTitle")}</b><br>` +
+    `${swatch(today.color)}${t("fwBadge", {cls: clsLabel(today)})}` +
     `<div style="margin-top:6px">${rows}</div>` +
     `<div class="fwi-codes">FFMC ${today.ffmc} · DMC ${today.dmc} · DC ${today.dc}</div>` +
     `<div class="fwi-note">${t("fwNote")}</div>` +
@@ -2007,7 +2002,7 @@ function applyStaticLabels(){
   unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
     b.classList.toggle("on", b.dataset.l === LANG));
-  mLabels(); mPanelUpdate(); fwiUpdate();
+  mLabels(); mPanelUpdate();
 }
 
 function rebuildControls(){
@@ -2079,7 +2074,7 @@ function applyData(d){
   if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
   const wasOpen = popupOpenId;
   recompute();
-  renderRange(); renderHeader(); drawEvents(); renderList(); fwiUpdate();
+  renderRange(); renderHeader(); drawEvents(); renderList();
   setSliderTime(at);
   drawDets(sliderTime());
   if(wasOpen && markersOn && markerById[wasOpen]){

@@ -314,32 +314,52 @@ def cmd_imagery(force: bool = False) -> int:
     return 0
 
 
-def cmd_fire_danger(force: bool = False) -> int:
-    """Today's + short-term Canadian FWI, computed at geo.forecast_point()."""
-    from . import firedanger, geo
+def cmd_fire_danger(municipality_id: str | None = None, force: bool = False) -> int:
+    """Today's + short-term Canadian FWI - one municipality's full detail if
+    named, otherwise today's class for all 145 (one per municipality, not one
+    for the whole country - see firedanger.py's module docstring)."""
+    from . import firedanger, geo_bih
 
     if not CFG.get("fire_danger_enabled", True):
         print("  fire_danger_enabled is off in config.json")
         return 1
-    lat, lon = geo.forecast_point()
-    print(f"\n  forecast point: {lat:.4f}, {lon:.4f}  (municipality centroid)")
     con = store.connect()
     try:
-        payload = firedanger.update(con, force=force)
+        if municipality_id:
+            m = geo_bih.by_id().get(municipality_id)
+            if not m:
+                print(f"\n  unknown municipality id {municipality_id!r}\n")
+                return 1
+            lat, lon = m.forecast_point
+            print(f"\n  {m.short_name} ({m.id}) - forecast point: {lat:.4f}, {lon:.4f}")
+            payload = firedanger.update_one(con, m.id, lat, lon, force=force)
+            if not payload:
+                print("  no data (fetch failed and nothing cached yet - see the log)")
+                return 1
+            t = payload["today"]
+            print(f"  today ({t['date']}): FWI {t['fwi']}  [{t['class']}]")
+            print(f"    FFMC {t['ffmc']}  DMC {t['dmc']}  DC {t['dc']}"
+                  f"  ISI {t['isi']}  BUI {t['bui']}")
+            if payload["forecast"]:
+                print("  forecast:")
+                for e in payload["forecast"]:
+                    print(f"    {e['date']}: FWI {e['fwi']:>5}  [{e['class']}]")
+            print(f"  updated: {payload['updated_at']}\n")
+            return 0
+
+        print(f"\n  updating all 145 municipalities"
+              f"{' (forced)' if force else ''} - this can take a minute...\n")
+        results = firedanger.update_all(con, force=force)
     finally:
         con.close()
-    if not payload:
-        print("  no data (fetch failed and nothing cached yet - see the log)")
+    if not results:
+        print("  no data (every fetch failed and nothing cached yet - see the log)\n")
         return 1
-    t = payload["today"]
-    print(f"  today ({t['date']}): FWI {t['fwi']}  [{t['class']}]")
-    print(f"    FFMC {t['ffmc']}  DMC {t['dmc']}  DC {t['dc']}"
-          f"  ISI {t['isi']}  BUI {t['bui']}")
-    if payload["forecast"]:
-        print("  forecast:")
-        for e in payload["forecast"]:
-            print(f"    {e['date']}: FWI {e['fwi']:>5}  [{e['class']}]")
-    print(f"  updated: {payload['updated_at']}\n")
+    for mid, payload in sorted(results.items()):
+        t = payload["today"]
+        print(f"  {mid:22s} FWI {t['fwi']:>5}  [{t['class']}]")
+    print(f"\n  {len(results)}/145 municipalities. "
+          f"pass a municipality id for full detail on one.\n")
     return 0
 
 
@@ -771,7 +791,8 @@ def main(argv: list[str]) -> int:
     if cmd == "imagery":
         return cmd_imagery(force="--force" in argv)
     if cmd in ("fire-danger", "firedanger"):
-        return cmd_fire_danger(force="--force" in argv)
+        mid = next((a for a in argv[1:] if not a.startswith("--")), None)
+        return cmd_fire_danger(mid, force="--force" in argv)
     if cmd in ("set-firms-key", "setfirmskey"):
         return cmd_set_firms_key()
     if cmd == "quota":
