@@ -58,7 +58,7 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
     n_act = sum(1 for e in evs if e["status"] == "active")
     n_det = sum(len(e.get("series", [])) for e in evs)
 
-    print(f"\nFireWatch Zavidovići · {snap.get('generated_at')}")
+    print(f"\nFireWatch Bosna i Hercegovina · {snap.get('generated_at')}")
     print(f"  Range: {label}  (since {snap.get('range_cutoffs', {}).get(rng, '?')})")
     print(f"  {n_act} active · {len(evs)} in range · {n_det} detections")
     counts = snap.get("range_counts", {})
@@ -79,8 +79,8 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
         icon = "🔥" if e["status"] == "active" else "💤"
         print(f"\n  {icon} {e['severity'].upper():8s} {e['place']}")
         print(f"     {e['lat']:.5f}, {e['lon']:.5f}  "
-              f"({e['dist_town_km']} km {e['dir_town']} of town)"
-              f"{'' if e['inside'] else '  [outside municipality]'}")
+              f"({', '.join(e.get('municipalities') or [])})"
+              f"{'' if e['inside'] else '  [outside Bosnia and Herzegovina]'}")
         peak = f"{e['max_frp']:.1f}" if e.get("max_frp") is not None else "n/a"
         last = f"{e['latest_frp']:.1f}" if e.get("latest_frp") is not None else "n/a"
         shown = len(e.get("series", []))
@@ -363,7 +363,7 @@ def cmd_history(n: int = 40) -> int:
 
 def cmd_test_notify() -> int:
     ok = notify.send("🔥 FireWatch test", "Notifications are working",
-                     subtitle="Grad Zavidovići", sound=CFG["sound_update"])
+                     subtitle="Bosna i Hercegovina", sound=CFG["sound_update"])
     print(f"backend={notify.backend()} delivered={ok}")
     return 0 if ok else 1
 

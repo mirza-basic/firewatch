@@ -1,17 +1,21 @@
-"""Telegram alerts, broadcast to one public channel (https://core.telegram.org/bots/api).
+"""Telegram alerts, one channel per municipality (https://core.telegram.org/bots/api).
 
-A single public channel (@firewatchzavidovici) rather than a managed list of
-individual chat ids: anyone subscribes from the channel's public link, with no
-per-person onboarding and no `getUpdates` lookup to find their chat id - the
-cost a chat-id-per-recipient design would carry. A bot posts to a channel the
-same way it posts to a private chat, as long as it has been added as an
-administrator of it:
+145 private channels (see the "too many public channels" account cap this
+project's provisioning history hit, and the invite-link-only design that came
+out of it), one per municipality - not one channel for the whole deployment,
+the shape this module started as when it covered Zavidovici alone. Whichever
+municipality (or two, for a fire inside Sarajevo or Istocno Sarajevo) an
+event's location matched is what decides who gets posted to - see
+events.build_events()'s "municipalities" field and channel_for(). A bot posts
+to a channel the same way it posts to a private chat, as long as it has been
+added as an administrator of it:
 
     POST https://api.telegram.org/bot<token>/sendMessage
-    {"chat_id": "@firewatchzavidovici", "text": "…"}
+    {"chat_id": "-1004423431890", "text": "…"}
 
-There is exactly one recipient (the channel itself), so unlike sms.py there is
-no fan-out and no bulk endpoint to reach for.
+send_alert() fans out to every matched municipality independently - unlike
+sms.py's single recipient list, this is a real per-target loop, and one
+channel failing or being unconfigured never blocks another.
 
 Telegram is UTF-8 end to end and the limit is 4096 characters per message, so
 none of sms.py's reasons to exist apply here:
@@ -19,9 +23,9 @@ none of sms.py's reasons to exist apply here:
 * No GSM-7/UCS-2 split - Bosnian diacritics cost nothing, so alerts keep
   "Zavidovići" rather than folding to "Zavidovici".
 * No one-segment budget to fit inside - everything SMS had to drop for cost
-  (the detection count and source list, distance from town, the IZVAN OPĆINE
-  marker) fits here with room left over, so nothing is trimmed and there is no
-  `worst_case()` degradation ladder to build or measure.
+  (the detection count and source list, the IZVAN OPĆINE marker) fits here
+  with room left over, so nothing is trimmed and there is no `worst_case()`
+  degradation ladder to build or measure.
 
 `TELEGRAM_TEXT` is `sms.SMS_TEXT` copied rather than imported, on purpose: this
 project does not abstract two things that happen to look alike today into one

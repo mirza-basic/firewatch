@@ -22,10 +22,19 @@ from pathlib import Path
 from . import geo, imagery
 from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON
 
+# All 145 BiH municipality boundaries, drawn as one extra toggleable reference
+# layer (see bih_municipalities_geojson()) - independent of BOUNDARY, which
+# stays the one this deployment actually clips its fetch to today. Nothing
+# here changes what a poll fetches or how detections are clipped; it only
+# makes the country-wide grid visible ahead of the fetch itself becoming
+# country-wide.
+BIH_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "bih"
+BIH_MUNI_FILE = BIH_DATA_DIR / "municipalities.json"
+
 TEMPLATE = r"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FireWatch Zavidovići</title>
+<title>FireWatch Bosna i Hercegovina</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -289,7 +298,7 @@ TEMPLATE = r"""<!doctype html>
   <div id="side">
     <header>
       <button id="drawer-close" aria-label="Close fire list">&times;</button>
-      <h1><span class="dot" id="hdot"></span><span id="htitle">FireWatch Zavidovići</span></h1>
+      <h1><span class="dot" id="hdot"></span><span id="htitle">FireWatch Bosna i Hercegovina</span></h1>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
       <div class="status" id="hchips"></div>
@@ -320,6 +329,7 @@ let DATA = __DATA__;
 const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
 const BUFFER = __BUFFER__;
+const BIH_MUNICIPALITIES = __BIH_MUNICIPALITIES__;
 // Substituted from config rather than written out here: the sun test below is
 // the only consumer, but a town that quietly disagreed with config.TOWN_LAT
 // would be a needle in a haystack.
@@ -334,7 +344,7 @@ const SEVC = {low:"#ffa726",moderate:"#fb8c00",high:"#f4511e",severe:"#d81b3c",u
 // and plural() picks by the Slavic rule. English uses [one, other, other].
 const I18N = {
   en: {
-    sub:"Grad Zavidovići · updated {t}", noActive:"No active fires",
+    sub:"Bosnia and Herzegovina · updated {t}", noActive:"No active fires",
     activeFires:["{n} active fire","{n} active fires","{n} active fires"],
     firesNoneActive:["{n} fire, none active","{n} fires, none active","{n} fires, none active"],
     detections:"detections", ok:"ok", fail:"fail",
@@ -345,10 +355,10 @@ const I18N = {
     sev_low:"low", sev_moderate:"moderate", sev_high:"high", sev_severe:"severe",
     sev_unknown:"unknown", st_active:"active", st_quiet:"quiet",
     noFires:"No fires · {range}",
-    nothing:"Nothing detected in or within {km} km of Grad Zavidovići in this period.",
+    nothing:"Nothing detected in Bosnia and Herzegovina or within {km} km of its border in this period.",
     peak:"peak", now:"now", latest:"latest", lastSeen:"Last seen", started:"Started",
     extent:"Extent", weather:"Weather", note:"Note", outside:"outside municipality",
-    ofTown:"of town", ofZav:"of Zavidovići", ofN:"of {n}", across:"across",
+    ofN:"of {n}", across:"across",
     placeOf:"{km} km {dir} of {name}",
     spread:"{risk} spread risk", risk_elevated:"elevated", risk_high:"high",
     risk_extreme:"extreme", risk_moderate:"moderate", risk_unknown:"unknown",
@@ -356,6 +366,7 @@ const I18N = {
     discoveredBy:"Reported by", savedAt:"saved",
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
     noDetRange:"no detections in range", boundary:"boundary",
+    lMuni:"BiH municipalities",
     docs:"Documentation", telegramSub:"Alerts on Telegram",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
     r_1y:"Last year",
@@ -394,7 +405,7 @@ const I18N = {
     fwUpdated:"updated {t}"
   },
   bs: {
-    sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
+    sub:"Bosna i Hercegovina · ažurirano {t}", noActive:"Nema aktivnih požara",
     activeFires:["{n} aktivan požar","{n} aktivna požara","{n} aktivnih požara"],
     firesNoneActive:["{n} požar, nijedan aktivan","{n} požara, nijedan aktivan",
                      "{n} požara, nijedan aktivan"],
@@ -406,10 +417,10 @@ const I18N = {
     sev_low:"nizak", sev_moderate:"umjeren", sev_high:"visok", sev_severe:"ekstreman",
     sev_unknown:"nepoznato", st_active:"aktivan", st_quiet:"mirno",
     noFires:"Nema požara · {range}",
-    nothing:"Ništa nije detektovano u općini Zavidovići niti u krugu od {km} km u ovom periodu.",
+    nothing:"Ništa nije detektovano u Bosni i Hercegovini niti u krugu od {km} km od granice u ovom periodu.",
     peak:"maks.", now:"sada", latest:"zadnje", lastSeen:"Zadnje viđeno", started:"Počelo",
     extent:"Raspon", weather:"Vrijeme", note:"Napomena", outside:"izvan općine",
-    ofTown:"od grada", ofZav:"od Zavidovića", ofN:"od {n}", across:"u širini",
+    ofN:"od {n}", across:"u širini",
     placeOf:"{km} km {dir} od {name}",
     spread:"rizik širenja: {risk}", risk_elevated:"povišen", risk_high:"visok",
     risk_extreme:"ekstreman", risk_moderate:"umjeren", risk_unknown:"nepoznat",
@@ -417,6 +428,7 @@ const I18N = {
     discoveredBy:"Prvi prijavio", savedAt:"sačuvano",
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
     noDetRange:"nema detekcija u periodu", boundary:"granica",
+    lMuni:"Općine BiH",
     docs:"Dokumentacija", telegramSub:"Obavijesti na Telegramu",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
     r_1y:"Zadnja godina",
@@ -460,8 +472,8 @@ const I18N = {
 const COMPASS_BS = {N:"S",NNE:"SSI",NE:"SI",ENE:"ISI",E:"I",ESE:"IJI",SE:"JI",SSE:"JJI",
   S:"J",SSW:"JJZ",SW:"JZ",WSW:"ZJZ",W:"Z",WNW:"ZSZ",NW:"SZ",NNW:"SSZ"};
 
-// Bosnian by default: this map is for Grad Zavidovići, and the people who need it
-// in an emergency read Bosnian. English is one click away in the header.
+// Bosnian by default: this map covers Bosnia and Herzegovina, and the people who
+// need it in an emergency read Bosnian. English is one click away in the header.
 // A reader's own choice still wins - the toggle writes fw_lang and that is checked
 // first - so switching to English is remembered on that device.
 let LANG = "bs";
@@ -555,8 +567,10 @@ const blank = L.layerGroup();
 // can, and the split between the two providers is not about quality but about
 // what a small fire actually looks like from orbit.
 //
-// Meteosat is ~1.7 x 1.3 km per pixel here: Zavidovici sits at a ~54 degree
-// viewing zenith from 0E, which inflates FCI's 1 km nadir figure by 1/cos.
+// Meteosat is ~1.7 x 1.3 km per pixel here: Bosnia and Herzegovina sits at a
+// ~54 degree viewing zenith from 0E, which inflates FCI's 1 km nadir figure
+// by 1/cos - roughly the same figure across the whole country, which is not
+// wide enough for the zenith angle to vary much from one end to the other.
 // That cannot resolve a few-hectare fire - but it lands every 10 minutes,
 // which is the only cadence that shows a plume while the fire still burns.
 // GIBS polar imagery is 250 m and did show a plume for the 2026-09-05 event
@@ -843,9 +857,10 @@ map.on("overlayremove", e => {
 
 // The "nearby" band - everything within nearby_buffer_km of the outline, which is
 // exactly what the spatial clip keeps and flags `inside=0`. Pre-built into
-// data/zavidovici-buffer.geojson rather than offset in the browser: offsetting a
-// 731-point ring correctly is real work, and the answer only changes when the
-// config does. Drawn before the boundary so the outline stays the stronger line.
+// BUFFER_GEOJSON (config.py) rather than offset in the browser: offsetting a
+// many-thousand-point ring correctly is real work, and the answer only changes
+// when the config does. Drawn before the boundary so the outline stays the
+// stronger line.
 // The artifact wins over DATA.buffer_km: the band on screen *is* the artifact, so
 // if the snapshot was written before a buffer change the label must follow the
 // geometry, not the stale config value that came with the data.
@@ -853,6 +868,20 @@ const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
   || DATA.buffer_km || 6;
 const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
   opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
+// Canvas, not the default SVG renderer: 145 boundaries is ~330k vertices
+// combined, and SVG means one DOM path per feature - fine for the single
+// municipality BOUNDARY already draws, not for two orders of magnitude more.
+// Lighter weight and fill than BOUNDARY's own outline for the same reason
+// bandLayer is faint: 145 of these at full strength would be visual noise,
+// and Sarajevo/Istocno Sarajevo's deliberately overlapping shapes would
+// otherwise read as a rendering bug rather than the real, documented overlap.
+const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
+    && BIH_MUNICIPALITIES.features.length)
+  ? L.geoJSON(BIH_MUNICIPALITIES,{renderer:L.canvas({padding:0.5}),
+      style:{color:"#9fb3c8",weight:1,opacity:.6,fillColor:"#9fb3c8",fillOpacity:.02},
+      onEachFeature:(f,lyr)=>lyr.bindTooltip(f.properties.name,{sticky:true})})
+    .addTo(map)
+  : null;
 // A separate object each time: L.control.layers keeps a reference, so reusing one
 // across rebuilds would carry the old language's key with it. Both halves of the
 // control are built by a function for that reason - the base list used to be
@@ -867,6 +896,7 @@ const overlays = () => {
   IMAGERY.forEach(im => { o[t(im.k)] = im.lyr; });
   if(s2Layer) o[t("imS2")] = s2Layer;
   if(bandLayer) o[t("lBuffer",{km:bufKm()})] = bandLayer;
+  if(muniLayer) o[t("lMuni")] = muniLayer;
   return o;
 };
 
@@ -1220,7 +1250,6 @@ function popupHtml(e){
   const w = e.weather;
   return `<b>${t("sev_"+e.severity).toUpperCase()}</b> &middot; ${t("st_"+e.status)}<br>
     ${placeOf(e)}<br>
-    <span style="color:#8b98a5">${e.dist_town_km} km ${dir(e.dir_town)} ${t("ofZav")}</span><br>
     FRP <b>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW"}</b> ${t("peak")},
     ${e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW"} ${t("latest")}<br>
     ${e.n_det} ${t("detections")} &middot; ${e.sources.join(", ")}<br>
@@ -1306,7 +1335,7 @@ function renderList(){
         <span>${t("started")}</span><span>${fmtLocal(Date.parse(e.first_ts))}</span>
         <span>${t("legDet")}</span><span>${e.series.length}${e.series.length!==e.n_det?" "+t("ofN",{n:e.n_det}):""} · ${e.sources.map(s=>
           `<span style="color:${SRC[s]?.c||"#fff"}">${s}</span>`).join(" ")}</span>
-        <span>${t("extent")}</span><span>${e.extent_km} km · ${e.dist_town_km} km ${dir(e.dir_town)} ${t("ofTown")}</span>
+        <span>${t("extent")}</span><span>${e.extent_km} km</span>
         ${w?`<span>${t("weather")}</span><span>${w.temp}°C, ${t("rh")} ${w.humidity}%, ${t("wind")} ${Math.round(w.speed)} km/h ${t("from")} ${dir(w.from)}
              ${e.risk?`· <b style="color:${e.risk==="extreme"||e.risk==="high"?"#e63946":"#8b98a5"}">${t("spread",{risk:t("risk_"+e.risk)})}</b>`:""}</span>`:""}
         ${e.inside?"":`<span>${t("note")}</span><span style="color:#ffd166">${t("outside")}</span>`}
@@ -2137,6 +2166,31 @@ def sync_public(html_path: Path | None = None) -> bool:
     return True
 
 
+def bih_municipalities_geojson() -> dict:
+    """All 145 BiH municipality boundaries as one FeatureCollection, each
+    feature tagged with the id/name the map needs for its tooltip - {} if the
+    data isn't there (a checkout without data/bih/, or before the fetch
+    finished), so the layer is simply omitted rather than the page failing to
+    render at all, same as a missing buffer band.
+    """
+    try:
+        rows = json.loads(BIH_MUNI_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+    features = []
+    for r in rows:
+        try:
+            fc = json.loads((BIH_DATA_DIR / r["boundary"]).read_text())
+        except (OSError, ValueError, KeyError):
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {"id": r["id"], "name": r["short_name"]},
+            "geometry": fc["features"][0]["geometry"],
+        })
+    return {"type": "FeatureCollection", "features": features}
+
+
 def render(snapshot: dict, path: Path | None = None) -> Path:
     out = Path(path or MAP_PATH)
     boundary = json.loads(BOUNDARY_GEOJSON.read_text())
@@ -2144,10 +2198,12 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
     # distance; the page then simply omits the band rather than drawing a
     # confident line in the wrong place. `python3 -m firewatch buffer` rebuilds it.
     band = geo.load_buffer()
+    bih_munis = bih_municipalities_geojson()
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(snapshot, ensure_ascii=False))
             .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":")))
             .replace("__BUFFER__", json.dumps(band, separators=(",", ":")))
+            .replace("__BIH_MUNICIPALITIES__", json.dumps(bih_munis, separators=(",", ":")))
             .replace("__DATA_JS__", data_path_for(out).name)
             .replace("__TOWN_LAT__", repr(TOWN_LAT))
             .replace("__TOWN_LON__", repr(TOWN_LON)))

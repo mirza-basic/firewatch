@@ -27,8 +27,9 @@ References:
   Lawson, B.D.; Armitage, O.B. 2008. Weather guide for the CFFDRS.
 
 Day length adjustment tables (Le for DMC, Lf for DC) are latitude-banded, not
-Canada-specific - the ">=30N" band Zavidovići falls in is also what EFFIS itself
-applies across Mediterranean and Central Europe, since that latitude range is
+Canada-specific - the ">=30N" band all of Bosnia and Herzegovina falls in is also
+what EFFIS itself applies across Mediterranean and Central Europe, since that
+latitude range is
 close enough to southern Canada's for the same tables to hold. Keeping every band
 (not just the one this municipality needs) is what lets this module work unmodified
 if `geo.forecast_point()` ever names a point at a different latitude - a fork onto

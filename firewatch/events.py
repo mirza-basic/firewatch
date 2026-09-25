@@ -165,7 +165,6 @@ def build_events(dets: list[dict]) -> list[dict]:
         latest_frp = next((d["frp"] for d in reversed(group)
                            if d.get("frp") is not None), None)
         sources = sorted({d["source"] for d in group})
-        dist_town, dir_town = geo.from_town(lat, lon)
         # Usually one id, two for a fire inside Sarajevo or Istocno Sarajevo (a
         # constituent municipality plus the coordinating "Grad" - both genuinely
         # contain the point, so both get alerted), or the single nearest
@@ -198,8 +197,6 @@ def build_events(dets: list[dict]) -> list[dict]:
             "place": geo.describe_location(lat, lon),
             # components so the map can localise the phrase
             "place_parts": geo.location_parts(lat, lon),
-            "dist_town_km": round(dist_town, 1),
-            "dir_town": dir_town,
             "extent_km": round(extent, 2),
             "severity": severity(max(frps) if frps else None),
             "series": [{"ts": d["ts"], "frp": d.get("frp"),

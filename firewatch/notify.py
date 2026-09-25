@@ -93,13 +93,12 @@ def alert_text(alert: dict) -> tuple[str, str, str]:
     ev = alert["event"]
     kind = alert["kind"]
     icon = ICONS.get(kind, "🔥")
-    where = "in Zavidovići" if ev["inside"] else "near Zavidovići"
+    where = "in Bosnia and Herzegovina" if ev["inside"] else "near the border"
     title = f"{icon} {TITLES.get(kind, kind)} {where}"
     subtitle = ev["place"]
     bits = [alert.get("detail", "")]
     if ev.get("latest_frp") is not None:
         bits.append(f"{ev['latest_frp']:.1f} MW")
-    bits.append(f"{ev['dist_town_km']} km {ev['dir_town']} of town")
     if ev.get("wind"):
         w = ev["wind"]
         bits.append(f"wind {w['speed']:.0f} km/h {w['from']}")

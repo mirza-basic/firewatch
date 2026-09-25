@@ -5,7 +5,7 @@ import json
 import math
 from functools import lru_cache
 
-from .config import BOUNDARY_GEOJSON, SETTLEMENTS_JSON, TOWN_LAT, TOWN_LON
+from .config import BOUNDARY_GEOJSON, SETTLEMENTS_JSON
 
 EARTH_R_KM = 6371.0088
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -137,12 +137,6 @@ def describe_location(lat: float, lon: float) -> str:
     return f"{km:.1f} km {direction} of {place['n']}"
 
 
-def from_town(lat: float, lon: float) -> tuple[float, str]:
-    """Distance and direction from Zavidovići town centre."""
-    d = haversine_km(TOWN_LAT, TOWN_LON, lat, lon)
-    return d, compass(bearing_deg(TOWN_LAT, TOWN_LON, lat, lon))
-
-
 def centroid(points: list[tuple[float, float]]) -> tuple[float, float]:
     """Mean position of (lat, lon) pairs - fine at municipality scale."""
     if not points:
@@ -191,7 +185,9 @@ def load_buffer() -> dict | None:
 
 
 def build_buffer(km: float | None = None):
-    """Regenerate data/zavidovici-buffer.geojson.
+    """Regenerate BUFFER_GEOJSON - the band drawn around whatever boundary
+    BOUNDARY_GEOJSON currently names (Bosnia and Herzegovina's own outline
+    here, not one municipality's).
 
     Build-time only. shapely and pyproj are imported here and nowhere else, so the
     running app keeps its four dependencies; regenerating needs them installed.
