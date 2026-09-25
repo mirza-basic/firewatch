@@ -41,6 +41,8 @@ import json
 import logging
 import os
 import time
+from functools import lru_cache
+from pathlib import Path
 
 import requests
 
@@ -50,17 +52,36 @@ log = logging.getLogger("firewatch.telegram")
 
 API_BASE = "https://api.telegram.org/bot{token}/sendMessage"
 KEYCHAIN_SERVICE = "firewatch-telegram"
-# Channel handle from the environment, for deployments with no writable config file
-# (containers, CI runners - including this repo's own GitHub Actions deployment,
-# which writes a fresh config.json on every run) - same reasoning as
-# sms.SMS_TO_ENV, even though a channel handle is not itself sensitive: it keeps
-# every Telegram setting a fork needs in one place (repo secrets), rather than
-# splitting the credential into secrets and the handle into a workflow file edit.
-TELEGRAM_CHANNEL_ENV = "FIREWATCH_TELEGRAM_CHANNEL"
 # A wait longer than this drops the alert instead of blocking the poll cycle on
 # it - the fast MTG path this architecture leans on cannot afford to stall for
 # however long Telegram asks.
 MAX_RETRY_WAIT = 5.0
+
+# One channel per municipality, not one fixed channel for the whole deployment
+# - data/bih/municipalities.json is the mapping (municipality id ->
+# Bot-API-postable chat id, e.g. "-1004423431890"), populated once the private
+# channels are provisioned. A private channel has no @handle to post to; the
+# Bot API needs the numeric chat id, which is the channel's own id with a
+# "-100" prefix - Telethon (used to create the channels, since the Bot API has
+# no method to do that) reports the bare id, so that prefix is added when the
+# provisioning results get merged into this file, not here.
+BIH_MUNI_FILE = Path(__file__).resolve().parent.parent / "data" / "bih" / "municipalities.json"
+
+
+@lru_cache(maxsize=1)
+def _municipality_channels() -> dict[str, str]:
+    try:
+        rows = json.loads(BIH_MUNI_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+    return {r["id"]: str(r["telegram_channel"]) for r in rows if r.get("telegram_channel")}
+
+
+def channel_for(municipality_id: str) -> str | None:
+    """The chat id to post to for one municipality, or None if that one has no
+    channel yet - a partially-provisioned deployment alerts on what it has
+    rather than posting nowhere until all 145 exist."""
+    return _municipality_channels().get(municipality_id)
 
 
 # ------------------------------------------------------------------ credentials
@@ -73,39 +94,17 @@ def bot_token() -> str | None:
     return keychain_secret(KEYCHAIN_SERVICE)
 
 
-def channel() -> str:
-    """The @channel or numeric chat id alerts are posted to, or "" unset.
-
-    `FIREWATCH_TELEGRAM_CHANNEL` wins when set, then `telegram_channel` in
-    config.json - same order as `sms.recipients()` and `SMS_TO_ENV`, and for
-    the same reason: a container or CI runner has no writable config file to
-    edit. There is deliberately no built-in default. A channel handle is not
-    sensitive the way a phone number is, so it could ship as a plain constant,
-    but a real one would mean a fork that sets its own TELEGRAM_BOT_TOKEN and
-    forgets this posts, with its own bot, at *this* deployment's channel -
-    `ready()` would report True and Telegram would answer 403 rather than the
-    cleaner "not configured" every other missing setting gets.
-    """
-    env = (os.environ.get(TELEGRAM_CHANNEL_ENV) or "").strip()
-    if env:
-        return env
-    return str(CFG.get("telegram_channel") or "").strip()
-
-
-def channel_source() -> str:
-    """Where the channel handle is coming from, so status output can say."""
-    return ("environment" if (os.environ.get(TELEGRAM_CHANNEL_ENV) or "").strip()
-            else "config.json")
-
-
 def ready() -> tuple[bool, str]:
-    """(usable, reason) - mirrors sms.ready()."""
+    """(usable, reason). Unlike the single-channel deployment this branch
+    forked from, readiness does not depend on any *particular* municipality
+    having a channel yet - that is what channel_for() answers per-alert, and
+    a still-partially-provisioned deployment should alert on what it has."""
     if not CFG.get("telegram_enabled"):
         return False, "telegram_enabled is false"
     if not bot_token():
         return False, "no bot token (TELEGRAM_BOT_TOKEN or Keychain)"
-    if not channel():
-        return False, f"no channel ({TELEGRAM_CHANNEL_ENV} or telegram_channel in config.json)"
+    if not _municipality_channels():
+        return False, f"no channels configured in {BIH_MUNI_FILE}"
     return True, "ready"
 
 
@@ -288,21 +287,22 @@ def _retry_after(r: requests.Response) -> float | None:
         return None
 
 
-def send(text: str) -> bool:
-    """Post to the configured channel.
+def send(text: str, chat_id: str) -> bool:
+    """Post to one chat id - a single municipality's channel, not "the"
+    channel; there is one per municipality here, so the caller names which.
 
-    One request, one recipient - see the module docstring for why there is no
-    fan-out here. A 429 is retried once, after waiting the amount of time
-    Telegram itself asks for, capped at MAX_RETRY_WAIT: retrying past that would
-    block the poll cycle for longer than a channel post is worth, and ignoring
-    `retry_after` risks a longer, unannounced mute instead of a graceful wait.
+    One request, one recipient per call - see the module docstring for why
+    there is no bulk endpoint the way sms.py has one. A 429 is retried once,
+    after waiting the amount of time Telegram itself asks for, capped at
+    MAX_RETRY_WAIT: retrying past that would block the poll cycle for longer
+    than a channel post is worth, and ignoring `retry_after` risks a longer,
+    unannounced mute instead of a graceful wait.
     """
-    ok, why = ready()
-    if not ok:
-        log.warning("telegram not sent: %s", why)
+    if not CFG.get("telegram_enabled") or not bot_token():
+        log.warning("telegram not sent to %s: bot not configured", chat_id)
         return False
     url = API_BASE.format(token=bot_token())
-    body = {"chat_id": channel(), "text": text}
+    body = {"chat_id": chat_id, "text": text}
     r = _post(url, body)
     if r is None:
         return False
@@ -318,18 +318,33 @@ def send(text: str) -> bool:
         if r is None:
             return False
     if r.status_code != 200:
-        log.warning("telegram rejected: HTTP %s %s", r.status_code, r.text[:200])
+        log.warning("telegram rejected (%s): HTTP %s %s",
+                    chat_id, r.status_code, r.text[:200])
         return False
-    log.debug("telegram posted to %s", channel())
+    log.debug("telegram posted to %s", chat_id)
     return True
 
 
 def send_alert(alert: dict) -> bool:
+    """Post to every municipality the event's location matched - one for an
+    ordinary municipality, two for a fire inside Sarajevo or Istocno Sarajevo
+    (see events.build_events()). Each channel is independent: one missing
+    channel or one failed post never blocks another, the same "isolate
+    failures" rule the rest of this project follows for its alert channels."""
     kinds = CFG.get("telegram_kinds") or []
     if kinds and alert["kind"] not in kinds:
         return False
+    municipality_ids = alert["event"].get("municipalities") or []
+    if not municipality_ids:
+        return False
     text = alert_text(alert)
-    if send(text):
-        log.info("telegram posted to %s for %s", channel(), alert["kind"])
-        return True
-    return False
+    any_sent = False
+    for mid in municipality_ids:
+        chat_id = channel_for(mid)
+        if not chat_id:
+            log.info("telegram: no channel configured for municipality %s", mid)
+            continue
+        if send(text, chat_id):
+            log.info("telegram posted to %s (%s) for %s", mid, chat_id, alert["kind"])
+            any_sent = True
+    return any_sent

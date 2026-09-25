@@ -1,6 +1,7 @@
 """Verify each alert kind fires exactly when it should."""
 import sys
-sys.path.insert(0, "/Users/mirza.basic/Projects/Personal/fire-detection")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from datetime import timedelta
 from firewatch import events, store
 from firewatch.store import iso, utcnow

@@ -9,7 +9,8 @@ A transcription mistake in firedanger.py's constants fails here, rather than
 silently mis-rating a real fire day.
 """
 import sys
-sys.path.insert(0, "/Users/mirza.basic/Projects/Personal/fire-detection")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from firewatch import firedanger as fd
 
 LAT = 40.0

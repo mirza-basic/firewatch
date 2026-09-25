@@ -279,23 +279,20 @@ class Poller:
 
 
 def _telegram_channel_url() -> str | None:
-    """A public join link for the alert channel, or None.
+    """A public join link for *the* alert channel - always None here.
 
-    Only for a public @handle - a private channel (a numeric chat id) has no
-    public link to advertise, and the map should not offer to join something
-    it cannot. Gated on `telegram.ready()`, not just `telegram_enabled`: a
-    channel with no bot token configured cannot actually deliver an alert, and
-    inviting the public to subscribe to one that never posts is worse than not
-    advertising it - same reasoning as `fire_danger` and `imagery` staying None
-    until there is something real behind them. This still cannot catch every
-    failure mode - a bot token that is valid but was never made a channel
-    administrator looks identical to `ready()` and only fails at send time -
-    but a missing credential is the common case and is free to check here.
+    Inherited from the single-channel deployment this branch forked from,
+    where one fixed public @handle meant one banner made sense. This
+    deployment has one channel per municipality instead, all private (invite
+    link, not a public handle, after the "too many public channels" account
+    cap - see the provisioning history), so there is no single link to
+    advertise. A per-municipality subscribe link is a real map feature to add
+    later (rendered from telegram.channel_for() against whichever
+    municipality a reader is looking at), not something this one global
+    banner slot can express - left returning None rather than a wrong or
+    misleading single link.
     """
-    if not telegram.ready()[0]:
-        return None
-    ch = telegram.channel()
-    return f"https://t.me/{ch[1:]}" if ch.startswith("@") else None
+    return None
 
 
 def backfill(days: int = 30) -> dict:

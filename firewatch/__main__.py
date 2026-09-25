@@ -510,14 +510,15 @@ def cmd_test_sms() -> int:
 def cmd_telegram_status() -> int:
     from .config import CFG
     ok, why = telegram_mod.ready()
-    print(f"\n  usable       : {ok}  ({why})")
-    print(f"  enabled      : {CFG['telegram_enabled']}")
-    print(f"  channel      : {telegram_mod.channel() or '(unset)'}")
-    print(f"  channel from : {telegram_mod.channel_source()}")
-    print(f"  bot token    : {'found' if telegram_mod.bot_token() else 'not found'}")
-    print(f"  alert kinds  : {', '.join(CFG['telegram_kinds'])}")
-    print(f"  language     : {CFG['telegram_language']}")
-    print(f"  map url      : {telegram_mod.map_url() or '(map not published)'}")
+    channels = telegram_mod._municipality_channels()
+    print(f"\n  usable         : {ok}  ({why})")
+    print(f"  enabled        : {CFG['telegram_enabled']}")
+    print(f"  channels       : {len(channels)}/145 municipalities configured")
+    print(f"  channels file  : {telegram_mod.BIH_MUNI_FILE}")
+    print(f"  bot token      : {'found' if telegram_mod.bot_token() else 'not found'}")
+    print(f"  alert kinds    : {', '.join(CFG['telegram_kinds'])}")
+    print(f"  language       : {CFG['telegram_language']}")
+    print(f"  map url        : {telegram_mod.map_url() or '(map not published)'}")
     print()
     return 0
 
@@ -549,11 +550,15 @@ def cmd_set_telegram_key() -> int:
     return 0
 
 
-def cmd_test_telegram() -> int:
-    """Post the test message, and print what a real alert would look like.
+def cmd_test_telegram(municipality_id: str | None = None) -> int:
+    """Post the test message to one municipality's channel, and print what a
+    real alert would look like.
 
-    Only the first is posted. A test that reads "NOVI POZAR: ..." in the channel
-    is indistinguishable from the real thing, so the sample alert is shown here
+    Takes a municipality id (e.g. `test-telegram zavidovici`) because this
+    deployment has one channel per municipality, not one fixed channel -
+    there is no single obvious target to default to. Only the test message
+    is posted. A test that reads "NOVI POZAR: ..." in the channel is
+    indistinguishable from the real thing, so the sample alert is shown here
     for its formatting and goes no further - same reasoning as `test-sms`.
     """
     poller.setup_logging()
@@ -570,11 +575,19 @@ def cmd_test_telegram() -> int:
         print(f"  ---- a real alert, for comparison (not sent) ----")
         print("\n".join("  | " + l for l in sample.splitlines()))
 
+    if not municipality_id:
+        print("\n  usage: python3 -m firewatch test-telegram <municipality-id>\n"
+             "  not sent - no municipality named\n")
+        return 1
+    chat_id = telegram_mod.channel_for(municipality_id)
+    if not chat_id:
+        print(f"\n  not sent: no channel configured for {municipality_id!r}\n")
+        return 1
     if not ok:
         print("\n  not sent\n")
         return 1
-    sent = telegram_mod.send(text)
-    print(f"\n  delivered: {sent}\n")
+    sent = telegram_mod.send(text, chat_id)
+    print(f"\n  delivered to {municipality_id}: {sent}\n")
     return 0 if sent else 1
 
 
@@ -778,7 +791,7 @@ def main(argv: list[str]) -> int:
     if cmd in ("telegram-status", "telegramstatus"):
         return cmd_telegram_status()
     if cmd in ("test-telegram", "testtelegram"):
-        return cmd_test_telegram()
+        return cmd_test_telegram(argv[1] if len(argv) > 1 else None)
     if cmd in ("set-telegram-key", "settelegramkey"):
         return cmd_set_telegram_key()
     if cmd in ("test-notify", "testnotify"):

@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta
 
-from . import geo
+from . import geo, geo_bih
 from .config import CFG
 from .store import iso, parse_iso, utcnow
 
@@ -166,6 +166,12 @@ def build_events(dets: list[dict]) -> list[dict]:
                            if d.get("frp") is not None), None)
         sources = sorted({d["source"] for d in group})
         dist_town, dir_town = geo.from_town(lat, lon)
+        # Usually one id, two for a fire inside Sarajevo or Istocno Sarajevo (a
+        # constituent municipality plus the coordinating "Grad" - both genuinely
+        # contain the point, so both get alerted), or the single nearest
+        # municipality if the point falls in a gap between two OSM boundaries
+        # that do not quite meet. Never empty - see geo_bih.classify_point().
+        municipalities = geo_bih.classify_point(lat, lon)
 
         events.append({
             "id": _event_id(group[0]["uid"]),
@@ -188,6 +194,7 @@ def build_events(dets: list[dict]) -> list[dict]:
             "credit_saved_at": credited.get("first_seen"),
             "status": "active" if (now - last_ts) <= quiet_after else "quiet",
             "inside": any(d["inside"] for d in group),
+            "municipalities": municipalities,
             "place": geo.describe_location(lat, lon),
             # components so the map can localise the phrase
             "place_parts": geo.location_parts(lat, lon),

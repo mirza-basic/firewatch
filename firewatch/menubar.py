@@ -170,12 +170,14 @@ class FireWatchApp(rumps.App):
         return rumps.MenuItem("Send Test SMS…", callback=self.test_sms)
 
     def _test_telegram_item(self) -> rumps.MenuItem:
-        """Greyed out, with the reason in the title, when the channel post cannot
-        go out - same reasoning as `_test_sms_item`."""
-        ok, why = telegram.ready()
-        if not ok:
-            return _info(f"Post Test Telegram — unavailable: {why}")
-        return rumps.MenuItem("Post Test Telegram…", callback=self.test_telegram)
+        """Always unavailable here, unlike the single-channel deployment this
+        branch forked from: "post a test message" needs one obvious channel to
+        target, and this deployment has one per municipality instead of one
+        fixed channel - there is no single right answer for a menu bar button
+        with no municipality context to pick from. Testing a specific
+        municipality's channel is a CLI concern (naming which one), not a menu
+        bar one."""
+        return _info("Post Test Telegram — pick a municipality via the CLI instead")
 
     def _range_item(self, snap: dict) -> rumps.MenuItem:
         """Last 24h / 3 days / 7 days / month, with the event count for each."""
@@ -352,35 +354,6 @@ class FireWatchApp(rumps.App):
                         "Test SMS delivered to httpSMS" if sent
                         else "Test SMS failed — see the log",
                         subtitle=", ".join(to))
-
-        threading.Thread(target=work, daemon=True).start()
-
-    def test_telegram(self, _=None):
-        """Confirm, then post the test message to the channel.
-
-        Confirmed first because this one is public: it lands in front of every
-        channel subscriber. The dialog shows the exact text, so what was
-        approved is what gets posted. The post is a network call and must stay
-        off the main thread or the whole menu bar freezes on it.
-        """
-        text = telegram.test_text()
-        ch = telegram.channel()
-        if rumps.alert(
-                f"Post a test message to {ch}?",
-                f"{text}",
-                ok="Post", cancel="Cancel") != 1:
-            return
-
-        def work():
-            try:
-                sent = telegram.send(text)
-            except Exception:
-                log.exception("test telegram post failed")
-                sent = False
-            notify.send("FireWatch",
-                        "Test message posted to Telegram" if sent
-                        else "Test post failed — see the log",
-                        subtitle=ch)
 
         threading.Thread(target=work, daemon=True).start()
 
