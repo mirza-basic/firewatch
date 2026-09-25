@@ -184,12 +184,17 @@ TEMPLATE = r"""<!doctype html>
      that is meant to drop a vertex, so hit testing is turned off for the panes
      that hold them. The measure pane is a sibling of the overlay pane, hence its
      own rule - finished measurements are clickable (for their remove popup) only
-     when the tool is off. */
+     when the tool is off. muniLayer needs its own selector: it renders on
+     L.canvas rather than SVG paths (145 boundaries - see its own comment), so it
+     is a single <canvas> element the `path` rule below never matches, and
+     without this line a click meant for a vertex opens a municipality popup
+     instead. */
   .leaflet-container.measuring{cursor:crosshair}
   /* !important is load-bearing: Leaflet's own
      `.leaflet-pane>svg path.leaflet-interactive` rule is more specific than this
      one, so without it a click meant for a vertex opens a fire popup instead. */
   .measuring .leaflet-overlay-pane path,
+  .measuring .leaflet-overlay-pane canvas,
   .measuring .leaflet-marker-pane,
   .measuring .leaflet-measure-pane path{pointer-events:none!important}
   .mbar a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -226,7 +231,29 @@ TEMPLATE = r"""<!doctype html>
   #langsw{position:fixed;top:10px;left:calc(50vw + 185px);transform:translateX(-50%);
     z-index:1250;display:flex;gap:2px;padding:2px;border-radius:9px;
     border:1px solid var(--line);background:rgba(21,26,33,.94);
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    transition:opacity .15s}
+  /* Leaflet's popup pane lives inside .leaflet-map-pane, which always carries a
+     CSS transform for panning - that transform makes .leaflet-map-pane the
+     containing block for everything positioned inside it, so no z-index on
+     .leaflet-popup-pane (however high) can ever paint above ANY sibling of
+     .leaflet-map-pane that has its own explicit z-index. That covers every
+     button on the map: Leaflet gives its own corner containers
+     (.leaflet-top/.leaflet-bottom - zoom, the layer control, and every custom
+     L.control this page adds: the fire-zoom button, the eye toggle, the
+     measure tool, the legend) z-index:1000, and this page's own #timebar and
+     #langsw sit at 1050/1250 - all of them siblings of the trapped map-pane,
+     all of them able to paint over a popup no matter how high its own pane's
+     z-index is set. Raising #wrap's (or #map's) own z-index would fix that,
+     but it would also lift the map's opaque tiles above every one of these
+     for as long as any popup anywhere is open, hiding them entirely - worse
+     than the bug it fixes. Ceding the spot instead costs nothing: nobody
+     needs a button in the instant they are reading a popup. */
+  body.popup-open #langsw,
+  body.popup-open #timebar,
+  body.popup-open #drawer-btn,
+  body.popup-open .leaflet-top,
+  body.popup-open .leaflet-bottom{opacity:0!important;pointer-events:none!important}
   #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
@@ -1015,6 +1042,9 @@ const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
 // municipality popup Leaflet already handles this way) - the same "click
 // elsewhere to dismiss" convention throughout this page.
 map.on("click", closeExpandablePanels);
+// See #langsw's own CSS comment: this is the other half of that fix.
+map.on("popupopen", () => document.body.classList.add("popup-open"));
+map.on("popupclose", () => document.body.classList.remove("popup-open"));
 
 function fwiDetail(mid){
   const fd = (DATA.fire_danger || {})[mid];
