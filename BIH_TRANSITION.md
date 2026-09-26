@@ -84,6 +84,29 @@ file tracks what's actually done versus what's still needed - status as of
   session rather than auto-retrying.
 - **113/145 channels provisioned as of this writing** (0 failed). Resumable -
   re-running the same script skips everything done and continues.
+- **Real channel data merged into `data/bih/municipalities.json`** for all 113
+  provisioned so far: `telegram_channel` holds the actual `-100`-prefixed
+  Bot-API chat id, `telegram_invite` the `https://t.me/+...` invite link -
+  both from `~/firewatch-telegram-setup/telegram_provision_results.json`. The
+  32 not-yet-provisioned municipalities get `null` for both fields rather
+  than a stale placeholder, so `telegram.channel_for()` correctly skips them.
+  Re-run the same merge once the remaining batch is provisioned.
+- **`poll.yml` updated for the per-municipality design** - the
+  `FIREWATCH_TELEGRAM_CHANNEL` secret (meaningless since the per-municipality
+  rewrite - routing is committed data now, not a secret) is gone;
+  `TELEGRAM_BOT_TOKEN` is the one Telegram secret left.
+- **A real per-municipality Telegram subscribe link on the map** - each
+  municipality's popup shows a "Subscribe on Telegram" button using its own
+  invite link when one exists (`mapgen.py`'s `muniPopupHtml()`), replacing the
+  single global `#tgbanner` banner, which is now removed - it was permanently
+  dead code, since `poller._telegram_channel_url()` returns `None`
+  unconditionally in this per-municipality design.
+
+**Fire danger** - `firedanger.py` already computes one FWI reading per
+municipality (`update_all()` loops all 145, each using its own
+`Municipality.forecast_point` vertex-mean, not one country-wide point) - this
+was done in the same work that added per-municipality routing, not a
+follow-up. There is no remaining "single country-wide point" problem here.
 
 **Test coverage**
 - `tests_geo_bih.py` (7/7) and `tests_telegram_routing.py` (10/10) added.
@@ -96,58 +119,41 @@ file tracks what's actually done versus what's still needed - status as of
 
 ## Remaining
 
-**Blocking, in dependency order:**
+**Blocking:**
 
 1. **Finish channel provisioning** - 32 remaining as of this writing. Resume
    with the same script on the user's machine
    (`~/firewatch-telegram-setup/provision_telegram_channels.py`), in capped
    batches (default 33/run) across multiple days - do not attempt to rush
-   this given the flood-wait history.
-2. **Merge the real channel data into `data/bih/municipalities.json`** - done
-   for the 113 provisioned so far (`telegram_channel` now holds the real
-   `-100`-prefixed Bot-API chat id from
-   `~/firewatch-telegram-setup/telegram_provision_results.json`; the 32 not
-   yet provisioned get `null` rather than a stale placeholder, so
-   `telegram.channel_for()` correctly skips them instead of posting to a
-   fake handle). Re-run the same merge once item 1 finishes.
-3. **`poll.yml` / the GitHub Actions workflow** - still entirely
-   Zavidovići-shaped: the `state/config/config.json` literal, the secrets
-   list (`FIREWATCH_TELEGRAM_CHANNEL` no longer means anything - the
-   per-municipality mapping is committed data now, not a secret; the bot
-   token is still the one real secret needed), and whatever else assumes a
-   single place. Not started.
+   this given the flood-wait history. Re-run the `municipalities.json` merge
+   (see Done above) once this finishes.
 
-**Real gaps, not yet decided:**
+**Newly found, not yet fixed:**
 
-4. **`firedanger.py`'s single-point FWI forecast** - designed to approximate
-   one municipality's weather at EFFIS's own coarse grid resolution. A
-   single country-wide point (now `geo.forecast_point()`'s new country-centre
-   value) cannot represent Bosnia and Herzegovina's weather with that same
-   justification. Needs a decision: a real per-municipality or per-region
-   forecast, or a deliberate call to leave this as one admittedly-rough
-   country-wide number.
-5. **A real per-municipality subscribe link on the map** - the single global
-   Telegram subscribe banner is gone (`_telegram_channel_url()` now returns
-   `None` unconditionally) and nothing replaces it yet. The natural design:
-   render each municipality's own invite link (once step 2 above exists)
-   against whichever one a reader is looking at, rather than one global
-   banner slot.
+2. **`test-telegram.yml` is broken** - it calls `telegram.channel()`,
+   `telegram.channel_source()`, `telegram.test_text()` and `telegram.map_url()`,
+   none of which exist any more after the per-municipality rewrite (which
+   replaced them with `channel_for(municipality_id)` and changed
+   `cmd_test_telegram` to take a municipality id argument). This workflow has
+   been broken since that rewrite, not by anything in this round of changes -
+   `poll.yml` was the one explicitly fixed. Needs the same per-municipality
+   treatment `poll.yml` and the CLI already got.
 
 **Lower priority / worth doing before this is a real deployment:**
 
-6. **`CLAUDE.md` itself** has no section for this branch - `fork-template`
+3. **`CLAUDE.md` itself** has no section for this branch - `fork-template`
    has its own "## This branch" block at the top explaining what it is and
    what rules apply; this branch should get the same treatment once its
-   shape has settled (probably after items 1-3 above).
-7. **`docs/*.html`** (the self-contained doc pages, also published as Claude
+   shape has settled (probably after item 1 above).
+4. **`docs/*.html`** (the self-contained doc pages, also published as Claude
    artifacts) are unaudited - likely reference Zavidovići-specific details
    throughout, the same way `CLAUDE.md`'s own pre-this-branch content did.
-8. **No real, non-isolated end-to-end test yet** - every verification so far
+5. **No real, non-isolated end-to-end test yet** - every verification so far
    has been either isolated (scratch `FIREWATCH_DATA_DIR`, no real
-   credentials) or unit-level (mocked `telegram.send`). Once at least one
-   real private channel exists with its chat id merged in (steps 1-2), worth
-   confirming one real alert actually posts through the whole real pipeline.
-9. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
+   credentials) or unit-level (mocked `telegram.send`). Now that 113 real
+   private channels exist with real chat ids merged in, worth confirming one
+   real alert actually posts through the whole real pipeline.
+6. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
    re-verified against the new country-wide boundary specifically - it reads
    the same `geo.point_in_boundary()`/`distance_to_boundary_km()` the fetch
    clip uses, so it should "just work" the same way the clip itself did, but
