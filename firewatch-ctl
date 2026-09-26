@@ -1,8 +1,8 @@
 #!/bin/bash
-# FireWatch Zavidovići - install / control the background menu bar service.
+# FireWatch - install/control the background menu bar service (this branch: all 145 BiH municipalities).
 set -euo pipefail
 
-LABEL="com.firewatch.zavidovici"
+LABEL="com.firewatch.bih"
 PROJ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLIST_SRC="$PROJ/$LABEL.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/$LABEL.plist"
@@ -11,7 +11,7 @@ UID_NUM="$(id -u)"
 
 usage() {
     cat <<USAGE
-FireWatch Zavidovići
+FireWatch (bih-all-municipalities)
 
   ./firewatch-ctl install     install + start the menu bar app at login
   ./firewatch-ctl uninstall   stop and remove the login item
@@ -44,7 +44,7 @@ proj, dst = sys.argv[1], sys.argv[2]
 py = shutil.which("python3") or sys.executable
 home = os.path.expanduser("~")
 plistlib.dump({
-    "Label": "com.firewatch.zavidovici",
+    "Label": "com.firewatch.bih",
     "ProgramArguments": [py, "-m", "firewatch", "menubar"],
     "WorkingDirectory": proj,
     "EnvironmentVariables": {
