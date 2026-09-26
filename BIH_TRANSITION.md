@@ -137,6 +137,21 @@ follow-up. There is no remaining "single country-wide point" problem here.
 - The hardcoded-path bug in both test files (see `fork-template`'s identical
   fix) was independently present here too and is now fixed, so these
   actually test this checkout rather than whatever's elsewhere.
+- **`reclip`/`store.out_of_scope()` re-verified against the country-wide
+  boundary, not assumed** - `python3 -m firewatch reclip` against the real
+  17,665-detection BiH backfill reports all of them in scope (expected,
+  since the fetch clip used the same boundary to gather them); a synthetic
+  detection planted at Rome, Italy was correctly caught as 393.54 km out.
+  Confirms `geo.point_in_boundary()`/`distance_to_boundary_km()` work
+  correctly against `data/bih/country.geojson`, and that this doesn't
+  silently no-op.
+
+**`CLAUDE.md`** now has its own "## This branch" section (mirroring
+`fork-template`'s), covering the country-wide data model, the bot-identity
+landmine `test-telegram maglaj` caught for real (see above), and the
+intentionally-partial `telegram_channel`/`telegram_invite` fields. The
+`## Branches` section also gained a paragraph describing this branch, next
+to the existing `fork-template` one.
 
 ## Remaining
 
@@ -151,15 +166,11 @@ follow-up. There is no remaining "single country-wide point" problem here.
 
 **Lower priority / worth doing before this is a real deployment:**
 
-2. **`CLAUDE.md` itself** has no section for this branch - `fork-template`
-   has its own "## This branch" block at the top explaining what it is and
-   what rules apply; this branch should get the same treatment once its
-   shape has settled (probably after item 1 above).
-3. **`docs/*.html`** (the self-contained doc pages, also published as Claude
-   artifacts) are unaudited - likely reference Zavidovići-specific details
-   throughout, the same way `CLAUDE.md`'s own pre-this-branch content did.
-4. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
-   re-verified against the new country-wide boundary specifically - it reads
-   the same `geo.point_in_boundary()`/`distance_to_boundary_km()` the fetch
-   clip uses, so it should "just work" the same way the clip itself did, but
-   this hasn't been explicitly exercised since the swap.
+2. **`docs/*.html`** - 9 of 12 files reference Zavidovići. Most are a few
+   incidental mentions (an example plist name, a sample coordinate), but
+   `firewatch-documentation.html` (1,366 lines) is deeply branded throughout
+   - title, header, and real narrative built around one actual Zavidovići
+   fire event - and needs its own dedicated editorial pass, not a quick
+   find-and-replace. One cheap, unambiguous fix landed
+   (`firewatch-macos.html`'s stale `com.firewatch.zavidovici.plist` example
+   → `com.firewatch.bih.plist`); the rest is still open.
