@@ -82,13 +82,13 @@ file tracks what's actually done versus what's still needed - status as of
   33) stops the script cleanly before hitting a wall instead of sleeping
   through one unattended, and any flood-wait ≥2 minutes now stops the whole
   session rather than auto-retrying.
-- **113/145 channels provisioned as of this writing** (0 failed). Resumable -
+- **130/145 channels provisioned as of this writing** (0 failed). Resumable -
   re-running the same script skips everything done and continues.
-- **Real channel data merged into `data/bih/municipalities.json`** for all 113
+- **Real channel data merged into `data/bih/municipalities.json`** for all 130
   provisioned so far: `telegram_channel` holds the actual `-100`-prefixed
   Bot-API chat id, `telegram_invite` the `https://t.me/+...` invite link -
   both from `~/firewatch-telegram-setup/telegram_provision_results.json`. The
-  32 not-yet-provisioned municipalities get `null` for both fields rather
+  15 not-yet-provisioned municipalities get `null` for both fields rather
   than a stale placeholder, so `telegram.channel_for()` correctly skips them.
   Re-run the same merge once the remaining batch is provisioned.
 - **`poll.yml` updated for the per-municipality design** - the
@@ -135,7 +135,7 @@ follow-up. There is no remaining "single country-wide point" problem here.
 
 **Blocking:**
 
-1. **Finish channel provisioning** - 32 remaining as of this writing. Resume
+1. **Finish channel provisioning** - 15 remaining as of this writing. Resume
    with the same script on the user's machine
    (`~/firewatch-telegram-setup/provision_telegram_channels.py`), in capped
    batches (default 33/run) across multiple days - do not attempt to rush
