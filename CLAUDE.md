@@ -2,12 +2,51 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## This branch
+
+`bih-all-municipalities`, forked from `main`. Turns the single-municipality
+deployment described below into one that watches all 145 self-governing units
+of Bosnia and Herzegovina at once, with a separate private Telegram channel
+per municipality rather than one fixed channel for the whole deployment.
+`BIH_TRANSITION.md` tracks what's actually done versus what's still needed -
+read it before trusting a number (channels provisioned, rows merged) quoted
+anywhere else, since it moves fast and this file doesn't track it.
+
+Three things follow for anyone working on this branch:
+
+* **There is no single town any more.** `TOWN_LAT`/`TOWN_LON`, the boundary,
+  and the settlement list are all country-wide now (`data/bih/` replaces the
+  old Zavidovići-only files). `geo_bih.py` is the country-wide classifier
+  every event gets tagged against (`events.build_events()`'s
+  `"municipalities"` field, usually one id, two for the deliberately
+  overlapping Sarajevo/Istočno Sarajevo polygons); `firedanger.py` computes
+  one FWI reading per municipality rather than one for the whole deployment,
+  each from that municipality's own boundary vertex-mean
+  (`Municipality.forecast_point`).
+* **A private channel needs the right bot, not just a present token.**
+  `telegram.ready()` only checks that `TELEGRAM_BOT_TOKEN` resolves to
+  *something* - it has no way to know whether that token belongs to the bot
+  `~/firewatch-telegram-setup/provision_telegram_channels.py` actually
+  promoted to admin in each channel. Mixing up an old deployment's bot token
+  with this one's (`@FirewatchBiHBot`) is a real, already-hit failure: every
+  send comes back `400 chat not found` while `ready()` still reports `True`,
+  because presence of a token is all it checks. `getMe` against the
+  configured token is the only way to catch this before trusting it - see
+  BIH_TRANSITION.md's end-to-end test entry for the exact way this bit once.
+* **`data/bih/municipalities.json`'s `telegram_channel`/`telegram_invite` are
+  partially populated, on purpose.** A municipality with no channel yet gets
+  `null` for both, not a placeholder - `telegram.channel_for()` and the map's
+  subscribe button both treat that as "nothing to show" rather than a broken
+  link. Don't backfill a placeholder handle here; wait for real provisioning
+  and re-run the merge documented in BIH_TRANSITION.md.
+
 ## What this is
 
-FireWatch Zavidovići — near-live wildfire monitoring for the municipality of Grad
-Zavidovići, Bosnia. A macOS menu bar app (`rumps`) that polls three satellite fire
-feeds, clusters detections into tracked fire events, sends notifications on change,
-and renders a live HTML map.
+FireWatch — near-live wildfire monitoring, on this branch for all 145
+municipalities of Bosnia and Herzegovina at once. A macOS menu bar app
+(`rumps`) that polls three satellite fire feeds, clusters detections into
+tracked fire events, sends notifications on change, and renders a live HTML
+map.
 
 No build step, no package manager, no lockfile. Dependencies (`rumps`, `pyobjc`,
 `requests`, `certifi`) are already installed system-wide against
@@ -889,6 +928,15 @@ work on adaptability belongs. It adds `place.py` and `setup.py`, moves every pla
 string into `data/place.json`, derives the Pages URL from `github.repository`, and carries
 `FORK.md`. Porting a fork-template change back to `main` is usually wrong — main is
 deliberately the concrete instance, not the template.
+
+**`bih-all-municipalities`, forked from `main`, is a different kind of change** —
+not a template for adapting this to one other place, but a rewrite to cover
+all 145 municipalities of Bosnia and Herzegovina in one running instance, one
+private Telegram channel per municipality. See its own "## This branch"
+section above and `BIH_TRANSITION.md`. Porting a change back to `main` from
+here is usually wrong for the same reason it is from `fork-template` — this
+branch's country-wide data model and per-municipality channel routing are not
+what `main`'s single-place deployment wants.
 
 **A boundary can arrive as several rings, and `geo.py` is the only thing that knows it.**
 Nominatim returns a MultiPolygon for anything with an enclave, an exclave or an island - a
