@@ -72,16 +72,6 @@ TEMPLATE = r"""<!doctype html>
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;font-size:11.5px;color:var(--dim)}
   .chip b{color:var(--fg);font-weight:600}
-  /* A call-to-action, not a chip: full width and filled with --accent so it reads
-     as the one thing on this page worth clicking that is not a fire, distinct
-     from the quiet text link this used to be in the footer. Empty (no configured
-     channel) collapses to nothing rather than an empty gap - see renderHeader(). */
-  #tgbanner:empty{display:none}
-  #tgbanner{margin-top:12px}
-  #tgbanner a{display:flex;align-items:center;justify-content:center;gap:7px;
-    background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
-    font-size:12.5px;border-radius:8px;padding:9px 10px;transition:filter .13s}
-  #tgbanner a:hover,#tgbanner a:focus-visible{filter:brightness(1.08)}
   #list{overflow-y:auto;flex:1;padding:10px}
   .ev{background:var(--panel2);border:1px solid var(--line);border-left-width:3px;
     border-radius:9px;padding:12px 13px;margin-bottom:9px;cursor:pointer;transition:.14s}
@@ -158,6 +148,18 @@ TEMPLATE = r"""<!doctype html>
   .fwi-row{display:flex;justify-content:space-between;gap:14px}
   .fwi-row+.fwi-row{margin-top:1px}
   .fwi-codes,.fwi-note{opacity:.65;margin-top:6px;font-size:10.5px;line-height:1.5}
+  /* This municipality's own subscribe link - see muniPopupHtml(). Replaces the
+     single global banner this page used to have in the header (removed - a
+     private-channel-per-municipality deployment has no one link to advertise
+     there, see poller._telegram_channel_url()'s own docstring). Smaller than
+     that banner was (the popup's own maxWidth is 260px), same accent-filled
+     treatment so it still reads as the one clickable action in the popup
+     that is not the close button. */
+  .muni-tg{display:flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
+    font-size:11.5px;border-radius:7px;padding:7px 8px;margin-top:8px;
+    transition:filter .13s}
+  .muni-tg:hover,.muni-tg:focus-visible{filter:brightness(1.08)}
   .leaflet-bar a.eye{display:flex;align-items:center;justify-content:center}
   .imgnote{background:rgba(21,26,33,.94);padding:6px 10px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.5;
@@ -332,7 +334,6 @@ TEMPLATE = r"""<!doctype html>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
       <div class="status" id="hchips"></div>
-      <div id="tgbanner"></div>
     </header>
     <div id="list"></div>
     <footer id="foot"></footer>
@@ -913,7 +914,10 @@ const bandLayer = BUFFER ? L.geoJSON(BUFFER,{interactive:false,style:{color:"#7c
 // whatever was current when the popup was first bound - the boundaries
 // themselves never change, but fwiDetail()'s source does, every cycle.
 function muniPopupHtml(f){
-  return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}`;
+  const tg = f.properties.telegram_invite
+    ? `<a class="muni-tg" href="${f.properties.telegram_invite}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>`
+    : "";
+  return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}${tg}`;
 }
 const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
     && BIH_MUNICIPALITIES.features.length)
@@ -1433,14 +1437,6 @@ function renderHeader(){
     ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
     `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}`;
-  // A banner, not a footer link: this is the one call-to-action on the page
-  // that is not a fire, so it sits at the top of the panel rather than buried
-  // below the fire list. Independent of public_url, unlike the docs link -
-  // the channel is a fixed deployment setting, not something published
-  // alongside this particular map instance, so it shows on a local file://
-  // map too. :empty in CSS collapses it to nothing when there is no channel.
-  document.getElementById("tgbanner").innerHTML = DATA.telegram_url
-    ? `<a href="${DATA.telegram_url}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>` : "";
 }
 
 // Chrome on Android reports the visible height in innerHeight, so this keeps a
@@ -2197,6 +2193,12 @@ def bih_municipalities_geojson() -> dict:
     data isn't there (a checkout without data/bih/, or before the fetch
     finished), so the layer is simply omitted rather than the page failing to
     render at all, same as a missing buffer band.
+
+    `telegram_invite` rides along too - an invite link is meant to be public
+    (that is its whole purpose), unlike the Sentinel Hub instance id landmine
+    elsewhere in this module, so embedding it in the page Pages publishes is
+    fine. `None` for a municipality not yet provisioned; muniPopupHtml() omits
+    the subscribe link rather than showing one that 404s.
     """
     try:
         rows = json.loads(BIH_MUNI_FILE.read_text())
@@ -2210,7 +2212,8 @@ def bih_municipalities_geojson() -> dict:
             continue
         features.append({
             "type": "Feature",
-            "properties": {"id": r["id"], "name": r["short_name"]},
+            "properties": {"id": r["id"], "name": r["short_name"],
+                           "telegram_invite": r.get("telegram_invite")},
             "geometry": fc["features"][0]["geometry"],
         })
     return {"type": "FeatureCollection", "features": features}
