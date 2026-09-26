@@ -91,10 +91,17 @@ file tracks what's actually done versus what's still needed - status as of
   15 not-yet-provisioned municipalities get `null` for both fields rather
   than a stale placeholder, so `telegram.channel_for()` correctly skips them.
   Re-run the same merge once the remaining batch is provisioned.
-- **`poll.yml` updated for the per-municipality design** - the
-  `FIREWATCH_TELEGRAM_CHANNEL` secret (meaningless since the per-municipality
-  rewrite - routing is committed data now, not a secret) is gone;
-  `TELEGRAM_BOT_TOKEN` is the one Telegram secret left.
+- **`poll.yml` and `test-telegram.yml` updated for the per-municipality
+  design** - the `FIREWATCH_TELEGRAM_CHANNEL` secret (meaningless since the
+  per-municipality rewrite - routing is committed data now, not a secret) is
+  gone from both; `TELEGRAM_BOT_TOKEN` is the one Telegram secret left.
+  `test-telegram.yml` had been fully broken (a hard crash on any run) since
+  the rewrite - it called `telegram.channel()`/`channel_source()`, both
+  removed - and now takes a required `municipality` input, passed through as
+  an env var rather than interpolated into the run script (a
+  `workflow_dispatch` input is untrusted text, same script-injection concern
+  as anything else). `telegram.map_url()` is unaffected by any of this - it
+  still exists, unlike `channel()`/`channel_source()`.
 - **A real per-municipality Telegram subscribe link on the map** - each
   municipality's popup shows a "Subscribe on Telegram" button using its own
   invite link when one exists (`mapgen.py`'s `muniPopupHtml()`), replacing the
@@ -142,27 +149,16 @@ follow-up. There is no remaining "single country-wide point" problem here.
    this given the flood-wait history. Re-run the `municipalities.json` merge
    (see Done above) once this finishes.
 
-**Newly found, not yet fixed:**
-
-2. **`test-telegram.yml` is broken** - it calls `telegram.channel()`,
-   `telegram.channel_source()`, `telegram.test_text()` and `telegram.map_url()`,
-   none of which exist any more after the per-municipality rewrite (which
-   replaced them with `channel_for(municipality_id)` and changed
-   `cmd_test_telegram` to take a municipality id argument). This workflow has
-   been broken since that rewrite, not by anything in this round of changes -
-   `poll.yml` was the one explicitly fixed. Needs the same per-municipality
-   treatment `poll.yml` and the CLI already got.
-
 **Lower priority / worth doing before this is a real deployment:**
 
-3. **`CLAUDE.md` itself** has no section for this branch - `fork-template`
+2. **`CLAUDE.md` itself** has no section for this branch - `fork-template`
    has its own "## This branch" block at the top explaining what it is and
    what rules apply; this branch should get the same treatment once its
    shape has settled (probably after item 1 above).
-4. **`docs/*.html`** (the self-contained doc pages, also published as Claude
+3. **`docs/*.html`** (the self-contained doc pages, also published as Claude
    artifacts) are unaudited - likely reference Zavidovići-specific details
    throughout, the same way `CLAUDE.md`'s own pre-this-branch content did.
-5. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
+4. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
    re-verified against the new country-wide boundary specifically - it reads
    the same `geo.point_in_boundary()`/`distance_to_boundary_km()` the fetch
    clip uses, so it should "just work" the same way the clip itself did, but
