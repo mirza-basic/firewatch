@@ -5,7 +5,7 @@ from a single-municipality deployment (Zavidovići) into one that watches all
 145 self-governing units of Bosnia and Herzegovina, with a separate Telegram
 channel per municipality so someone can subscribe to just their own. This
 file tracks what's actually done versus what's still needed - status as of
-2026-09-25.
+2026-09-26.
 
 ## Done
 
@@ -82,7 +82,7 @@ file tracks what's actually done versus what's still needed - status as of
   33) stops the script cleanly before hitting a wall instead of sleeping
   through one unattended, and any flood-wait ≥2 minutes now stops the whole
   session rather than auto-retrying.
-- **80/145 channels provisioned as of this writing** (0 failed). Resumable -
+- **113/145 channels provisioned as of this writing** (0 failed). Resumable -
   re-running the same script skips everything done and continues.
 
 **Test coverage**
@@ -98,18 +98,18 @@ file tracks what's actually done versus what's still needed - status as of
 
 **Blocking, in dependency order:**
 
-1. **Finish channel provisioning** - 65 remaining as of this writing. Resume
+1. **Finish channel provisioning** - 32 remaining as of this writing. Resume
    with the same script on the user's machine
    (`~/firewatch-telegram-setup/provision_telegram_channels.py`), in capped
    batches (default 33/run) across multiple days - do not attempt to rush
    this given the flood-wait history.
-2. **Merge the real channel data into `data/bih/municipalities.json`** - its
-   `telegram_channel` field still holds the original suggested public
-   `@fw_ba_...` handles, never updated. The real data lives in
-   `~/firewatch-telegram-setup/telegram_provision_results.json` as
-   Telethon's bare `channel_id`; the Bot API needs it prefixed with `-100`
-   (e.g. `4423431890` → `-1004423431890`) to use as `chat_id`. Not done yet
-   for any of the 80 already-provisioned channels.
+2. **Merge the real channel data into `data/bih/municipalities.json`** - done
+   for the 113 provisioned so far (`telegram_channel` now holds the real
+   `-100`-prefixed Bot-API chat id from
+   `~/firewatch-telegram-setup/telegram_provision_results.json`; the 32 not
+   yet provisioned get `null` rather than a stale placeholder, so
+   `telegram.channel_for()` correctly skips them instead of posting to a
+   fake handle). Re-run the same merge once item 1 finishes.
 3. **`poll.yml` / the GitHub Actions workflow** - still entirely
    Zavidovići-shaped: the `state/config/config.json` literal, the secrets
    list (`FIREWATCH_TELEGRAM_CHANNEL` no longer means anything - the
