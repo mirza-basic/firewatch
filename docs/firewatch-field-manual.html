@@ -209,9 +209,10 @@
 
 <!-- ==================== 01 ==================== -->
 <h2 id="before"><span class="num">01</span> Before you start</h2>
-<p class="lede">FireWatch watches one municipality. It polls Meteosat, NASA FIRMS and
-Sentinel-3, groups the detections into tracked fires, tells you when something
-changes, and draws a live map. One process does all of it.</p>
+<p class="lede">This deployment watches all 145 municipalities of Bosnia and Herzegovina at
+once. It polls Meteosat, NASA FIRMS and Sentinel-3, groups the detections into
+tracked fires, tags each with which municipality it falls in, tells you when
+something changes, and draws a live map. One process does all of it.</p>
 
 <h3>What you need</h3>
 <ul>
@@ -498,29 +499,52 @@ your carrier charges, with no third-party sending fees.</p>
   &mdash; "Zavidovici", not "Zavidovići". Same information, a third of the segments.</p>
 </div>
 
-<h3>Telegram, through a public channel</h3>
-<p>Alerts can also post to a public Telegram channel through the
-<a href="https://core.telegram.org/bots/api">Bot API</a> &mdash; one recipient, the
-channel itself, rather than a list of numbers to manage. Anyone subscribes from the
-channel's own public link.</p>
+<h3>Telegram, through 145 private channels</h3>
+<p>Alerts can also post through the
+<a href="https://core.telegram.org/bots/api">Bot API</a> &mdash; but there is no
+single channel to create. This deployment covers all 145 municipalities of Bosnia
+and Herzegovina, one private channel each, and a fire posts to whichever one (or
+two, for the deliberately overlapping Sarajevo/Istočno Sarajevo pair) it falls
+inside. Private rather than public because Telegram enforces a real, hard,
+per-account cap on how many <em>public</em> channels one account can administer
+&mdash; there is no workaround for that at 145-channel scale, so subscribing means
+following a channel's own invite link (shown on that municipality's popup on the
+map) rather than a public <code>@handle</code>.</p>
 
 <ol class="stages">
   <li>
-    <h3>Create the bot and the channel</h3>
+    <h3>Create the bot, once</h3>
     <p>Message <a href="https://t.me/BotFather">@BotFather</a> on Telegram,
     <code>/newbot</code>, and follow the prompts &mdash; it replies with a bot token.
-    Create a public channel with a <code>@handle</code> people can subscribe from
-    directly, then add the bot as a channel administrator (channel settings &rsaquo;
-    Administrators &rsaquo; Add Admin). That last step happens in Telegram itself;
-    nothing here can do it or verify it was done.</p>
+    One bot posts to all 145 channels; there is no per-channel bot.</p>
+  </li>
+  <li>
+    <h3>Provision the 145 channels</h3>
+    <p>The Bot API has no method to create a channel or promote an admin, so this is
+    scripted with Telethon (the Telegram <em>user</em> API) instead &mdash; log in
+    once with a real account, and the script creates each private channel and adds
+    the bot as administrator in the same step
+    (<code>channels.EditAdminRequest</code>; a bot cannot be invited-then-promoted
+    the way a person can, so this must be one call, not two). Real, hard Telegram
+    limits apply at this scale and are worth planning around: a per-account cap on
+    channels with admin rights hit during testing, and flood-waits that can run from
+    minutes to over a day depending on how much was created recently and are not
+    predictable in advance &mdash; provisioning 145 channels realistically means
+    several sessions over several days, not one run.</p>
     <div class="note crit">
-      <span class="lbl">A valid token still fails silently until the bot is an admin</span>
-      <p>A bot token that has not been made an administrator of the channel gets an
-      ordinary HTTP 400 back from <code>sendMessage</code> &mdash; nothing in the
-      failure says "you forgot to add me as admin". <code>telegram-status</code> can
-      only confirm the token and channel are both <em>set</em>, the same limit
-      <code>sms-status</code> has for the httpSMS key. Send a real
-      <code>test-telegram</code> once before relying on it.</p>
+      <span class="lbl">A valid token still fails silently until it's the *right* bot</span>
+      <p>A bot token that has not been made an administrator of a given channel gets
+      an ordinary <code>400 chat not found</code> back from <code>sendMessage</code>
+      &mdash; nothing in the failure says "you forgot to add me as admin", and
+      nothing distinguishes it from a token that authenticates fine but simply
+      belongs to a <em>different</em> bot than the one actually promoted in these
+      channels. <code>telegram-status</code> can only confirm a token is
+      <em>present</em>, the same limit <code>sms-status</code> has for the httpSMS
+      key - it cannot tell you whether it is the right one. Call Telegram's own
+      <code>getMe</code> against the configured token and compare the username
+      against the one you provisioned with; this exact mix-up (an old bot's token
+      left over from an earlier setup) is what silently broke every channel here
+      once, until caught that way.</p>
     </div>
   </li>
   <li>
@@ -531,17 +555,18 @@ channel's own public link.</p>
     under the service <code>firewatch-telegram</code>.</p>
   </li>
   <li>
-    <h3>Turn it on</h3>
+    <h3>Merge the channel data and turn it on</h3>
     <p>Set <code>telegram_enabled: true</code> &mdash; off by default, since it needs a
-    credential nothing else needs, the same reasoning as Sentinel-2 imagery. The
-    channel handle itself is <code>telegram_channel</code> in
-    <code>config.json</code>, not a secret, since it is meant to be shared &mdash; or
-    <code>FIREWATCH_TELEGRAM_CHANNEL</code> in the environment, for a deployment with
-    no writable config file (this repo's own GitHub Actions run rewrites
-    <code>config.json</code> from a fixed literal every cycle, so that is the only way
-    to set the channel there without editing <code>poll.yml</code>).</p>
-    <pre><code>./firewatch-ctl telegram      <span class="c"># shows exactly what is missing, if anything</span>
-./firewatch-ctl test-telegram</code></pre>
+    credential nothing else needs, the same reasoning as Sentinel-2 imagery. Which
+    municipality has which channel is committed data, not a secret or a config key:
+    <code>data/bih/municipalities.json</code>'s <code>telegram_channel</code> field
+    (the Bot-API-postable chat id, <code>"-100"</code> plus the numeric id Telethon
+    reports) and <code>telegram_invite</code> (the join link shown on the map),
+    merged in from the provisioning run's own results. A municipality with no
+    channel yet gets <code>null</code> for both rather than a placeholder &mdash; a
+    partially-provisioned deployment alerts on what it has.</p>
+    <pre><code>./firewatch-ctl telegram              <span class="c"># how many of 145 have a channel</span>
+./firewatch-ctl test-telegram &lt;municipality-id&gt;   <span class="c"># e.g. zavidovici</span></code></pre>
   </li>
 </ol>
 
@@ -550,8 +575,8 @@ channel's own public link.</p>
   <p>Telegram's limit is 4096 characters against real alerts of 150&ndash;210, so unlike
   SMS nothing here is transliterated or shortened &mdash; diacritics are sent as typed,
   and the message carries lines SMS drops for cost: the detection count and its source
-  list, the footprint width, and an <code>IZVAN OPĆINE</code> marker for a fire outside
-  the municipality.</p>
+  list, the footprint width, and an <code>IZVAN BIH</code> marker for a fire in the
+  buffer band outside Bosnia and Herzegovina's own border.</p>
 </div>
 
 <div class="note warn">
@@ -569,6 +594,18 @@ suppresses another.</p>
 
 <!-- ==================== 07 ==================== -->
 <h2 id="relocate"><span class="num">05</span> Watching somewhere else</h2>
+<div class="note">
+  <span class="lbl">This section describes the single-municipality starting point</span>
+  <p>The steps below - replacing <code>zavidovici.geojson</code>, editing four
+  constants in <code>config.py</code> - are how <code>main</code>'s single-place
+  design is manually relocated. Two better starting points exist for that job now:
+  the <code>fork-template</code> branch automates it (<code>python3 -m firewatch
+  setup "&lt;name&gt;"</code>, no manual file editing), and this deployment - all 145
+  municipalities of Bosnia and Herzegovina in one instance - is a different kind of
+  change entirely, not a single-place relocation, so none of the file paths or
+  string locations below apply to it. Read on if you specifically want to
+  understand or reproduce <code>main</code>'s original manual process.</p>
+</div>
 <p class="lede">Nothing about the pipeline is specific to Bosnia. Pointing FireWatch at a
 different municipality means replacing two data files and four constants &mdash; and the
 whole procedure below has been run end to end against a different municipality to confirm
