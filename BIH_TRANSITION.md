@@ -170,6 +170,65 @@ intentionally-partial `telegram_channel`/`telegram_invite` fields. The
 `## Branches` section also gained a paragraph describing this branch, next
 to the existing `fork-template` one.
 
+**`docs/*.html` audit, done for all 9 affected files** (of 12 total;
+`firewatch-spread-risk.html`, `firewatch-sms-preview.html`, `firewatch-hosting.html`
+and `firewatch-linux.html` never mentioned Zavidovići):
+- `firewatch-documentation.html` (1,366 lines, the flagship architecture doc) -
+  full rewrite: title/brand, the facts panel, the 560 km² Zavidovići lede, the
+  spatial clip's municipality-vs-country framing, the Telegram section (one
+  public channel → 145 private ones), the map's municipality-outline claim, file
+  paths, test/module/line counts, the OSM relation id, and the `IZVAN OPĆINE` →
+  `IZVAN BIH` marker. Real measured examples (the 3-4 September fire timeline,
+  the MTG sensor floor, the Kamenica pattern) were kept, not fabricated
+  replacements, explicitly reframed as measurements from the original
+  single-municipality deployment.
+- `firewatch-api-reference.html` - real architectural rewrite: the Nominatim/
+  Overpass sections described the old interactive single-place `setup.py`;
+  replaced with what `setup_bih.py` actually does (`/lookup` by known relation
+  id ×145, `around:radius` per municipality merged/deduplicated). The Telegram
+  Bot API section was entirely the old one-channel model with a fake chat id;
+  rewritten for the real per-municipality private-channel design, including the
+  bot-identity landmine as a documented failure mode. FIRMS/Meteosat curl
+  examples now use the real, current country-wide bbox.
+- `firewatch-fire-danger.html` - fixed to describe `update_one()`/`update_all()`
+  and each municipality's own `Municipality.forecast_point` rather than one
+  `update()`/`geo.forecast_point()` for the whole deployment; fixed a wrong CLI
+  example (bare `fire-danger` now lists all 145, not one forecast).
+- `firewatch-field-manual.html` - fixed the opening lede ("watches one
+  municipality") and rewrote the Telegram setup walkthrough, which gave
+  actionable but wrong instructions (one bot, one public channel,
+  `telegram_channel` in `config.json` - none of which exist here). Added a
+  scoping note to the separate "relocate to a new municipality by hand"
+  appendix rather than rewriting it - that section describes `main`'s manual
+  process, same as `firewatch-fork.html`, not this branch.
+- `firewatch-telegram-preview.html` - one-public-channel framing and the marker
+  name fixed.
+- `firewatch-macos.html` - the one cheap fix from earlier (stale plist name).
+- `firewatch-satellite-latency.html`, `firewatch-sentinel3-plan.html` and
+  `firewatch-fork.html` were reviewed and deliberately left unchanged: the
+  first two are real orbital-geometry measurements at one specific, real
+  latitude (legitimate worked examples, not scope claims), and the third
+  describes `fork-template`'s own workflow generically, orthogonal to this
+  branch.
+
+**Two more real bugs found and fixed while doing this audit** - the fifth and
+sixth this session, after the muniLayer canvas click-through, the popup
+z-index trap, the Keychain bot-token mismatch, and `firewatch-ctl`'s label
+mismatch:
+- `telegram.py`/`sms.py`'s `outside`/`IZVAN OPĆINE` label said "outside the
+  municipality" when `ev["inside"]` has meant "inside Bosnia and Herzegovina"
+  since the country-wide clip landed - a live mistranslation shown to real
+  Telegram subscribers. Fixed to `IZVAN BIH`.
+- `firewatch-ctl`'s `test-telegram` case never forwarded `$2` the way
+  `sms-add`/`sms-remove` already do, so `./firewatch-ctl test-telegram` could
+  never actually test anything (`cmd_test_telegram` requires a municipality id
+  on this branch). Fixed.
+
+Six bugs in one session, all caught by actually running things - installing
+the service, cross-checking docs against running code, sending a real test
+message - rather than reading code in isolation. None of them would have
+surfaced from `tests_*.py` passing.
+
 ## Remaining
 
 **Blocking:**
@@ -181,13 +240,4 @@ to the existing `fork-template` one.
    this given the flood-wait history. Re-run the `municipalities.json` merge
    (see Done above) once this finishes.
 
-**Lower priority / worth doing before this is a real deployment:**
-
-2. **`docs/*.html`** - 9 of 12 files reference Zavidovići. Most are a few
-   incidental mentions (an example plist name, a sample coordinate), but
-   `firewatch-documentation.html` (1,366 lines) is deeply branded throughout
-   - title, header, and real narrative built around one actual Zavidovići
-   fire event - and needs its own dedicated editorial pass, not a quick
-   find-and-replace. One cheap, unambiguous fix landed
-   (`firewatch-macos.html`'s stale `com.firewatch.zavidovici.plist` example
-   → `com.firewatch.bih.plist`); the rest is still open.
+**Nothing else blocking.** `docs/*.html` is done - see Done below.
