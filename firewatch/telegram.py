@@ -23,7 +23,7 @@ none of sms.py's reasons to exist apply here:
 * No GSM-7/UCS-2 split - Bosnian diacritics cost nothing, so alerts keep
   "Zavidovići" rather than folding to "Zavidovici".
 * No one-segment budget to fit inside - everything SMS had to drop for cost
-  (the detection count and source list, the IZVAN OPĆINE marker) fits here
+  (the detection count and source list, the IZVAN BIH marker) fits here
   with room left over, so nothing is trimmed and there is no `worst_case()`
   degradation ladder to build or measure.
 
@@ -140,7 +140,7 @@ TELEGRAM_TEXT = {
         "risk": {"elevated": "povišen", "high": "visok", "extreme": "ekstreman",
                  "moderate": "umjeren", "unknown": "nepoznat"},
         "peak": "maks", "now": "sada", "det": "detekcija",
-        "outside": "IZVAN OPĆINE", "wind": "Vjetar", "rh": "vlaga ",
+        "outside": "IZVAN BIH", "wind": "Vjetar", "rh": "vlaga ",
         "risk_word": "rizik", "sample": "Primjer",
         "test": "FIREWATCH TEST - nema požara, provjera Telegram kanala",
     },
@@ -153,7 +153,7 @@ TELEGRAM_TEXT = {
         "risk": {"elevated": "elevated", "high": "high", "extreme": "extreme",
                  "moderate": "moderate", "unknown": "unknown"},
         "peak": "peak", "now": "now", "det": "detections",
-        "outside": "OUTSIDE municipality", "wind": "Wind", "rh": "RH ",
+        "outside": "OUTSIDE Bosnia and Herzegovina", "wind": "Wind", "rh": "RH ",
         "risk_word": "risk", "sample": "Sample",
         "test": "FIREWATCH TEST - no fire, checking the Telegram channel",
     },
