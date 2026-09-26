@@ -102,6 +102,20 @@ file tracks what's actually done versus what's still needed - status as of
   dead code, since `poller._telegram_channel_url()` returns `None`
   unconditionally in this per-municipality design.
 
+**A real, non-isolated end-to-end test** - `python3 -m firewatch test-telegram
+maglaj` posted successfully to Maglaj's real private channel, confirmed by
+Telegram accepting the send. It caught a real bug on the way: the
+`TELEGRAM_BOT_TOKEN` in the macOS Keychain (`firewatch-telegram` service) was
+still the *old single-municipality bot's* token
+(`@firewatchzavidovicibot`, from before this branch), not
+`@FirewatchBiHBot` - the bot `provision_telegram_channels.py` actually
+promoted to admin in all 113 channels. Every send failed with Telegram's
+`400 chat not found` until the Keychain token was replaced with
+`@FirewatchBiHBot`'s real one via `set-telegram-key`. This would have
+silently broken alerting for every one of the 113 channels in production -
+worth checking `getMe` against the configured token whenever this is
+re-verified, not just that a token is present.
+
 **Fire danger** - `firedanger.py` already computes one FWI reading per
 municipality (`update_all()` loops all 145, each using its own
 `Municipality.forecast_point` vertex-mean, not one country-wide point) - this
@@ -148,12 +162,7 @@ follow-up. There is no remaining "single country-wide point" problem here.
 4. **`docs/*.html`** (the self-contained doc pages, also published as Claude
    artifacts) are unaudited - likely reference Zavidovići-specific details
    throughout, the same way `CLAUDE.md`'s own pre-this-branch content did.
-5. **No real, non-isolated end-to-end test yet** - every verification so far
-   has been either isolated (scratch `FIREWATCH_DATA_DIR`, no real
-   credentials) or unit-level (mocked `telegram.send`). Now that 113 real
-   private channels exist with real chat ids merged in, worth confirming one
-   real alert actually posts through the whole real pipeline.
-6. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
+5. **`store.out_of_scope()`/`reclip`-style history cleanup** hasn't been
    re-verified against the new country-wide boundary specifically - it reads
    the same `geo.point_in_boundary()`/`distance_to_boundary_km()` the fetch
    clip uses, so it should "just work" the same way the clip itself did, but
