@@ -146,6 +146,23 @@ follow-up. There is no remaining "single country-wide point" problem here.
   correctly against `data/bih/country.geojson`, and that this doesn't
   silently no-op.
 
+**Running live, locally, for real** - the old single-municipality
+`com.firewatch.zavidovici` launchd service was uninstalled (data archived to
+`~/Library/Application Support/FireWatch-zavidovici-archive-20260926/`, not
+deleted), this branch installed in its place as `com.firewatch.bih`, with a
+clean database and `telegram_enabled`/`sms_enabled`/`auto_expose` all on.
+First real cycle caught a genuine new fire (Brajkovići, Čapljina) and
+alerted correctly: real SMS sent, desktop notification sent, Telegram
+correctly skipped it (Čapljina isn't provisioned yet) rather than erroring.
+
+Found and fixed a real bug installing it: **`firewatch-ctl` carried its own
+separate, hardcoded `LABEL="com.firewatch.zavidovici"`**, never updated when
+`menubar.py`'s `SERVICE_LABEL` became `"com.firewatch.bih"` - so the shell
+script would have kept controlling a job under the old name while the
+Python app's own `_service_target()` (its "Restart" menu action, its status
+check) targeted the new name, which was never actually running. Fixed by
+matching the two.
+
 **`CLAUDE.md`** now has its own "## This branch" section (mirroring
 `fork-template`'s), covering the country-wide data model, the bot-identity
 landmine `test-telegram maglaj` caught for real (see above), and the
