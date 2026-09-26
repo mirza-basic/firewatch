@@ -14,14 +14,13 @@
 #   FIREWATCH_SMS_TO            optional, comma-separated recipients. This is why
 #                               it exists: a phone number must not be committed
 #                               to a public repository.
-#   TELEGRAM_BOT_TOKEN          optional, for the Telegram channel
-#   FIREWATCH_TELEGRAM_CHANNEL  optional, the @handle to post to. Not sensitive
-#                               like a phone number, but config.json below is a
-#                               fixed literal written fresh every run, not
-#                               something `telegram-status` or a CLI command
-#                               can edit here the way it can on a laptop - so
-#                               without this, a fork could only change the
-#                               channel by editing this workflow file itself.
+#   TELEGRAM_BOT_TOKEN          optional, for Telegram alerts. The only Telegram
+#                               secret needed here: which municipality gets which
+#                               channel is committed data
+#                               (data/bih/municipalities.json's telegram_channel
+#                               field, one private channel's chat id per
+#                               municipality), not a per-deployment secret the
+#                               way a single fixed @handle used to be.
 
 name: poll
 
@@ -84,7 +83,6 @@ jobs:
           HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
         run: |
           mkdir -p state/config public
           # auto_expose must stay off: there is no ngrok agent here, and leaving it
@@ -92,10 +90,13 @@ jobs:
           # telegram_enabled defaults to false, same reasoning as
           # imagery_s2_enabled - it needs a credential nothing else needs, so it
           # stays opt-in for a bare CLI/menubar install. Here that opt-in is
-          # "a fork bothered to set TELEGRAM_BOT_TOKEN and
-          # FIREWATCH_TELEGRAM_CHANNEL": telegram.ready() is unusable without
-          # both anyway, so turning it on unconditionally in this deployment
-          # costs nothing when they are absent.
+          # "a fork bothered to set TELEGRAM_BOT_TOKEN": telegram.ready() also
+          # needs at least one municipality's telegram_channel populated in
+          # data/bih/municipalities.json, but that's committed data, not
+          # something this workflow sets - so turning telegram_enabled on
+          # unconditionally costs nothing when the token is absent, and costs
+          # nothing extra for a still-partially-provisioned deployment either
+          # (send_alert() posts to whichever municipalities have a channel).
           echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
           python3 -m firewatch poll
 
