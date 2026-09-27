@@ -195,6 +195,14 @@ DEFAULTS = {
     # "extinguished" is left out on purpose: it is the informational one, and an
     # SMS costs a segment every time a fire merely cools off.
     "sms_kinds": ["new", "reignited", "intensified", "grew"],
+    # Empty means no restriction - every municipality's alerts reach the SMS
+    # recipient list, same as before this existed. Set to municipality ids (e.g.
+    # ["zavidovici"]) on a country-wide deployment where the SMS number is one
+    # person's own phone, not a broadcast list the way each municipality's own
+    # Telegram channel is - that person likely wants a text only for fires near
+    # them, not all 145 municipalities' worth. Telegram is unaffected either way,
+    # since it already routes per-municipality on its own.
+    "sms_municipalities": [],
     # Language for alert text. "bs" or "en" - the map is bilingual, and the people
     # receiving these texts are local. Diacritics are folded to ASCII on the way out
     # either way; see sms.ascii_only.

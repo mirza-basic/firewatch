@@ -461,6 +461,14 @@ def send_alert(alert: dict) -> bool:
     kinds = CFG.get("sms_kinds") or []
     if kinds and alert["kind"] not in kinds:
         return False
+    # See config.py's own comment: empty means unrestricted (every deployment
+    # before this one, and any single-municipality fork), non-empty means only
+    # these municipalities' fires reach the one SMS recipient list - unlike
+    # Telegram, which already routes per-municipality on its own and needs no
+    # equivalent filter.
+    only = CFG.get("sms_municipalities") or []
+    if only and not set(alert["event"].get("municipalities") or []) & set(only):
+        return False
     text = alert_text(alert)
     if send(text):
         log.info("sms sent to %d recipient(s) (%d chars, %d segment(s)) for %s",
