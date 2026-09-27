@@ -2,17 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## This branch
+## Country-wide, not single-municipality
 
-`bih-all-municipalities`, forked from `main`. Turns the single-municipality
-deployment described below into one that watches all 145 self-governing units
-of Bosnia and Herzegovina at once, with a separate private Telegram channel
-per municipality rather than one fixed channel for the whole deployment.
-`BIH_TRANSITION.md` tracks what's actually done versus what's still needed -
-read it before trusting a number (channels provisioned, rows merged) quoted
-anywhere else, since it moves fast and this file doesn't track it.
+`main` watches all 145 self-governing units of Bosnia and Herzegovina at once,
+with a separate private Telegram channel per municipality rather than one
+fixed channel for the whole deployment. This was `bih-all-municipalities`, a
+branch that replaced `main`'s original single-municipality (Zavidovići) design
+entirely rather than adapting it (see `## Branches` below for how that differs
+from what `fork-template` does) - merged 2026-09-27.
+`BIH_TRANSITION.md` tracks what's actually done versus what's still needed on
+that transition (channel provisioning is still ongoing) - read it before
+trusting a number quoted anywhere else, since it moves fast and this file
+doesn't track it.
 
-Three things follow for anyone working on this branch:
+Three things follow for anyone working on this codebase:
 
 * **There is no single town any more.** `TOWN_LAT`/`TOWN_LON`, the boundary,
   and the settlement list are all country-wide now (`data/bih/` replaces the
@@ -42,11 +45,10 @@ Three things follow for anyone working on this branch:
 
 ## What this is
 
-FireWatch — near-live wildfire monitoring, on this branch for all 145
-municipalities of Bosnia and Herzegovina at once. A macOS menu bar app
-(`rumps`) that polls three satellite fire feeds, clusters detections into
-tracked fire events, sends notifications on change, and renders a live HTML
-map.
+FireWatch — near-live wildfire monitoring for all 145 municipalities of Bosnia
+and Herzegovina at once. A macOS menu bar app (`rumps`) that polls three
+satellite fire feeds, clusters detections into tracked fire events, sends
+notifications on change, and renders a live HTML map.
 
 No build step, no package manager, no lockfile. Dependencies (`rumps`, `pyobjc`,
 `requests`, `certifi`) are already installed system-wide against
@@ -919,24 +921,28 @@ clickable links to Google Maps. `notify.backend()` reports which is active.
 
 ## Branches
 
-`main` is this deployment and names Zavidovići in code: `config.py` hardcodes the three
-`data/` filenames and `TOWN_LAT`/`TOWN_LON`, and both workflow files carry a literal
-`FIREWATCH_PUBLIC_URL`.
+**`main` is this deployment**, and as of 2026-09-27 that means the country-wide
+one - see `## Country-wide, not single-municipality` above. It no longer names
+Zavidovići in code the way it did before that merge: `config.py`'s
+`BOUNDARY_GEOJSON`/`SETTLEMENTS_JSON`/`BUFFER_GEOJSON`/`TOWN_LAT`/`TOWN_LON` are
+gone, replaced by `data/bih/` and per-municipality lookups through `geo_bih.py`.
 
-**`fork-template` is the branch anyone adapting this should start from**, and it is where
-work on adaptability belongs. It adds `place.py` and `setup.py`, moves every place-specific
-string into `data/place.json`, derives the Pages URL from `github.repository`, and carries
-`FORK.md`. Porting a fork-template change back to `main` is usually wrong — main is
-deliberately the concrete instance, not the template.
+**`bih-all-municipalities` did that rewrite** and has now been merged into
+`main` (not adapted from it, replacing it entirely - `BIH_TRANSITION.md` has
+the full history of what changed and why). The branch itself is left as a
+historical record rather than deleted; further work on the country-wide system
+belongs on `main` directly, not back on that branch.
 
-**`bih-all-municipalities`, forked from `main`, is a different kind of change** —
-not a template for adapting this to one other place, but a rewrite to cover
-all 145 municipalities of Bosnia and Herzegovina in one running instance, one
-private Telegram channel per municipality. See its own "## This branch"
-section above and `BIH_TRANSITION.md`. Porting a change back to `main` from
-here is usually wrong for the same reason it is from `fork-template` — this
-branch's country-wide data model and per-municipality channel routing are not
-what `main`'s single-place deployment wants.
+**`fork-template` is the branch anyone wanting to watch a single municipality
+should start from now** - it predates the country-wide merge and still carries
+`main`'s *original* single-place architecture (`place.py`, `setup.py`,
+`data/place.json`, `FORK.md`), which no longer exists on `main` itself. It is
+no longer "the same system as main with the place moved to one file" - `main`
+went a different direction entirely, so `fork-template` is now the one branch
+preserving the single-municipality design at all. Porting a change from
+`fork-template` to `main`, or from `main` to `fork-template`, is usually wrong
+either way now - they are two different systems that happen to share a
+history, not variations of one.
 
 **A boundary can arrive as several rings, and `geo.py` is the only thing that knows it.**
 Nominatim returns a MultiPolygon for anything with an enclave, an exclave or an island - a
