@@ -97,7 +97,12 @@ jobs:
           # unconditionally costs nothing when the token is absent, and costs
           # nothing extra for a still-partially-provisioned deployment either
           # (send_alert() posts to whichever municipalities have a channel).
-          echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
+          # sms_municipalities restricts SMS to Zavidovići only - FIREWATCH_SMS_TO
+          # is one person's own phone, not a per-municipality broadcast the way
+          # each Telegram channel is, so without this every one of the 145
+          # municipalities' new fires would text that number. Telegram needs no
+          # equivalent - it already routes per-municipality on its own.
+          echo '{"auto_expose": false, "telegram_enabled": true, "sms_municipalities": ["zavidovici"]}' > state/config/config.json
           python3 -m firewatch poll
 
       - name: Commit the database back, but only when something actually changed
