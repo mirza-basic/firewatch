@@ -44,6 +44,7 @@ import json
 import logging
 import math
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -297,12 +298,36 @@ def _fetch_daily(lat: float, lon: float, forecast_days: int) -> dict[str, dict]:
 # failure for one does not touch the other 144, and a fork with only some
 # municipalities set up loses nothing for the rest.
 
-# Politeness towards a free, keyless API being asked up to 145 times in a row
-# (from update_all()), not a documented requirement of it - Open-Meteo
-# publishes no rate limit for this endpoint. 145 requests at this pace is
-# under a minute in total, and it is only ever charged per real request (see
+# Politeness towards update_one()'s own single-municipality path - not load-
+# bearing for update_all() any more, which paces itself through _MAX_WORKERS
+# and the 429 retry below instead. Only charged per real request (see
 # update_one()'s finally below), not per municipality checked.
 _FETCH_DELAY_S = 0.3
+
+# update_all()'s cold-start case - nothing cached yet, so all 145 are due at
+# once - measured taking several minutes fully sequential (145 requests at
+# roughly a second-plus each, worse the moment even one hits Open-Meteo's own
+# occasional slow response - a real ~30 s read timeout was measured on two of
+# 145 during the first run against a freshly reset database), long enough that
+# an external caller watching the run can mistake it for hung and cancel it -
+# which happened for real once. Bounded concurrency for the fetches (not the
+# database writes, which stay sequential in the calling thread - SQLite's WAL
+# mode tolerates concurrent readers fine but only really wants one writer)
+# turns that multi-minute wall-clock cost into worker count-many requests in
+# flight at once.
+#
+# Open-Meteo *does* enforce a real limit despite advertising none for this
+# endpoint - measured directly, not documented: a 429 whose body names it
+# outright, `{"reason":"Minutely API request limit exceeded. Please try again
+# in one minute.","error":true}`. It is a rolling per-minute cap, not a
+# concurrency cap - two back-to-back full runs of 145 seconds apart hit it far
+# harder than one run alone (145/145 succeeded once from a quiet state; the
+# very next run, moments later, only 68/145 did) - so a lower worker count
+# alone does not fully avoid it, only slows how fast the budget is spent.
+# _fetch_batch()'s 429-specific retry in update_all() is what actually
+# recovers from this rather than silently losing whichever municipalities
+# happened to lose the race.
+_MAX_WORKERS = 4
 
 
 def _gate_key(municipality_id: str) -> str:
@@ -372,12 +397,27 @@ def update_one(con, municipality_id: str, lat: float, lon: float,
         # gate above skips all 145 - costs nothing here.
         time.sleep(_FETCH_DELAY_S)
 
+    payload = _compute_payload(daily, lat, lon, today, municipality_id)
+    if payload is None:
+        return cached
+    store.set_meta(con, gate_key, json.dumps({"date": today, "noon_passed": noon_passed}))
+    store.set_meta(con, payload_key, json.dumps(payload, ensure_ascii=False))
+    return payload
+
+
+def _compute_payload(daily: dict[str, dict], lat: float, lon: float, today: str,
+                      municipality_id: str) -> dict | None:
+    """The pure-CPU half of update_one() - given an already-fetched window,
+    replay the FWI System through it and shape the payload. No I/O, no shared
+    state, so update_all() can run this in the same thread that owns the
+    database connection while _fetch_daily() runs concurrently elsewhere.
+    """
     dates = sorted(daily)
     if today not in dates:
         log.warning("fire danger: %s not in %s's fetched window (%s..%s)", today,
                     municipality_id, dates[0] if dates else "?",
                     dates[-1] if dates else "?")
-        return cached
+        return None
 
     codes = {"ffmc": FFMC0, "dmc": DMC0, "dc": DC0}
     trend = []
@@ -390,32 +430,122 @@ def update_one(con, municipality_id: str, lat: float, lon: float,
 
     today_entry = next(e for e in trend if e["date"] == today)
     future = [e for e in trend if e["date"] > today]
-    payload = {
+    return {
         "point": {"lat": round(lat, 4), "lon": round(lon, 4)},
         "today": today_entry,
         "forecast": future,
         "updated_at": iso(utcnow()),
     }
-    store.set_meta(con, gate_key, json.dumps({"date": today, "noon_passed": noon_passed}))
-    store.set_meta(con, payload_key, json.dumps(payload, ensure_ascii=False))
-    return payload
 
 
 def update_all(con, force: bool = False) -> dict[str, dict]:
-    """update_one() for every one of BiH's 145 municipalities.
+    """update_one() for every one of BiH's 145 municipalities - but fetching
+    concurrently (bounded, see _MAX_WORKERS) rather than one at a time.
 
-    One HTTP call per municipality that is actually due (most cycles, none
-    are - see update_one()'s gate), so a routine cycle costs nothing here and
-    the twice-daily real run costs at most 145 short requests, not one. A
-    fetch failure for one municipality is logged and skipped, same as any
-    other per-source failure in this project - the other 144 are unaffected.
+    Most cycles nothing is due at all (see update_one()'s gate) and this
+    costs nothing. When something is due - routinely a handful, at most all
+    145 at once on a freshly reset database with nothing cached yet, or on the
+    twice-daily moment every gate opens together - the network fetches run in
+    a bounded thread pool (_fetch_batch()); only the compute-and-persist step
+    (pure CPU, plus the one shared SQLite connection) happens back in this
+    thread, one municipality at a time, since SQLite's WAL mode wants a single
+    writer. Municipalities that hit Open-Meteo's own per-minute rate limit get
+    one coordinated retry after waiting it out (see _MAX_WORKERS's own
+    comment); any other fetch failure is logged and skipped, same as any
+    other per-source failure in this project - the other 144 are unaffected
+    either way.
     """
     out: dict[str, dict] = {}
     if not CFG.get("fire_danger_enabled", True):
         return out
+
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    today = now.date().isoformat()
+    noon_passed = now.hour >= 12
+    forecast_days = int(CFG["fire_danger_forecast_days"])
+
+    # Cheap, sequential, no network: sort the gated (skip) from the due
+    # (fetch), same test update_one() itself applies.
+    due: list[tuple[str, float, float]] = []
     for m in geo_bih.municipalities():
         lat, lon = m.forecast_point
-        payload = update_one(con, m.id, lat, lon, force=force)
-        if payload:
-            out[m.id] = payload
+        gate = _load_json_meta(con, _gate_key(m.id))
+        cached = _load_json_meta(con, _payload_key(m.id))
+        if not force and gate and gate.get("date") == today \
+                and (gate.get("noon_passed") or not noon_passed):
+            if cached:
+                out[m.id] = cached
+            continue
+        due.append((m.id, lat, lon))
+
+    if not due:
+        return out
+
+    results = _fetch_batch(due, forecast_days)
+
+    # Open-Meteo's free tier enforces a real per-minute request cap, measured
+    # directly: the response body is not a generic 429, it names the window -
+    # {"reason":"Minutely API request limit exceeded. Please try again in one
+    # minute.","error":true}. A cold-start burst (all 145 due at once, nothing
+    # cached yet) or the twice-daily moment all 145 gates open together can
+    # both plausibly exceed it even at a modest worker count, so rate-limited
+    # municipalities get one coordinated retry after waiting the window out,
+    # rather than being dropped for the day - a single shared wait, not each
+    # of them sleeping and retrying independently and re-triggering the same
+    # limit as a second stampede.
+    rate_limited = [mid for mid, (status, _) in results.items() if status == "429"]
+    if rate_limited:
+        log.warning("fire danger: %d/%d municipalities hit Open-Meteo's per-minute "
+                    "limit, waiting 65s before one retry", len(rate_limited), len(due))
+        time.sleep(65)
+        lookup = {mid: (lat, lon) for mid, lat, lon in due}
+        retry_items = [(mid, *lookup[mid]) for mid in rate_limited]
+        results.update(_fetch_batch(retry_items, forecast_days))
+
+    lookup = {mid: (lat, lon) for mid, lat, lon in due}
+    for mid, (status, value) in results.items():
+        lat, lon = lookup[mid]
+        cached = _load_json_meta(con, _payload_key(mid))
+        if status != "ok":
+            reason = "rate-limited twice" if status == "429" else str(value)
+            log.warning("fire danger fetch failed for %s: %s", mid, reason)
+            if cached:
+                out[mid] = cached
+            continue
+        payload = _compute_payload(value, lat, lon, today, mid)
+        if payload is None:
+            if cached:
+                out[mid] = cached
+            continue
+        store.set_meta(con, _gate_key(mid),
+                        json.dumps({"date": today, "noon_passed": noon_passed}))
+        store.set_meta(con, _payload_key(mid), json.dumps(payload, ensure_ascii=False))
+        out[mid] = payload
+
+    return out
+
+
+def _fetch_batch(items: list[tuple[str, float, float]],
+                  forecast_days: int) -> dict[str, tuple[str, object]]:
+    """Fetch a batch concurrently (bounded, see _MAX_WORKERS). Each result is
+    ("ok", daily_dict), ("429", None) for Open-Meteo's own rate limit
+    specifically, or ("error", exception) for anything else - kept distinct
+    from a generic failure because 429 is the one outcome update_all() retries
+    rather than gives up on for the cycle.
+    """
+    out: dict[str, tuple[str, object]] = {}
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        futures = {pool.submit(_fetch_daily, lat, lon, forecast_days): mid
+                   for mid, lat, lon in items}
+        for future in as_completed(futures):
+            mid = futures[future]
+            try:
+                out[mid] = ("ok", future.result())
+            except requests.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code == 429:
+                    out[mid] = ("429", None)
+                else:
+                    out[mid] = ("error", exc)
+            except Exception as exc:
+                out[mid] = ("error", exc)
     return out
