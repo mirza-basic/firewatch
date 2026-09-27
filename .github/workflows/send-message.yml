@@ -1,0 +1,139 @@
+# Post a custom message to one, several, or all 145 municipalities' Telegram
+# channels, using the same bot real alerts go through - for announcements,
+# maintenance notices, or anything else that isn't a fire event but is still
+# worth telling subscribers. Not a substitute for poll.yml's own automatic
+# alerting, and not meant to be run casually: unlike test-telegram.yml this
+# sends whatever text you type, to real subscribers, on demand.
+#
+# Defaults to PREVIEW. Clicking "Run workflow" without thinking prints the
+# message and exactly which channels it would reach, and sends nothing - a
+# real send reaches real subscribers and cannot be recalled, so the safe
+# option is the default one. Mirrors test-sms.yml/test-telegram.yml.
+
+name: send-message
+
+on:
+  workflow_dispatch:
+    inputs:
+      municipalities:
+        description: "Municipality id(s), comma-separated (e.g. zavidovici,maglaj) - or 'all' for every one of 145"
+        type: string
+        required: true
+      message:
+        description: "The message to send, exactly as typed"
+        type: string
+        required: true
+      send:
+        description: "Actually send it (leave unchecked to preview only)"
+        type: boolean
+        default: false
+
+# Read-only: this workflow publishes nothing and commits nothing.
+permissions:
+  contents: read
+
+jobs:
+  send-message:
+    runs-on: ubuntu-latest
+    env:
+      # Only needed to resolve which municipalities exist and their channel
+      # ids (data/bih/municipalities.json, committed) - no fetch, no database.
+      FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+      FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+      # api.telegram.org publishes an AAAA record, and these runners have no
+      # IPv6 route - without this the post fails with "[Errno 101] Network is
+      # unreachable", exactly as FIRMS and httpSMS do. See config.force_ipv4().
+      FIREWATCH_FORCE_IPV4: "1"
+      MUNICIPALITIES_INPUT: ${{ inputs.municipalities }}
+      MESSAGE_INPUT: ${{ inputs.message }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - run: python3 -m pip install --quiet requests certifi
+
+      - name: Preview
+        run: |
+          mkdir -p state/config
+          echo '{"telegram_enabled": true}' > state/config/config.json
+          python3 - <<'PY'
+          import os
+          from firewatch import telegram, geo_bih
+
+          raw = os.environ["MUNICIPALITIES_INPUT"].strip()
+          text = os.environ["MESSAGE_INPUT"]
+          all_ids = {m.id for m in geo_bih.municipalities()}
+          if raw.lower() == "all":
+              ids = sorted(all_ids)
+          else:
+              ids = [m.strip() for m in raw.split(",") if m.strip()]
+
+          ok, why = telegram.ready()
+          print(f"usable  : {ok} ({why})")
+          print(f"targets : {len(ids)}")
+          print("---- message ----")
+          print(text)
+          print("------------------")
+          unknown = [i for i in ids if i not in all_ids]
+          if unknown:
+              print(f"WARNING - not a real municipality id: {', '.join(unknown)}")
+          for mid in ids:
+              chat_id = telegram.channel_for(mid) if mid in all_ids else None
+              print(f"  {mid:30s} -> {chat_id or 'NO CHANNEL CONFIGURED'}")
+          PY
+
+      - name: Send
+        if: ${{ inputs.send }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          mkdir -p state/config
+          echo '{"telegram_enabled": true}' > state/config/config.json
+          python3 - <<'PY'
+          import os, sys, time
+          from firewatch import telegram, geo_bih
+
+          raw = os.environ["MUNICIPALITIES_INPUT"].strip()
+          text = os.environ["MESSAGE_INPUT"]
+          all_ids = {m.id for m in geo_bih.municipalities()}
+          if raw.lower() == "all":
+              ids = sorted(all_ids)
+          else:
+              ids = [m.strip() for m in raw.split(",") if m.strip()]
+
+          ok, why = telegram.ready()
+          if not ok:
+              print(f"not ready: {why}")
+              sys.exit(1)
+
+          sent, skipped = 0, []
+          for i, mid in enumerate(ids):
+              chat_id = telegram.channel_for(mid) if mid in all_ids else None
+              if not chat_id:
+                  print(f"skip {mid}: no channel configured")
+                  skipped.append(mid)
+                  continue
+              if telegram.send(text, chat_id):
+                  print(f"sent to {mid} ({chat_id})")
+                  sent += 1
+              else:
+                  print(f"FAILED to send to {mid} ({chat_id})")
+                  skipped.append(mid)
+              # A soft pace across many *different* channels in one run - each
+              # channel's own ~1/s limit is fine since it is only ever touched
+              # once here, but Telegram's bot-wide throughput is a separate,
+              # real ceiling once "all" means 145 posts in a tight loop.
+              if i < len(ids) - 1:
+                  time.sleep(0.1)
+
+          print(f"\n{sent}/{len(ids)} sent")
+          if skipped:
+              print(f"skipped/failed: {', '.join(skipped)}")
+          PY
+
+      - name: Note
+        if: ${{ !inputs.send }}
+        run: echo "Preview only — nothing was posted. Re-run with 'send' ticked to deliver it."
