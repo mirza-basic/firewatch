@@ -126,15 +126,21 @@ jobs:
           PREV=$(cat state/.detections 2>/dev/null || echo -1)
           echo "detections: $PREV -> $COUNT"
 
-          # meta.fwi_gate (date computed + whether local noon had passed) is the
-          # other thing in this database with real information in it, and it is
-          # exactly as semantic as the detection count: unlike meta.last_cycle, it
-          # changes only once or twice a day, by design (firedanger.update()'s own
-          # gate). Missing this the same way COUNT is tracked would mean a quiet
-          # run - most runs - never commits the updated gate, so the *next* run
-          # sees the last-committed (stale) gate, never matches today, and
-          # recomputes from scratch every single trigger instead of twice a day.
-          FWI_GATE=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; r=sqlite3.connect(d).execute(\"SELECT v FROM meta WHERE k='fwi_gate'\").fetchone() if d.exists() else None; print(r[0] if r else '')")
+          # meta.fwi_gate:<municipality_id> (date computed + whether local noon had
+          # passed, one per municipality now - see firedanger.py's own docstring)
+          # is the other thing in this database with real information in it, and it
+          # is exactly as semantic as the detection count: unlike meta.last_cycle,
+          # each one changes only once or twice a day, by design
+          # (firedanger.update_one()'s own gate). Missing this the same way COUNT is
+          # tracked would mean a quiet run - most runs - never commits the updated
+          # gates, so the *next* run sees the last-committed (stale) gates, never
+          # matches today, and recomputes from scratch every single trigger instead
+          # of twice a day, for all 145. Concatenating every municipality's gate
+          # value (not just checking one) is what makes this still work now that
+          # there are 145 independent gates instead of one flat key - a single flat
+          # 'fwi_gate' key, like this branch was forked with, would never exist here
+          # and would leave this check permanently, silently inert.
+          FWI_GATE=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; rows=sqlite3.connect(d).execute(\"SELECT v FROM meta WHERE k LIKE 'fwi_gate:%' ORDER BY k\").fetchall() if d.exists() else []; print('|'.join(r[0] for r in rows))")
           PREV_FWI_GATE=$(cat state/.fwi_gate 2>/dev/null || echo "")
           echo "fwi_gate: $PREV_FWI_GATE -> $FWI_GATE"
 
