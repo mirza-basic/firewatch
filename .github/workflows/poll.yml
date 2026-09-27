@@ -144,11 +144,31 @@ jobs:
           PREV_FWI_GATE=$(cat state/.fwi_gate 2>/dev/null || echo "")
           echo "fwi_gate: $PREV_FWI_GATE -> $FWI_GATE"
 
-          # Stage the database when either moved. meta.last_cycle is rewritten
-          # every cycle, so the file's bytes change on every run even when neither
-          # did - `git add -A state` would therefore commit a fresh 188 KB blob
-          # every run, hundreds of megabytes a month carrying no new information.
-          if [ "$COUNT" != "$PREV" ] || [ "$FWI_GATE" != "$PREV_FWI_GATE" ]; then
+          # A third, independent reason to commit: whether THIS cycle actually
+          # sent an alert. Missing this let the events table's own status
+          # column (active/quiet) and the notified table's cooldown timestamps
+          # get silently discarded on every run that alerted without also
+          # changing COUNT or FWI_GATE - which "extinguished" always does,
+          # since by definition it fires on a cycle with no new detection at
+          # all. The runner would write a correct "quiet" status and a correct
+          # notified row locally, this gate would reject the commit, the
+          # ephemeral runner would discard both, and the *next* run would check
+          # out the same stale "active" status and re-fire the identical
+          # extinguished alert - which is exactly the real bug this closes:
+          # measured against the live repo, the notified table had zero
+          # extinguished rows ever despite a real one being sent repeatedly.
+          # alerts_sent is state/snapshot.json's own count from this exact
+          # cycle (poller.cycle()'s `sent` list), not re-derived, so it can
+          # never disagree with what the Python side actually decided.
+          ALERTS_SENT=$(python3 -c "import json,pathlib; d=pathlib.Path('state/snapshot.json'); s=json.loads(d.read_text()) if d.exists() else {}; print(len(s.get('alerts_sent') or []))")
+          echo "alerts sent this cycle: $ALERTS_SENT"
+
+          # Stage the database when any of the three moved. meta.last_cycle is
+          # rewritten every cycle, so the file's bytes change on every run even
+          # when none of them did - `git add -A state` would therefore commit a
+          # fresh 188 KB blob every run, hundreds of megabytes a month carrying
+          # no new information.
+          if [ "$COUNT" != "$PREV" ] || [ "$FWI_GATE" != "$PREV_FWI_GATE" ] || [ "$ALERTS_SENT" != "0" ]; then
             echo "$COUNT" > state/.detections
             echo "$FWI_GATE" > state/.fwi_gate
             git add state/firewatch.db state/.detections state/.fwi_gate
