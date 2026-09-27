@@ -1,11 +1,11 @@
 # Transition to full Bosnia and Herzegovina coverage
 
-This branch (`bih-all-municipalities`, forked from `main`) is turning FireWatch
-from a single-municipality deployment (Zavidovići) into one that watches all
-145 self-governing units of Bosnia and Herzegovina, with a separate Telegram
-channel per municipality so someone can subscribe to just their own. This
-file tracks what's actually done versus what's still needed - status as of
-2026-09-26.
+**Complete as of 2026-09-27** - merged into `main`, running live. This file is
+kept as the historical record of the transition: `bih-all-municipalities`
+turned FireWatch from a single-municipality deployment (Zavidovići) into one
+that watches all 145 self-governing units of Bosnia and Herzegovina at once,
+with a separate private Telegram channel per municipality so someone can
+subscribe to just their own.
 
 ## Done
 
@@ -82,15 +82,15 @@ file tracks what's actually done versus what's still needed - status as of
   33) stops the script cleanly before hitting a wall instead of sleeping
   through one unattended, and any flood-wait ≥2 minutes now stops the whole
   session rather than auto-retrying.
-- **130/145 channels provisioned as of this writing** (0 failed). Resumable -
-  re-running the same script skips everything done and continues.
-- **Real channel data merged into `data/bih/municipalities.json`** for all 130
-  provisioned so far: `telegram_channel` holds the actual `-100`-prefixed
-  Bot-API chat id, `telegram_invite` the `https://t.me/+...` invite link -
-  both from `~/firewatch-telegram-setup/telegram_provision_results.json`. The
-  15 not-yet-provisioned municipalities get `null` for both fields rather
-  than a stale placeholder, so `telegram.channel_for()` correctly skips them.
-  Re-run the same merge once the remaining batch is provisioned.
+- **145/145 channels provisioned** (0 failed, finished 2026-09-27). The
+  resumable batch design (default 33/run, stopping cleanly on a flood-wait
+  rather than sleeping through one) got there over several sessions across
+  multiple days, exactly as planned.
+- **Real channel data merged into `data/bih/municipalities.json`** for all
+  145: `telegram_channel` holds the actual `-100`-prefixed Bot-API chat id,
+  `telegram_invite` the `https://t.me/+...` invite link, both from
+  `~/firewatch-telegram-setup/telegram_provision_results.json`. No
+  municipality is left with a placeholder or a `null` any more.
 - **`poll.yml` and `test-telegram.yml` updated for the per-municipality
   design** - the `FIREWATCH_TELEGRAM_CHANNEL` secret (meaningless since the
   per-municipality rewrite - routing is committed data now, not a secret) is
@@ -231,13 +231,32 @@ surfaced from `tests_*.py` passing.
 
 ## Remaining
 
-**Blocking:**
+**Nothing.** The transition this file tracks is complete: all 145
+municipalities classified, routed, and alerting on all three channels;
+all 145 Telegram channels provisioned and verified end to end
+(`test-telegram stolac`, one of the last 15, delivered successfully); the
+merge into `main` landed and is running live on GitHub Actions without
+the cold-start problem that hit the first real run.
 
-1. **Finish channel provisioning** - 15 remaining as of this writing. Resume
-   with the same script on the user's machine
-   (`~/firewatch-telegram-setup/provision_telegram_channels.py`), in capped
-   batches (default 33/run) across multiple days - do not attempt to rush
-   this given the flood-wait history. Re-run the `municipalities.json` merge
-   (see Done above) once this finishes.
+**Since the merge into `main` (2026-09-27), two more real things were found
+and fixed by watching the live system run, not by re-reading this file:**
 
-**Nothing else blocking.** `docs/*.html` is done - see Done below.
+- **`firedanger.update_all()`'s cold start got the first real Actions run
+  cancelled.** All 145 municipalities were due at once (nothing cached on the
+  freshly reset database), sequential fetching took several minutes, and the
+  external caller triggering `poll.yml` was manually cancelled thinking it
+  had hung - which discarded all progress, since nothing commits until a
+  cycle finishes. Fixed with a bounded thread pool (measured 145/145 in ~9s,
+  down from minutes) plus a coordinated retry for Open-Meteo's own
+  undocumented-but-real per-minute rate limit (measured directly: a 429
+  whose body says "Minutely API request limit exceeded"). Confirmed healthy
+  afterward: 5 automated `main` commits with detections growing normally, no
+  further cancellations.
+- **Multiple alert kinds for one event in the same cycle now merge into one
+  message per channel** instead of one per kind. Real case: a fire near
+  Mostar gained a second satellite source and crossed the intensified
+  threshold in the same cycle, producing two near-identical Telegram posts
+  back to back ("POTVRĐEN" then "POJAČAVA SE"). `events.diff()` firing
+  several kinds at once for one event is correct, documented behavior - the
+  fix merges them into one message ("POTVRĐEN + POJAČAVA SE") per channel,
+  with cooldown and per-channel kind-filtering preserved exactly as before.
