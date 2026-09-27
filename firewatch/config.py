@@ -79,12 +79,24 @@ MAP_PATH = SUPPORT_DIR / "fire-map.html"
 # of place for it too: every file here is rewritten from the snapshot each cycle.
 PUBLIC_DIR = _public_dir()
 
-BOUNDARY_GEOJSON = DATA_DIR / "zavidovici.geojson"
-SETTLEMENTS_JSON = DATA_DIR / "settlements.json"
+# The clip and reference boundary is now the whole country, not one
+# municipality - Zavidovici is just data/bih/zavidovici.geojson, one of the
+# 145, and needs no special-casing now that all 145 (it included) are fetched
+# and clipped together. BOUNDARY_GEOJSON/SETTLEMENTS_JSON/BUFFER_GEOJSON keep
+# their names and their role (fetch-time clip, nearest-settlement naming, the
+# drawn "nearby" band) - only what they point at changed.
+BOUNDARY_GEOJSON = DATA_DIR / "bih" / "country.geojson"
+# Merged and deduplicated from all 145 municipalities' own settlement fetches
+# (data/bih/<id>-settlements.json) - adjacent municipalities' 25 km-radius
+# Overpass queries overlap heavily, so the same real place was independently
+# fetched dozens of times; 59,545 raw rows collapsed to 13,240 unique ones.
+SETTLEMENTS_JSON = DATA_DIR / "bih" / "settlements.json"
 # The "nearby" band drawn on the map: everything within nearby_buffer_km of the
 # outline. Like the two files above it is a build-time artifact - see
 # geo.build_buffer() - so the running app needs neither shapely nor pyproj.
-BUFFER_GEOJSON = DATA_DIR / "zavidovici-buffer.geojson"
+# Now means "just over the BiH border", the same concept as before applied to
+# the country outline instead of one municipality's.
+BUFFER_GEOJSON = DATA_DIR / "bih" / "country-buffer.geojson"
 
 # No FIRMS key is committed to this repository, deliberately. One used to be, which
 # made a fresh clone work immediately at the cost of every clone sharing one key and
@@ -183,6 +195,18 @@ DEFAULTS = {
     # "extinguished" is left out on purpose: it is the informational one, and an
     # SMS costs a segment every time a fire merely cools off.
     "sms_kinds": ["new", "reignited", "intensified", "grew"],
+    # Empty means no restriction - every municipality's alerts reach the SMS
+    # recipient list, same as before this existed. Set to municipality ids (e.g.
+    # ["zavidovici"]) on a country-wide deployment where the SMS number is one
+    # person's own phone, not a broadcast list the way each municipality's own
+    # Telegram channel is - that person likely wants a text only for fires near
+    # them, not all 145 municipalities' worth. Telegram is unaffected either way,
+    # since it already routes per-municipality on its own.
+    # FIREWATCH_SMS_MUNICIPALITIES overrides this from the environment, same
+    # precedence as FIREWATCH_SMS_TO and for the same reason: which municipality
+    # this reaches is personal information (roughly where that person lives),
+    # so a public repository's committed config.json is the wrong place for it.
+    "sms_municipalities": [],
     # Language for alert text. "bs" or "en" - the map is bilingual, and the people
     # receiving these texts are local. Diacritics are folded to ASCII on the way out
     # either way; see sms.ascii_only.
@@ -213,7 +237,7 @@ DEFAULTS = {
     # whose packets were being dropped stalled 90 s per dataset - six minutes to
     # discover FIRMS was unreachable.
     "connect_timeout": 10,
-    "user_agent": "firewatch-zavidovici/1.0 (+https://github.com/) contact: local",
+    "user_agent": "firewatch-bih/1.0 (+https://github.com/) contact: local",
     # Sentinel-2 at 10 m, rendered server-side once per new scene. Off by default:
     # it is the only part of the system that needs a credential nothing else needs,
     # and the map is complete without it.
@@ -252,8 +276,15 @@ DEFAULTS = {
     "telegram_language": "bs",
 }
 
-# Reference point for bearings/distances: Zavidovići town centre.
-TOWN_LAT, TOWN_LON = 44.4388706, 18.1458239
+# BiH's own vertex-mean (see geo.forecast_point(), same approximation, same
+# reason), not any one town - there are 145 of those now, each already named
+# by geo.describe_location()/place_parts on every event, which needs no
+# single reference point at all. What's left needing *a* point rather than
+# *the* town's is the sun-elevation gate on the geostationary visible layers
+# (mapgen.py) - one longitude anywhere inside a country this size is close
+# enough for that; geo.from_town()/dist_town_km/dir_town, which did mean one
+# specific town, are gone along with Zavidovici's own special-cased config.
+TOWN_LAT, TOWN_LON = 44.1195382, 18.1876859
 
 
 class Config(dict):

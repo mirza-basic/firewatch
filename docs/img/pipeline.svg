@@ -46,7 +46,7 @@
     <!-- stages -->
     <rect x="16" y="124" width="728" height="46" rx="6" class="s-box"/>
     <text x="30" y="145" class="s-t-b">1 · Spatial clip</text>
-    <text x="30" y="161" class="s-t-s">inside the 731-point boundary, or within the 2 km buffer (flagged “nearby”)</text>
+    <text x="30" y="161" class="s-t-s">inside the national boundary, or within the 2 km buffer (flagged “nearby”)</text>
     <line x1="380" y1="170" x2="380" y2="210" class="s-line" marker-end="url(#a3)"/>
     <text x="392" y="194" class="s-t-m">detections in scope</text>
 
@@ -78,7 +78,7 @@
     <polyline points="380,530 380,552 628,552 628,574" class="s-line" marker-end="url(#a3)"/>
 
     <rect x="16" y="580" width="232" height="62" rx="6" class="s-box"/>
-    <text x="30" y="602" class="s-t-b">6 · Notify + SMS</text>
+    <text x="30" y="602" class="s-t-b">6 · Notify + SMS + Telegram</text>
     <text x="30" y="618" class="s-t-s">rate-limited per event</text>
     <text x="30" y="633" class="s-t-s">and per kind</text>
 

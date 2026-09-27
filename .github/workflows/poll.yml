@@ -14,14 +14,20 @@
 #   FIREWATCH_SMS_TO            optional, comma-separated recipients. This is why
 #                               it exists: a phone number must not be committed
 #                               to a public repository.
-#   TELEGRAM_BOT_TOKEN          optional, for the Telegram channel
-#   FIREWATCH_TELEGRAM_CHANNEL  optional, the @handle to post to. Not sensitive
-#                               like a phone number, but config.json below is a
-#                               fixed literal written fresh every run, not
-#                               something `telegram-status` or a CLI command
-#                               can edit here the way it can on a laptop - so
-#                               without this, a fork could only change the
-#                               channel by editing this workflow file itself.
+#   FIREWATCH_SMS_MUNICIPALITIES  optional, comma-separated municipality ids (e.g.
+#                               "zavidovici") that restrict SMS to those
+#                               municipalities' fires - unset means every one of
+#                               the 145 reaches FIREWATCH_SMS_TO. A secret for the
+#                               same reason as the number itself: which
+#                               municipality this is set to says roughly where
+#                               that person lives.
+#   TELEGRAM_BOT_TOKEN          optional, for Telegram alerts. The only Telegram
+#                               secret needed here: which municipality gets which
+#                               channel is committed data
+#                               (data/bih/municipalities.json's telegram_channel
+#                               field, one private channel's chat id per
+#                               municipality), not a per-deployment secret the
+#                               way a single fixed @handle used to be.
 
 name: poll
 
@@ -83,8 +89,8 @@ jobs:
           HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
           HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+          FIREWATCH_SMS_MUNICIPALITIES: ${{ secrets.FIREWATCH_SMS_MUNICIPALITIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
         run: |
           mkdir -p state/config public
           # auto_expose must stay off: there is no ngrok agent here, and leaving it
@@ -92,10 +98,17 @@ jobs:
           # telegram_enabled defaults to false, same reasoning as
           # imagery_s2_enabled - it needs a credential nothing else needs, so it
           # stays opt-in for a bare CLI/menubar install. Here that opt-in is
-          # "a fork bothered to set TELEGRAM_BOT_TOKEN and
-          # FIREWATCH_TELEGRAM_CHANNEL": telegram.ready() is unusable without
-          # both anyway, so turning it on unconditionally in this deployment
-          # costs nothing when they are absent.
+          # "a fork bothered to set TELEGRAM_BOT_TOKEN": telegram.ready() also
+          # needs at least one municipality's telegram_channel populated in
+          # data/bih/municipalities.json, but that's committed data, not
+          # something this workflow sets - so turning telegram_enabled on
+          # unconditionally costs nothing when the token is absent, and costs
+          # nothing extra for a still-partially-provisioned deployment either
+          # (send_alert() posts to whichever municipalities have a channel).
+          # sms_municipalities is deliberately not set here - FIREWATCH_SMS_MUNICIPALITIES
+          # (an env var, same as FIREWATCH_SMS_TO) is how this workflow sets it, since
+          # unlike telegram_enabled it is personal information (roughly where the SMS
+          # recipient lives), not something safe to commit as a literal.
           echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
           python3 -m firewatch poll
 
@@ -113,15 +126,21 @@ jobs:
           PREV=$(cat state/.detections 2>/dev/null || echo -1)
           echo "detections: $PREV -> $COUNT"
 
-          # meta.fwi_gate (date computed + whether local noon had passed) is the
-          # other thing in this database with real information in it, and it is
-          # exactly as semantic as the detection count: unlike meta.last_cycle, it
-          # changes only once or twice a day, by design (firedanger.update()'s own
-          # gate). Missing this the same way COUNT is tracked would mean a quiet
-          # run - most runs - never commits the updated gate, so the *next* run
-          # sees the last-committed (stale) gate, never matches today, and
-          # recomputes from scratch every single trigger instead of twice a day.
-          FWI_GATE=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; r=sqlite3.connect(d).execute(\"SELECT v FROM meta WHERE k='fwi_gate'\").fetchone() if d.exists() else None; print(r[0] if r else '')")
+          # meta.fwi_gate:<municipality_id> (date computed + whether local noon had
+          # passed, one per municipality now - see firedanger.py's own docstring)
+          # is the other thing in this database with real information in it, and it
+          # is exactly as semantic as the detection count: unlike meta.last_cycle,
+          # each one changes only once or twice a day, by design
+          # (firedanger.update_one()'s own gate). Missing this the same way COUNT is
+          # tracked would mean a quiet run - most runs - never commits the updated
+          # gates, so the *next* run sees the last-committed (stale) gates, never
+          # matches today, and recomputes from scratch every single trigger instead
+          # of twice a day, for all 145. Concatenating every municipality's gate
+          # value (not just checking one) is what makes this still work now that
+          # there are 145 independent gates instead of one flat key - a single flat
+          # 'fwi_gate' key, like this branch was forked with, would never exist here
+          # and would leave this check permanently, silently inert.
+          FWI_GATE=$(python3 -c "import sqlite3,os,pathlib; d=pathlib.Path(os.environ['FIREWATCH_DATA_DIR'])/'firewatch.db'; rows=sqlite3.connect(d).execute(\"SELECT v FROM meta WHERE k LIKE 'fwi_gate:%' ORDER BY k\").fetchall() if d.exists() else []; print('|'.join(r[0] for r in rows))")
           PREV_FWI_GATE=$(cat state/.fwi_gate 2>/dev/null || echo "")
           echo "fwi_gate: $PREV_FWI_GATE -> $FWI_GATE"
 

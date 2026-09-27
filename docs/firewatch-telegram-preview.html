@@ -86,10 +86,11 @@
 <div class="wrap">
   <div class="eyebrow">Alert Telegram reference</div>
   <h1>FireWatch Alert Telegram</h1>
-  <p class="stand">One public channel, one post per alert. Unlike the SMS
-  version there is no 160-character segment to fit inside — the limit is 4096
-  — so nothing here is trimmed, folded to ASCII, or left out for cost. These
-  are rendered from your real event data, not mocked up.</p>
+  <p class="stand">One private channel per municipality, one post per alert, to
+  whichever municipality (or two, for the Sarajevo/Istočno Sarajevo overlap) the fire
+  falls inside. Unlike the SMS version there is no 160-character segment to fit
+  inside — the limit is 4096 — so nothing here is trimmed, folded to ASCII, or left
+  out for cost. These are rendered from your real event data, not mocked up.</p>
 
   <h2>What lands in the channel</h2>
   <p>Five lines once an active fire has weather attached, four without it — one
@@ -172,7 +173,7 @@
       <tbody>
         <tr><td>detection count + source list</td><td class="mono">dropped</td><td class="mono hd">6 detekcija (firms+mtg)</td></tr>
         <tr><td>footprint width</td><td class="mono">dropped</td><td class="mono hd">0.8 km</td></tr>
-        <tr><td><code>IZVAN OPĆINE</code> marker</td><td class="mono">dropped (dead key in <code>SMS_TEXT</code>)</td><td class="mono hd">shown when the fire sits outside the boundary</td></tr>
+        <tr><td><code>IZVAN BIH</code> marker</td><td class="mono">dropped (dead key in <code>SMS_TEXT</code>)</td><td class="mono hd">shown when the fire sits outside Bosnia and Herzegovina's own boundary</td></tr>
         <tr><td>diacritics</td><td class="mono">folded to ASCII</td><td class="mono hd">kept — "Zavidovići"</td></tr>
       </tbody>
     </table>

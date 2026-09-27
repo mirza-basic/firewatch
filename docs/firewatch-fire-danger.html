@@ -204,7 +204,7 @@
   something is already hot. This is a different question: how conducive is today's
   weather to a fire starting at all, independent of whether one has. FireWatch answers
   it by computing the Canadian Forest Fire Weather Index (FWI) System itself, once or
-  twice a day, at a single point.</p>
+  twice a day, at one point per municipality &mdash; all 145 of them, each independently.</p>
   <dl class="facts">
     <div><dt>Algorithm</dt><dd style="font-size:15px">Canadian FWI System</dd></div>
     <div><dt>Formula source</dt><dd style="font-size:15px">NRCan cffdrs, ported</dd></div>
@@ -307,8 +307,10 @@ FWI = B, if B &le; 1; otherwise exp(2.72 &times; (0.434 &times; ln B)<sup>0.647<
 
 <p>Two numbers only mean anything with a month and a latitude attached: L<sub>e</sub> and
 L<sub>f</sub> are read from fixed tables (Jan&ndash;Dec, banded by latitude) that encode how
-much daylight a fuel layer gets to dry in. Zavidovi&#263;i's forecast point (44.39&deg;N)
-falls in the same &ldquo;temperate&rdquo; band the tables call <code>&ge;30&deg;N</code>
+much daylight a fuel layer gets to dry in. Every one of the 145 municipalities'
+forecast points falls between 42.74&deg;N and 45.18&deg;N &mdash; Zavidovi&#263;i's
+(44.39&deg;N), for one example, falls in the same &ldquo;temperate&rdquo; band the
+tables call <code>&ge;30&deg;N</code>
 for DMC and <code>&gt;20&deg;N</code> for DC &mdash; the same band most of Canada and all
 of Mediterranean/Central Europe fall in, which is why EFFIS applies the identical tables
 across Europe without modification. <code>firedanger.py</code> keeps every latitude band,
@@ -323,13 +325,15 @@ in this project for per-event spread-risk weather. One call per computation retu
 hourly temperature, relative humidity, 10&nbsp;m wind speed and precipitation, from
 which the noon reading and the 24&nbsp;hour rainfall ending at noon are extracted for
 each local date (<code>Europe/Sarajevo</code>).</p>
-<p>The point queried is <code>geo.forecast_point()</code> &mdash; the vertex-mean of the
-municipality boundary outline, <strong>not</strong> the town's own coordinates
-(<code>TOWN_LAT</code>/<code>TOWN_LON</code>). The town is not necessarily the
-geometric middle of the municipality around it, and this number is meant to
-characterise the whole area, the way the coarse EFFIS grid cell would. Because it is
-derived from whatever boundary file is configured, a fork that points that file at a
-different place's outline moves this point with it automatically.</p>
+<p>The point queried is each municipality's own <code>Municipality.forecast_point</code>
+&mdash; the vertex-mean of <em>that one municipality's</em> boundary outline, computed
+independently for all 145, <strong>not</strong> any town's own coordinates. A
+municipality's town is not necessarily the geometric middle of the area around it, and
+each point is meant to characterise its whole municipality, the way one coarse EFFIS
+grid cell would. This is a different point from <code>geo.forecast_point()</code>,
+which is the vertex-mean of the whole <em>country's</em> boundary and is not what
+fire-danger queries any more now that there are 145 municipalities to give a reading
+for rather than one place.</p>
 <div class="tw">
 <table>
   <thead><tr><th>Input</th><th>Unit</th><th>Open-Meteo field</th></tr></thead>
@@ -359,10 +363,11 @@ every day's six outputs against the published numbers.</p>
   rounding precision. A transcription mistake in a constant would fail here rather than
   silently mis-rating a real fire day.</p>
 </div>
-<p>As a second, independent check, this module's own output for Zavidovi&#263;i on
-2026-09-09 classified as <strong>Extreme</strong> &mdash; matching the dominant colour
-actually rendered by EFFIS's own WMS for that date over this municipality, seen by
-calling <code>GetMap</code> directly.</p>
+<p>As a second, independent check, this module's own output for Zavidovi&#263;i (one
+of the 145 municipalities this now computes a reading for, each from its own
+forecast point) on 2026-09-09 classified as <strong>Extreme</strong> &mdash; matching
+the dominant colour actually rendered by EFFIS's own WMS for that date over that
+municipality, seen by calling <code>GetMap</code> directly.</p>
 
 <!-- ==================== 05 ==================== -->
 <h2 id="cadence"><span class="num">05</span> Update cadence</h2>
@@ -392,19 +397,24 @@ Sentinel-2: cheap to check every cycle, rare to actually do work.</p>
 <p>Without the second gate, a fetch-once-a-day design would show a stale, forecast-only
 number all afternoon, even once the real weather at noon was known.</p>
 
-<h3>What <code>update()</code> actually does, in order</h3>
-<p class="lede">Called once every poll cycle (poller.py), like
-<code>imagery.refresh()</code> &mdash; almost always a fast no-op.</p>
+<h3>What <code>update_one()</code> actually does, for one municipality, in order</h3>
+<p class="lede"><code>update_all()</code> is called once every poll cycle (poller.py),
+like <code>imagery.refresh()</code>, and simply calls this for all 145 municipalities
+in turn &mdash; each with its own independent gate and cache, so one municipality
+being due for a recompute never forces the other 144 to recompute too. Almost every
+call, for almost every municipality, is a fast no-op.</p>
 <ol class="steps">
   <li><b>Check the feature is on.</b> If <code>fire_danger_enabled</code> is false,
-  return <code>None</code> immediately &mdash; no read, no fetch, nothing shown.</li>
-  <li><b>Resolve the point and the local clock.</b>
-  <code>geo.forecast_point()</code> gives (lat, lon); the current moment in
-  <code>Europe/Sarajevo</code> gives today's date and whether the hour is &ge; 12.</li>
+  return <code>None</code> immediately &mdash; no read, no fetch, nothing shown, for
+  any municipality.</li>
+  <li><b>Resolve the point and the local clock.</b> The caller passes in this one
+  municipality's own <code>Municipality.forecast_point</code> (lat, lon); the current
+  moment in <code>Europe/Sarajevo</code> gives today's date and whether the hour is
+  &ge; 12 &mdash; the clock is shared, the point is not.</li>
   <li><b>Read what's already known.</b> Two small JSON blobs come out of the
-  <code>meta</code> table: the <em>gate</em> (the date last computed, and whether
-  noon had passed at that time) and the <em>cached payload</em> (the last result
-  actually shown).</li>
+  <code>meta</code> table, keyed by <em>this municipality's id</em>: the <em>gate</em>
+  (the date last computed, and whether noon had passed at that time) and the
+  <em>cached payload</em> (the last result actually shown for it).</li>
   <li><b>Decide whether there is anything to do.</b> Unless called with
   <code>force=True</code> (only the CLI's <code>--force</code> uses this), if the
   gate's date is today <em>and</em> either noon was already accounted for or it
@@ -478,8 +488,9 @@ up with what the official map would show the same day.</p>
   </tbody>
 </table>
 </div>
-<p>Example output for Zavidovi&#263;i, 2026-09-10 (<code>python3 -m firewatch
-fire-danger</code>):</p>
+<p>Example output for one municipality, Zavidovi&#263;i, 2026-09-10
+(<code>python3 -m firewatch fire-danger zavidovici</code> &mdash; naming no
+municipality instead prints today's class for all 145 at once, one line each):</p>
 <div class="tw">
 <table>
   <thead><tr><th>Date</th><th class="num">FWI</th><th>Class</th></tr></thead>

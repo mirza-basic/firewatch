@@ -58,7 +58,7 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
     n_act = sum(1 for e in evs if e["status"] == "active")
     n_det = sum(len(e.get("series", [])) for e in evs)
 
-    print(f"\nFireWatch Zavidovići · {snap.get('generated_at')}")
+    print(f"\nFireWatch Bosna i Hercegovina · {snap.get('generated_at')}")
     print(f"  Range: {label}  (since {snap.get('range_cutoffs', {}).get(rng, '?')})")
     print(f"  {n_act} active · {len(evs)} in range · {n_det} detections")
     counts = snap.get("range_counts", {})
@@ -79,8 +79,8 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
         icon = "🔥" if e["status"] == "active" else "💤"
         print(f"\n  {icon} {e['severity'].upper():8s} {e['place']}")
         print(f"     {e['lat']:.5f}, {e['lon']:.5f}  "
-              f"({e['dist_town_km']} km {e['dir_town']} of town)"
-              f"{'' if e['inside'] else '  [outside municipality]'}")
+              f"({', '.join(e.get('municipalities') or [])})"
+              f"{'' if e['inside'] else '  [outside Bosnia and Herzegovina]'}")
         peak = f"{e['max_frp']:.1f}" if e.get("max_frp") is not None else "n/a"
         last = f"{e['latest_frp']:.1f}" if e.get("latest_frp") is not None else "n/a"
         shown = len(e.get("series", []))
@@ -314,32 +314,52 @@ def cmd_imagery(force: bool = False) -> int:
     return 0
 
 
-def cmd_fire_danger(force: bool = False) -> int:
-    """Today's + short-term Canadian FWI, computed at geo.forecast_point()."""
-    from . import firedanger, geo
+def cmd_fire_danger(municipality_id: str | None = None, force: bool = False) -> int:
+    """Today's + short-term Canadian FWI - one municipality's full detail if
+    named, otherwise today's class for all 145 (one per municipality, not one
+    for the whole country - see firedanger.py's module docstring)."""
+    from . import firedanger, geo_bih
 
     if not CFG.get("fire_danger_enabled", True):
         print("  fire_danger_enabled is off in config.json")
         return 1
-    lat, lon = geo.forecast_point()
-    print(f"\n  forecast point: {lat:.4f}, {lon:.4f}  (municipality centroid)")
     con = store.connect()
     try:
-        payload = firedanger.update(con, force=force)
+        if municipality_id:
+            m = geo_bih.by_id().get(municipality_id)
+            if not m:
+                print(f"\n  unknown municipality id {municipality_id!r}\n")
+                return 1
+            lat, lon = m.forecast_point
+            print(f"\n  {m.short_name} ({m.id}) - forecast point: {lat:.4f}, {lon:.4f}")
+            payload = firedanger.update_one(con, m.id, lat, lon, force=force)
+            if not payload:
+                print("  no data (fetch failed and nothing cached yet - see the log)")
+                return 1
+            t = payload["today"]
+            print(f"  today ({t['date']}): FWI {t['fwi']}  [{t['class']}]")
+            print(f"    FFMC {t['ffmc']}  DMC {t['dmc']}  DC {t['dc']}"
+                  f"  ISI {t['isi']}  BUI {t['bui']}")
+            if payload["forecast"]:
+                print("  forecast:")
+                for e in payload["forecast"]:
+                    print(f"    {e['date']}: FWI {e['fwi']:>5}  [{e['class']}]")
+            print(f"  updated: {payload['updated_at']}\n")
+            return 0
+
+        print(f"\n  updating all 145 municipalities"
+              f"{' (forced)' if force else ''} - this can take a minute...\n")
+        results = firedanger.update_all(con, force=force)
     finally:
         con.close()
-    if not payload:
-        print("  no data (fetch failed and nothing cached yet - see the log)")
+    if not results:
+        print("  no data (every fetch failed and nothing cached yet - see the log)\n")
         return 1
-    t = payload["today"]
-    print(f"  today ({t['date']}): FWI {t['fwi']}  [{t['class']}]")
-    print(f"    FFMC {t['ffmc']}  DMC {t['dmc']}  DC {t['dc']}"
-          f"  ISI {t['isi']}  BUI {t['bui']}")
-    if payload["forecast"]:
-        print("  forecast:")
-        for e in payload["forecast"]:
-            print(f"    {e['date']}: FWI {e['fwi']:>5}  [{e['class']}]")
-    print(f"  updated: {payload['updated_at']}\n")
+    for mid, payload in sorted(results.items()):
+        t = payload["today"]
+        print(f"  {mid:22s} FWI {t['fwi']:>5}  [{t['class']}]")
+    print(f"\n  {len(results)}/145 municipalities. "
+          f"pass a municipality id for full detail on one.\n")
     return 0
 
 
@@ -363,7 +383,7 @@ def cmd_history(n: int = 40) -> int:
 
 def cmd_test_notify() -> int:
     ok = notify.send("🔥 FireWatch test", "Notifications are working",
-                     subtitle="Grad Zavidovići", sound=CFG["sound_update"])
+                     subtitle="Bosna i Hercegovina", sound=CFG["sound_update"])
     print(f"backend={notify.backend()} delivered={ok}")
     return 0 if ok else 1
 
@@ -381,6 +401,9 @@ def cmd_sms_status() -> int:
     print(f"  to from      : {sms_mod.recipients_source()}")
     print(f"  api key      : {'found' if sms_mod.api_key() else 'not found'}")
     print(f"  alert kinds  : {', '.join(CFG['sms_kinds'])}")
+    only = sms_mod.sms_municipalities()
+    print(f"  municipalities: {', '.join(only) if only else '(unrestricted - all 145)'}"
+          f"  [{sms_mod.sms_municipalities_source()}]")
     print(f"  max chars    : {CFG['sms_max_chars']}")
     print(f"  map url      : {sms_mod.map_url() or '(map not published)'}")
     # How close the longest alert this place can produce comes to spilling into a
@@ -510,14 +533,15 @@ def cmd_test_sms() -> int:
 def cmd_telegram_status() -> int:
     from .config import CFG
     ok, why = telegram_mod.ready()
-    print(f"\n  usable       : {ok}  ({why})")
-    print(f"  enabled      : {CFG['telegram_enabled']}")
-    print(f"  channel      : {telegram_mod.channel() or '(unset)'}")
-    print(f"  channel from : {telegram_mod.channel_source()}")
-    print(f"  bot token    : {'found' if telegram_mod.bot_token() else 'not found'}")
-    print(f"  alert kinds  : {', '.join(CFG['telegram_kinds'])}")
-    print(f"  language     : {CFG['telegram_language']}")
-    print(f"  map url      : {telegram_mod.map_url() or '(map not published)'}")
+    channels = telegram_mod._municipality_channels()
+    print(f"\n  usable         : {ok}  ({why})")
+    print(f"  enabled        : {CFG['telegram_enabled']}")
+    print(f"  channels       : {len(channels)}/145 municipalities configured")
+    print(f"  channels file  : {telegram_mod.BIH_MUNI_FILE}")
+    print(f"  bot token      : {'found' if telegram_mod.bot_token() else 'not found'}")
+    print(f"  alert kinds    : {', '.join(CFG['telegram_kinds'])}")
+    print(f"  language       : {CFG['telegram_language']}")
+    print(f"  map url        : {telegram_mod.map_url() or '(map not published)'}")
     print()
     return 0
 
@@ -549,11 +573,15 @@ def cmd_set_telegram_key() -> int:
     return 0
 
 
-def cmd_test_telegram() -> int:
-    """Post the test message, and print what a real alert would look like.
+def cmd_test_telegram(municipality_id: str | None = None) -> int:
+    """Post the test message to one municipality's channel, and print what a
+    real alert would look like.
 
-    Only the first is posted. A test that reads "NOVI POZAR: ..." in the channel
-    is indistinguishable from the real thing, so the sample alert is shown here
+    Takes a municipality id (e.g. `test-telegram zavidovici`) because this
+    deployment has one channel per municipality, not one fixed channel -
+    there is no single obvious target to default to. Only the test message
+    is posted. A test that reads "NOVI POZAR: ..." in the channel is
+    indistinguishable from the real thing, so the sample alert is shown here
     for its formatting and goes no further - same reasoning as `test-sms`.
     """
     poller.setup_logging()
@@ -570,11 +598,19 @@ def cmd_test_telegram() -> int:
         print(f"  ---- a real alert, for comparison (not sent) ----")
         print("\n".join("  | " + l for l in sample.splitlines()))
 
+    if not municipality_id:
+        print("\n  usage: python3 -m firewatch test-telegram <municipality-id>\n"
+             "  not sent - no municipality named\n")
+        return 1
+    chat_id = telegram_mod.channel_for(municipality_id)
+    if not chat_id:
+        print(f"\n  not sent: no channel configured for {municipality_id!r}\n")
+        return 1
     if not ok:
         print("\n  not sent\n")
         return 1
-    sent = telegram_mod.send(text)
-    print(f"\n  delivered: {sent}\n")
+    sent = telegram_mod.send(text, chat_id)
+    print(f"\n  delivered to {municipality_id}: {sent}\n")
     return 0 if sent else 1
 
 
@@ -758,7 +794,8 @@ def main(argv: list[str]) -> int:
     if cmd == "imagery":
         return cmd_imagery(force="--force" in argv)
     if cmd in ("fire-danger", "firedanger"):
-        return cmd_fire_danger(force="--force" in argv)
+        mid = next((a for a in argv[1:] if not a.startswith("--")), None)
+        return cmd_fire_danger(mid, force="--force" in argv)
     if cmd in ("set-firms-key", "setfirmskey"):
         return cmd_set_firms_key()
     if cmd == "quota":
@@ -778,7 +815,7 @@ def main(argv: list[str]) -> int:
     if cmd in ("telegram-status", "telegramstatus"):
         return cmd_telegram_status()
     if cmd in ("test-telegram", "testtelegram"):
-        return cmd_test_telegram()
+        return cmd_test_telegram(argv[1] if len(argv) > 1 else None)
     if cmd in ("set-telegram-key", "settelegramkey"):
         return cmd_set_telegram_key()
     if cmd in ("test-notify", "testnotify"):

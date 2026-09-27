@@ -1,14 +1,23 @@
 # Manually post (or just preview) a test Telegram message, to check delivery end to end.
 #
 # Defaults to PREVIEW. Clicking "Run workflow" without thinking prints the message and
-# does not post it - a test post lands in a real public channel, so the safe option is
+# does not post it - a test post lands in a real private channel, so the safe option is
 # the default one. Mirrors test-sms.yml.
+#
+# Needs a municipality id (e.g. "zavidovici", "maglaj") because this deployment has
+# one private channel per municipality, not one fixed channel - see telegram.py's
+# module docstring. There is no single obvious default to test against, the same
+# reason cmd_test_telegram takes the id as an argument rather than defaulting.
 
 name: test-telegram
 
 on:
   workflow_dispatch:
     inputs:
+      municipality:
+        description: "Municipality id to test (e.g. zavidovici)"
+        type: string
+        required: true
       send:
         description: "Actually post it (leave unchecked to preview only)"
         type: boolean
@@ -31,6 +40,11 @@ jobs:
       # unreachable", exactly as FIRMS and httpSMS do. See config.force_ipv4().
       FIREWATCH_FORCE_IPV4: "1"
       FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
+      # An env var, not interpolated directly into a run: script - a
+      # workflow_dispatch input is attacker-controllable text, and the usual
+      # GitHub Actions script-injection risk applies to it like any other
+      # untrusted string.
+      TEST_MUNICIPALITY: ${{ inputs.municipality }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,20 +57,21 @@ jobs:
       - name: Preview
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
         run: |
           mkdir -p state/config
           # telegram_enabled defaults to false, the same as Sentinel-2 imagery,
           # because it needs a credential nothing else needs - and unlike the
-          # token and the channel it has no environment variable of its own.
+          # token it has no environment variable of its own.
           echo '{"telegram_enabled": true}' > state/config/config.json
           python3 - <<'PY'
+          import os
           from firewatch import telegram
+          mid = os.environ["TEST_MUNICIPALITY"]
           ok, why = telegram.ready()
           text = telegram.test_text()
           print(f"usable       : {ok} ({why})")
-          print(f"channel      : {telegram.channel() or '(unset)'}")
-          print(f"channel from : {telegram.channel_source()}")
+          print(f"municipality : {mid}")
+          print(f"channel      : {telegram.channel_for(mid) or '(no channel configured for this municipality yet)'}")
           print(f"bot token    : {'found' if telegram.bot_token() else 'not found'}")
           print(f"map link     : {telegram.map_url()}")
           print(f"length       : {len(text)} chars (limit 4096)")
@@ -69,11 +84,10 @@ jobs:
         if: ${{ inputs.send }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          FIREWATCH_TELEGRAM_CHANNEL: ${{ secrets.FIREWATCH_TELEGRAM_CHANNEL }}
         run: |
           mkdir -p state/config
           echo '{"telegram_enabled": true}' > state/config/config.json
-          python3 -m firewatch test-telegram
+          python3 -m firewatch test-telegram "$TEST_MUNICIPALITY"
 
       - name: Note
         if: ${{ !inputs.send }}

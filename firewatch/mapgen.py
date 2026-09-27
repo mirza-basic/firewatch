@@ -22,10 +22,19 @@ from pathlib import Path
 from . import geo, imagery
 from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON
 
+# All 145 BiH municipality boundaries, drawn as one extra toggleable reference
+# layer (see bih_municipalities_geojson()) - independent of BOUNDARY, which
+# stays the one this deployment actually clips its fetch to today. Nothing
+# here changes what a poll fetches or how detections are clipped; it only
+# makes the country-wide grid visible ahead of the fetch itself becoming
+# country-wide.
+BIH_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "bih"
+BIH_MUNI_FILE = BIH_DATA_DIR / "municipalities.json"
+
 TEMPLATE = r"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FireWatch Zavidovići</title>
+<title>FireWatch Bosna i Hercegovina</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -63,16 +72,6 @@ TEMPLATE = r"""<!doctype html>
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;font-size:11.5px;color:var(--dim)}
   .chip b{color:var(--fg);font-weight:600}
-  /* A call-to-action, not a chip: full width and filled with --accent so it reads
-     as the one thing on this page worth clicking that is not a fire, distinct
-     from the quiet text link this used to be in the footer. Empty (no configured
-     channel) collapses to nothing rather than an empty gap - see renderHeader(). */
-  #tgbanner:empty{display:none}
-  #tgbanner{margin-top:12px}
-  #tgbanner a{display:flex;align-items:center;justify-content:center;gap:7px;
-    background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
-    font-size:12.5px;border-radius:8px;padding:9px 10px;transition:filter .13s}
-  #tgbanner a:hover,#tgbanner a:focus-visible{filter:brightness(1.08)}
   #list{overflow-y:auto;flex:1;padding:10px}
   .ev{background:var(--panel2);border:1px solid var(--line);border-left-width:3px;
     border-radius:9px;padding:12px 13px;margin-bottom:9px;cursor:pointer;transition:.14s}
@@ -145,13 +144,22 @@ TEMPLATE = r"""<!doctype html>
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
   .legend.open .legend-body{display:block}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-  /* Fire-danger panel reuses the .legend/.legend-toggle/.legend-body shell above -
-     same collapse behaviour at every width, same look - and adds only its own rows. */
-  .fwiPanel{margin-top:8px}
-  .fwi-badge{font-weight:600;color:var(--fg)}
+  /* Fire-danger detail inside a municipality's popup - see fwiDetail() in mapgen.py. */
   .fwi-row{display:flex;justify-content:space-between;gap:14px}
   .fwi-row+.fwi-row{margin-top:1px}
   .fwi-codes,.fwi-note{opacity:.65;margin-top:6px;font-size:10.5px;line-height:1.5}
+  /* This municipality's own subscribe link - see muniPopupHtml(). Replaces the
+     single global banner this page used to have in the header (removed - a
+     private-channel-per-municipality deployment has no one link to advertise
+     there, see poller._telegram_channel_url()'s own docstring). Smaller than
+     that banner was (the popup's own maxWidth is 260px), same accent-filled
+     treatment so it still reads as the one clickable action in the popup
+     that is not the close button. */
+  .muni-tg{display:flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
+    font-size:11.5px;border-radius:7px;padding:7px 8px;margin-top:8px;
+    transition:filter .13s}
+  .muni-tg:hover,.muni-tg:focus-visible{filter:brightness(1.08)}
   .leaflet-bar a.eye{display:flex;align-items:center;justify-content:center}
   .imgnote{background:rgba(21,26,33,.94);padding:6px 10px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.5;
@@ -160,6 +168,12 @@ TEMPLATE = r"""<!doctype html>
   .imgnote s{color:#f0a35e;text-decoration:none}
   .leaflet-bottom.leaflet-right,
   .leaflet-bottom.leaflet-left{margin-bottom:94px}
+  /* Leaflet's own popup pane is z-index 700 - comfortably below this page's own
+     fixed UI (langsw at 1250, the mobile drawer at 1300), so a municipality
+     popup near the top of the visible map could in principle end up under one
+     of them. Guaranteed on top of all of it instead, since a popup a reader
+     just opened should never be the thing something else covers. */
+  .leaflet-popup-pane{z-index:1400}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
   .leaflet-popup-tip{background:var(--panel)}
   .leaflet-popup-content{margin:11px 13px;font-size:12.5px}
@@ -172,12 +186,17 @@ TEMPLATE = r"""<!doctype html>
      that is meant to drop a vertex, so hit testing is turned off for the panes
      that hold them. The measure pane is a sibling of the overlay pane, hence its
      own rule - finished measurements are clickable (for their remove popup) only
-     when the tool is off. */
+     when the tool is off. muniLayer needs its own selector: it renders on
+     L.canvas rather than SVG paths (145 boundaries - see its own comment), so it
+     is a single <canvas> element the `path` rule below never matches, and
+     without this line a click meant for a vertex opens a municipality popup
+     instead. */
   .leaflet-container.measuring{cursor:crosshair}
   /* !important is load-bearing: Leaflet's own
      `.leaflet-pane>svg path.leaflet-interactive` rule is more specific than this
      one, so without it a click meant for a vertex opens a fire popup instead. */
   .measuring .leaflet-overlay-pane path,
+  .measuring .leaflet-overlay-pane canvas,
   .measuring .leaflet-marker-pane,
   .measuring .leaflet-measure-pane path{pointer-events:none!important}
   .mbar a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -214,7 +233,29 @@ TEMPLATE = r"""<!doctype html>
   #langsw{position:fixed;top:10px;left:calc(50vw + 185px);transform:translateX(-50%);
     z-index:1250;display:flex;gap:2px;padding:2px;border-radius:9px;
     border:1px solid var(--line);background:rgba(21,26,33,.94);
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    transition:opacity .15s}
+  /* Leaflet's popup pane lives inside .leaflet-map-pane, which always carries a
+     CSS transform for panning - that transform makes .leaflet-map-pane the
+     containing block for everything positioned inside it, so no z-index on
+     .leaflet-popup-pane (however high) can ever paint above ANY sibling of
+     .leaflet-map-pane that has its own explicit z-index. That covers every
+     button on the map: Leaflet gives its own corner containers
+     (.leaflet-top/.leaflet-bottom - zoom, the layer control, and every custom
+     L.control this page adds: the fire-zoom button, the eye toggle, the
+     measure tool, the legend) z-index:1000, and this page's own #timebar and
+     #langsw sit at 1050/1250 - all of them siblings of the trapped map-pane,
+     all of them able to paint over a popup no matter how high its own pane's
+     z-index is set. Raising #wrap's (or #map's) own z-index would fix that,
+     but it would also lift the map's opaque tiles above every one of these
+     for as long as any popup anywhere is open, hiding them entirely - worse
+     than the bug it fixes. Ceding the spot instead costs nothing: nobody
+     needs a button in the instant they are reading a popup. */
+  body.popup-open #langsw,
+  body.popup-open #timebar,
+  body.popup-open #drawer-btn,
+  body.popup-open .leaflet-top,
+  body.popup-open .leaflet-bottom{opacity:0!important;pointer-events:none!important}
   #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
@@ -289,11 +330,10 @@ TEMPLATE = r"""<!doctype html>
   <div id="side">
     <header>
       <button id="drawer-close" aria-label="Close fire list">&times;</button>
-      <h1><span class="dot" id="hdot"></span><span id="htitle">FireWatch Zavidovići</span></h1>
+      <h1><span class="dot" id="hdot"></span><span id="htitle">FireWatch Bosna i Hercegovina</span></h1>
       <div class="sub" id="hsub"></div>
       <div class="seg" id="hrange"></div>
       <div class="status" id="hchips"></div>
-      <div id="tgbanner"></div>
     </header>
     <div id="list"></div>
     <footer id="foot"></footer>
@@ -320,6 +360,7 @@ let DATA = __DATA__;
 const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
 const BUFFER = __BUFFER__;
+const BIH_MUNICIPALITIES = __BIH_MUNICIPALITIES__;
 // Substituted from config rather than written out here: the sun test below is
 // the only consumer, but a town that quietly disagreed with config.TOWN_LAT
 // would be a needle in a haystack.
@@ -334,7 +375,7 @@ const SEVC = {low:"#ffa726",moderate:"#fb8c00",high:"#f4511e",severe:"#d81b3c",u
 // and plural() picks by the Slavic rule. English uses [one, other, other].
 const I18N = {
   en: {
-    sub:"Grad Zavidovići · updated {t}", noActive:"No active fires",
+    sub:"Bosnia and Herzegovina · updated {t}", noActive:"No active fires",
     activeFires:["{n} active fire","{n} active fires","{n} active fires"],
     firesNoneActive:["{n} fire, none active","{n} fires, none active","{n} fires, none active"],
     detections:"detections", ok:"ok", fail:"fail",
@@ -345,10 +386,10 @@ const I18N = {
     sev_low:"low", sev_moderate:"moderate", sev_high:"high", sev_severe:"severe",
     sev_unknown:"unknown", st_active:"active", st_quiet:"quiet",
     noFires:"No fires · {range}",
-    nothing:"Nothing detected in or within {km} km of Grad Zavidovići in this period.",
+    nothing:"Nothing detected in Bosnia and Herzegovina or within {km} km of its border in this period.",
     peak:"peak", now:"now", latest:"latest", lastSeen:"Last seen", started:"Started",
     extent:"Extent", weather:"Weather", note:"Note", outside:"outside municipality",
-    ofTown:"of town", ofZav:"of Zavidovići", ofN:"of {n}", across:"across",
+    ofN:"of {n}", across:"across",
     placeOf:"{km} km {dir} of {name}",
     spread:"{risk} spread risk", risk_elevated:"elevated", risk_high:"high",
     risk_extreme:"extreme", risk_moderate:"moderate", risk_unknown:"unknown",
@@ -356,6 +397,7 @@ const I18N = {
     discoveredBy:"Reported by", savedAt:"saved",
     wind:"wind", from:"from", gusts:"gusts", rh:"RH",
     noDetRange:"no detections in range", boundary:"boundary",
+    lMuni:"BiH municipalities",
     docs:"Documentation", telegramSub:"Alerts on Telegram",
     r_24h:"Last 24h", r_3d:"Last 3 days", r_7d:"Last 7 days", r_30d:"Last month",
     r_1y:"Last year",
@@ -394,7 +436,7 @@ const I18N = {
     fwUpdated:"updated {t}"
   },
   bs: {
-    sub:"Grad Zavidovići · ažurirano {t}", noActive:"Nema aktivnih požara",
+    sub:"Bosna i Hercegovina · ažurirano {t}", noActive:"Nema aktivnih požara",
     activeFires:["{n} aktivan požar","{n} aktivna požara","{n} aktivnih požara"],
     firesNoneActive:["{n} požar, nijedan aktivan","{n} požara, nijedan aktivan",
                      "{n} požara, nijedan aktivan"],
@@ -406,10 +448,10 @@ const I18N = {
     sev_low:"nizak", sev_moderate:"umjeren", sev_high:"visok", sev_severe:"ekstreman",
     sev_unknown:"nepoznato", st_active:"aktivan", st_quiet:"mirno",
     noFires:"Nema požara · {range}",
-    nothing:"Ništa nije detektovano u općini Zavidovići niti u krugu od {km} km u ovom periodu.",
+    nothing:"Ništa nije detektovano u Bosni i Hercegovini niti u krugu od {km} km od granice u ovom periodu.",
     peak:"maks.", now:"sada", latest:"zadnje", lastSeen:"Zadnje viđeno", started:"Počelo",
     extent:"Raspon", weather:"Vrijeme", note:"Napomena", outside:"izvan općine",
-    ofTown:"od grada", ofZav:"od Zavidovića", ofN:"od {n}", across:"u širini",
+    ofN:"od {n}", across:"u širini",
     placeOf:"{km} km {dir} od {name}",
     spread:"rizik širenja: {risk}", risk_elevated:"povišen", risk_high:"visok",
     risk_extreme:"ekstreman", risk_moderate:"umjeren", risk_unknown:"nepoznat",
@@ -417,6 +459,7 @@ const I18N = {
     discoveredBy:"Prvi prijavio", savedAt:"sačuvano",
     wind:"vjetar", from:"iz", gusts:"udari", rh:"vlaga",
     noDetRange:"nema detekcija u periodu", boundary:"granica",
+    lMuni:"Općine BiH",
     docs:"Dokumentacija", telegramSub:"Obavijesti na Telegramu",
     r_24h:"Zadnja 24h", r_3d:"Zadnja 3 dana", r_7d:"Zadnjih 7 dana", r_30d:"Zadnji mjesec",
     r_1y:"Zadnja godina",
@@ -460,8 +503,8 @@ const I18N = {
 const COMPASS_BS = {N:"S",NNE:"SSI",NE:"SI",ENE:"ISI",E:"I",ESE:"IJI",SE:"JI",SSE:"JJI",
   S:"J",SSW:"JJZ",SW:"JZ",WSW:"ZJZ",W:"Z",WNW:"ZSZ",NW:"SZ",NNW:"SSZ"};
 
-// Bosnian by default: this map is for Grad Zavidovići, and the people who need it
-// in an emergency read Bosnian. English is one click away in the header.
+// Bosnian by default: this map covers Bosnia and Herzegovina, and the people who
+// need it in an emergency read Bosnian. English is one click away in the header.
 // A reader's own choice still wins - the toggle writes fw_lang and that is checked
 // first - so switching to English is remembered on that device.
 let LANG = "bs";
@@ -555,8 +598,10 @@ const blank = L.layerGroup();
 // can, and the split between the two providers is not about quality but about
 // what a small fire actually looks like from orbit.
 //
-// Meteosat is ~1.7 x 1.3 km per pixel here: Zavidovici sits at a ~54 degree
-// viewing zenith from 0E, which inflates FCI's 1 km nadir figure by 1/cos.
+// Meteosat is ~1.7 x 1.3 km per pixel here: Bosnia and Herzegovina sits at a
+// ~54 degree viewing zenith from 0E, which inflates FCI's 1 km nadir figure
+// by 1/cos - roughly the same figure across the whole country, which is not
+// wide enough for the zenith angle to vary much from one end to the other.
 // That cannot resolve a few-hectare fire - but it lands every 10 minutes,
 // which is the only cadence that shows a plume while the fire still burns.
 // GIBS polar imagery is 250 m and did show a plume for the 2026-09-05 event
@@ -843,16 +888,47 @@ map.on("overlayremove", e => {
 
 // The "nearby" band - everything within nearby_buffer_km of the outline, which is
 // exactly what the spatial clip keeps and flags `inside=0`. Pre-built into
-// data/zavidovici-buffer.geojson rather than offset in the browser: offsetting a
-// 731-point ring correctly is real work, and the answer only changes when the
-// config does. Drawn before the boundary so the outline stays the stronger line.
+// BUFFER_GEOJSON (config.py) rather than offset in the browser: offsetting a
+// many-thousand-point ring correctly is real work, and the answer only changes
+// when the config does. Drawn before the boundary so the outline stays the
+// stronger line.
 // The artifact wins over DATA.buffer_km: the band on screen *is* the artifact, so
 // if the snapshot was written before a buffer change the label must follow the
 // geometry, not the stale config value that came with the data.
 const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
   || DATA.buffer_km || 6;
-const bandLayer = BUFFER ? L.geoJSON(BUFFER,{style:{color:"#7cc4ff",weight:1.1,
-  opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
+// interactive:false for the same reason as bLayer below: no popup/tooltip of
+// its own, so it should never be what a click hits instead of a municipality
+// shape.
+const bandLayer = BUFFER ? L.geoJSON(BUFFER,{interactive:false,style:{color:"#7cc4ff",
+  weight:1.1,opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
+// Canvas, not the default SVG renderer: 145 boundaries is ~330k vertices
+// combined, and SVG means one DOM path per feature - fine for the single
+// municipality BOUNDARY already draws, not for two orders of magnitude more.
+// Lighter weight and fill than BOUNDARY's own outline for the same reason
+// bandLayer is faint: 145 of these at full strength would be visual noise,
+// and Sarajevo/Istocno Sarajevo's deliberately overlapping shapes would
+// otherwise read as a rendering bug rather than the real, documented overlap.
+// A function, not a fixed string, so re-opening a popup after applyData() has
+// swapped in a fresh DATA object shows this cycle's fire-danger reading, not
+// whatever was current when the popup was first bound - the boundaries
+// themselves never change, but fwiDetail()'s source does, every cycle.
+function muniPopupHtml(f){
+  const tg = f.properties.telegram_invite
+    ? `<a class="muni-tg" href="${f.properties.telegram_invite}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>`
+    : "";
+  return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}${tg}`;
+}
+const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
+    && BIH_MUNICIPALITIES.features.length)
+  ? L.geoJSON(BIH_MUNICIPALITIES,{renderer:L.canvas({padding:0.5}),
+      style:{color:"#9fb3c8",weight:1,opacity:.6,fillColor:"#9fb3c8",fillOpacity:.02},
+      onEachFeature:(f,lyr)=>{
+        lyr.bindTooltip(f.properties.name,{sticky:true});
+        lyr.bindPopup(() => muniPopupHtml(f), {maxWidth:260});
+      }})
+    .addTo(map)
+  : null;
 // A separate object each time: L.control.layers keeps a reference, so reusing one
 // across rebuilds would carry the old language's key with it. Both halves of the
 // control are built by a function for that reason - the base list used to be
@@ -867,6 +943,7 @@ const overlays = () => {
   IMAGERY.forEach(im => { o[t(im.k)] = im.lyr; });
   if(s2Layer) o[t("imS2")] = s2Layer;
   if(bandLayer) o[t("lBuffer",{km:bufKm()})] = bandLayer;
+  if(muniLayer) o[t("lMuni")] = muniLayer;
   return o;
 };
 
@@ -876,8 +953,13 @@ let layersCtl = L.control.layers(
 
 // Brighter and slightly heavier than it needed to be on the pale street map -
 // a mid-blue hairline disappears against dark forest imagery.
-const bLayer = L.geoJSON(BOUNDARY,{style:{color:"#7cc4ff",weight:2.4,opacity:.95,
-  fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
+// interactive:false is load-bearing, not decorative: this is one shape
+// covering the whole country's fill area, added after (so stacked above)
+// muniLayer's 145 smaller ones - without this, every click anywhere in Bosnia
+// hits this layer's own (popup-less) hit area first and never reaches the
+// municipality shape underneath it.
+const bLayer = L.geoJSON(BOUNDARY,{interactive:false,style:{color:"#7cc4ff",weight:2.4,
+  opacity:.95,fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
 map.fitBounds(bLayer.getBounds(),{padding:[24,24]});
 
 // Jump straight to what is burning - at municipality zoom a single fire is a
@@ -950,55 +1032,33 @@ legend.onAdd = () => {
 legend.addTo(map);
 expandablePanels.push(legend);
 
-// ---- fire danger panel ------------------------------------------------------
-// A single-point weather-derived index, not a spatial layer - see the module
-// notes in firedanger.py for why this is not a map overlay. Added after legend
-// so it stacks above it in the bottom-right corner. Content is patched in place
-// by fwiUpdate() (called from applyData() and applyStaticLabels()), the same
-// shape as the measure tool's mPanelUpdate() - not removed/re-added like the
-// language-dependent controls, since this one also changes on every poll.
+// ---- fire danger -------------------------------------------------------------
+// One weather-derived index per municipality now, not one for the whole
+// country - see firedanger.py's module docstring - so there is no longer one
+// single reading a corner badge could show. Each municipality's own today
+// class/FWI is shown in its popup instead (muniPopupHtml(), on the
+// municipality overlay built above) - see fwiDetail() below for the shared
+// formatting both that popup and the CLI's `fire-danger <id>` conceptually
+// mirror.
 const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
   very_high:"fwVeryHigh", extreme:"fwExtreme", very_extreme:"fwVeryExtreme"};
-const fwiCtl = L.control({position:"bottomright"});
-fwiCtl.onAdd = () => {
-  const d = L.DomUtil.create("div", "legend fwiPanel");
-  d.innerHTML = `<div class="legend-body"></div>` +
-    `<button class="legend-toggle" type="button" aria-expanded="false"></button>`;
-  L.DomEvent.disableClickPropagation(d);
-  L.DomEvent.disableScrollPropagation(d);
-  fwiCtl._el = d;
-  d.querySelector(".legend-toggle").addEventListener("click", () => togglePanel(fwiCtl));
-  // Not called here: onAdd runs synchronously from fwiCtl.addTo(map) below, which
-  // is well before monName/ago are assigned further down this script - calling
-  // it this early would hit each of those consts in its temporal dead zone.
-  // applyStaticLabels() and applyData() call it once everything is defined.
-  return d;
-};
-fwiCtl.addTo(map);
-expandablePanels.push(fwiCtl);
-// Clicking the map itself - not a control, which already stops the click here
-// via disableClickPropagation above - collapses whichever panel is open, the
-// same "click elsewhere to dismiss" convention as a popup.
+// Clicking the map itself collapses whichever panel is open (the legend, or a
+// municipality popup Leaflet already handles this way) - the same "click
+// elsewhere to dismiss" convention throughout this page.
 map.on("click", closeExpandablePanels);
+// See #langsw's own CSS comment: this is the other half of that fix.
+map.on("popupopen", () => document.body.classList.add("popup-open"));
+map.on("popupclose", () => document.body.classList.remove("popup-open"));
 
-function fwiUpdate(){
-  const el = fwiCtl._el;
-  if(!el) return;
-  const fd = DATA.fire_danger;
-  // Nothing computed yet (feature disabled, or the first cycle hasn't run) -
-  // omit the panel entirely rather than show a placeholder or a stale guess.
-  if(!fd || !fd.today){ el.style.display = "none"; return; }
-  el.style.display = "";
+function fwiDetail(mid){
+  const fd = (DATA.fire_danger || {})[mid];
+  // Nothing computed yet for this one (feature disabled, this municipality's
+  // channel/data not set up yet, or the first cycle hasn't run) - omit the
+  // section entirely rather than show a placeholder or a fabricated reading.
+  if(!fd || !fd.today) return "";
   const today = fd.today;
   const clsLabel = e => t(FWI_CLASS_I18N[e.class] || "fwLow");
   const swatch = c => `<i style="background:${c}"></i>`;
-  const badge = `${swatch(today.color)}<span class="fwi-badge">` +
-    `${t("fwBadge", {cls: clsLabel(today)})}</span>`;
-  // Collapsed state shows the same full phrase as the body's headline - the
-  // toggle button wraps rather than truncating (see .legend-toggle's max-width),
-  // so there is no narrow-screen reason to shorten it here.
-  el.querySelector(".legend-toggle").innerHTML = badge;
-
   const rows = [today, ...(fd.forecast || [])].map(e => {
     const [, mo, da] = e.date.split("-");
     const label = e.date === today.date ? t("fwToday")
@@ -1007,10 +1067,9 @@ function fwiUpdate(){
       `${swatch(e.color)}${clsLabel(e)} <span style="opacity:.6">` +
       `(${e.fwi.toFixed(1)})</span></span></div>`;
   }).join("");
-
   const mins = (Date.now() - new Date(fd.updated_at).getTime()) / 60000;
-  el.querySelector(".legend-body").innerHTML =
-    `<b style="color:#e6edf3">${t("fwTitle")}</b><br>${badge}` +
+  return `<hr><b style="color:#e6edf3">${t("fwTitle")}</b><br>` +
+    `${swatch(today.color)}${t("fwBadge", {cls: clsLabel(today)})}` +
     `<div style="margin-top:6px">${rows}</div>` +
     `<div class="fwi-codes">FFMC ${today.ffmc} · DMC ${today.dmc} · DC ${today.dc}</div>` +
     `<div class="fwi-note">${t("fwNote")}</div>` +
@@ -1220,7 +1279,6 @@ function popupHtml(e){
   const w = e.weather;
   return `<b>${t("sev_"+e.severity).toUpperCase()}</b> &middot; ${t("st_"+e.status)}<br>
     ${placeOf(e)}<br>
-    <span style="color:#8b98a5">${e.dist_town_km} km ${dir(e.dir_town)} ${t("ofZav")}</span><br>
     FRP <b>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW"}</b> ${t("peak")},
     ${e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW"} ${t("latest")}<br>
     ${e.n_det} ${t("detections")} &middot; ${e.sources.join(", ")}<br>
@@ -1306,7 +1364,7 @@ function renderList(){
         <span>${t("started")}</span><span>${fmtLocal(Date.parse(e.first_ts))}</span>
         <span>${t("legDet")}</span><span>${e.series.length}${e.series.length!==e.n_det?" "+t("ofN",{n:e.n_det}):""} · ${e.sources.map(s=>
           `<span style="color:${SRC[s]?.c||"#fff"}">${s}</span>`).join(" ")}</span>
-        <span>${t("extent")}</span><span>${e.extent_km} km · ${e.dist_town_km} km ${dir(e.dir_town)} ${t("ofTown")}</span>
+        <span>${t("extent")}</span><span>${e.extent_km} km</span>
         ${w?`<span>${t("weather")}</span><span>${w.temp}°C, ${t("rh")} ${w.humidity}%, ${t("wind")} ${Math.round(w.speed)} km/h ${t("from")} ${dir(w.from)}
              ${e.risk?`· <b style="color:${e.risk==="extreme"||e.risk==="high"?"#e63946":"#8b98a5"}">${t("spread",{risk:t("risk_"+e.risk)})}</b>`:""}</span>`:""}
         ${e.inside?"":`<span>${t("note")}</span><span style="color:#ffd166">${t("outside")}</span>`}
@@ -1379,14 +1437,6 @@ function renderHeader(){
     ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
     `Meteosat MTG · VIIRS/MODIS FIRMS · Sentinel-3 &nbsp;|&nbsp; ${t("boundary")}: OSM rel. 2528292${docsLink}`;
-  // A banner, not a footer link: this is the one call-to-action on the page
-  // that is not a fire, so it sits at the top of the panel rather than buried
-  // below the fire list. Independent of public_url, unlike the docs link -
-  // the channel is a fixed deployment setting, not something published
-  // alongside this particular map instance, so it shows on a local file://
-  // map too. :empty in CSS collapses it to nothing when there is no channel.
-  document.getElementById("tgbanner").innerHTML = DATA.telegram_url
-    ? `<a href="${DATA.telegram_url}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>` : "";
 }
 
 // Chrome on Android reports the visible height in innerHeight, so this keeps a
@@ -1978,7 +2028,7 @@ function applyStaticLabels(){
   unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
     b.classList.toggle("on", b.dataset.l === LANG));
-  mLabels(); mPanelUpdate(); fwiUpdate();
+  mLabels(); mPanelUpdate();
 }
 
 function rebuildControls(){
@@ -2050,7 +2100,7 @@ function applyData(d){
   if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
   const wasOpen = popupOpenId;
   recompute();
-  renderRange(); renderHeader(); drawEvents(); renderList(); fwiUpdate();
+  renderRange(); renderHeader(); drawEvents(); renderList();
   setSliderTime(at);
   drawDets(sliderTime());
   if(wasOpen && markersOn && markerById[wasOpen]){
@@ -2137,6 +2187,38 @@ def sync_public(html_path: Path | None = None) -> bool:
     return True
 
 
+def bih_municipalities_geojson() -> dict:
+    """All 145 BiH municipality boundaries as one FeatureCollection, each
+    feature tagged with the id/name the map needs for its tooltip - {} if the
+    data isn't there (a checkout without data/bih/, or before the fetch
+    finished), so the layer is simply omitted rather than the page failing to
+    render at all, same as a missing buffer band.
+
+    `telegram_invite` rides along too - an invite link is meant to be public
+    (that is its whole purpose), unlike the Sentinel Hub instance id landmine
+    elsewhere in this module, so embedding it in the page Pages publishes is
+    fine. `None` for a municipality not yet provisioned; muniPopupHtml() omits
+    the subscribe link rather than showing one that 404s.
+    """
+    try:
+        rows = json.loads(BIH_MUNI_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+    features = []
+    for r in rows:
+        try:
+            fc = json.loads((BIH_DATA_DIR / r["boundary"]).read_text())
+        except (OSError, ValueError, KeyError):
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {"id": r["id"], "name": r["short_name"],
+                           "telegram_invite": r.get("telegram_invite")},
+            "geometry": fc["features"][0]["geometry"],
+        })
+    return {"type": "FeatureCollection", "features": features}
+
+
 def render(snapshot: dict, path: Path | None = None) -> Path:
     out = Path(path or MAP_PATH)
     boundary = json.loads(BOUNDARY_GEOJSON.read_text())
@@ -2144,10 +2226,12 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
     # distance; the page then simply omits the band rather than drawing a
     # confident line in the wrong place. `python3 -m firewatch buffer` rebuilds it.
     band = geo.load_buffer()
+    bih_munis = bih_municipalities_geojson()
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(snapshot, ensure_ascii=False))
             .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":")))
             .replace("__BUFFER__", json.dumps(band, separators=(",", ":")))
+            .replace("__BIH_MUNICIPALITIES__", json.dumps(bih_munis, separators=(",", ":")))
             .replace("__DATA_JS__", data_path_for(out).name)
             .replace("__TOWN_LAT__", repr(TOWN_LAT))
             .replace("__TOWN_LON__", repr(TOWN_LON)))

@@ -159,13 +159,14 @@ class Poller:
             s2 = imagery.refresh(con)
 
             # Same "cheap to check, rare to actually do work" shape: gated inside
-            # to at most twice a day, so calling it every cycle costs nothing on
-            # the ~140 cycles that are not one of those two.
+            # per municipality to at most twice a day each, so calling it every
+            # cycle costs nothing on the ~140 cycles that are not one of those
+            # two. dict, not one payload - see firedanger.update_all().
             try:
-                fire_danger = firedanger.update(con)
+                fire_danger = firedanger.update_all(con)
             except Exception:
                 log.exception("fire danger update failed")
-                fire_danger = None
+                fire_danger = {}
 
             alerts = events.diff(previous, current)
             store.save_events(con, current)
@@ -232,9 +233,11 @@ class Poller:
                 # rather than drawing an empty rectangle, exactly as it does for
                 # a missing buffer band.
                 "imagery": s2,
-                # None when disabled, or before the first successful computation -
-                # the map's fire-danger panel omits itself rather than showing a
-                # stale or fabricated reading.
+                # Keyed by municipality id, one entry per municipality that has
+                # actually computed at least once - empty when disabled, or
+                # before the first successful computation. A municipality
+                # missing from this dict gets no fire-danger reading in its
+                # popup rather than a stale or fabricated one.
                 "fire_danger": fire_danger,
                 # None unless a public channel is actually configured - see
                 # _telegram_channel_url().
@@ -279,23 +282,20 @@ class Poller:
 
 
 def _telegram_channel_url() -> str | None:
-    """A public join link for the alert channel, or None.
+    """A public join link for *the* alert channel - always None here.
 
-    Only for a public @handle - a private channel (a numeric chat id) has no
-    public link to advertise, and the map should not offer to join something
-    it cannot. Gated on `telegram.ready()`, not just `telegram_enabled`: a
-    channel with no bot token configured cannot actually deliver an alert, and
-    inviting the public to subscribe to one that never posts is worse than not
-    advertising it - same reasoning as `fire_danger` and `imagery` staying None
-    until there is something real behind them. This still cannot catch every
-    failure mode - a bot token that is valid but was never made a channel
-    administrator looks identical to `ready()` and only fails at send time -
-    but a missing credential is the common case and is free to check here.
+    Inherited from the single-channel deployment this branch forked from,
+    where one fixed public @handle meant one banner made sense. This
+    deployment has one channel per municipality instead, all private (invite
+    link, not a public handle, after the "too many public channels" account
+    cap - see the provisioning history), so there is no single link to
+    advertise. A per-municipality subscribe link is a real map feature to add
+    later (rendered from telegram.channel_for() against whichever
+    municipality a reader is looking at), not something this one global
+    banner slot can express - left returning None rather than a wrong or
+    misleading single link.
     """
-    if not telegram.ready()[0]:
-        return None
-    ch = telegram.channel()
-    return f"https://t.me/{ch[1:]}" if ch.startswith("@") else None
+    return None
 
 
 def backfill(days: int = 30) -> dict:
@@ -345,7 +345,7 @@ def _empty_snapshot() -> dict:
             "source_status": {}, "window_hours": CFG["window_hours"],
             "buffer_km": CFG["nearby_buffer_km"], "n_detections": 0,
             "alerts_sent": [], "notify_backend": notify.backend(),
-            "imagery": None, "fire_danger": None, "telegram_url": None}
+            "imagery": None, "fire_danger": {}, "telegram_url": None}
 
 
 def load_snapshot() -> dict:

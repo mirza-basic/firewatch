@@ -11,6 +11,7 @@ __pycache__/
 
 # Generated per-machine by `firewatch-ctl install` — contains local paths.
 com.firewatch.zavidovici.plist
+com.firewatch.bih.plist
 
 # Rebuilt from the database every cycle; Pages serves it from the workflow artifact.
 public/

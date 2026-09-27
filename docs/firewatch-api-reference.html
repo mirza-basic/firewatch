@@ -169,7 +169,7 @@
 
 <div class="wrap">
 <nav>
-  <div class="brand">FireWatch Zavidovići</div>
+  <div class="brand">FireWatch Bosna i Hercegovina</div>
   <div class="brand-sub">API playbook</div>
   <ul>
     <li><a href="#overview">Overview</a></li>
@@ -264,14 +264,14 @@ alert fires, and three run once at build time and are then bundled into the repo
       <td class="mono nw">REST · JSON</td>
       <td><span class="tag build">build-time</span></td>
       <td><span class="tag nokey">none</span></td>
-      <td class="mono">data/zavidovici.geojson</td>
+      <td class="mono">data/bih/&lt;id&gt;.geojson &times;145 + country.geojson</td>
     </tr>
     <tr>
       <td>OSM Overpass</td>
       <td class="mono nw">POST · Overpass QL</td>
       <td><span class="tag build">build-time</span></td>
       <td><span class="tag nokey">none</span></td>
-      <td class="mono">data/settlements.json</td>
+      <td class="mono">data/bih/settlements.json</td>
     </tr>
     <tr>
       <td>httpSMS</td>
@@ -673,22 +673,39 @@ Keychain, never <code>config.json</code>.</p>
 
 <h2 id="telegram">Telegram Bot API <span class="tag key">bot token</span></h2>
 
-<p class="lede">The other push. One recipient, always &mdash; a public channel
-rather than httpSMS's per-phone fan-out, so there is no bulk endpoint to reach
-for and no recipient count to branch on.</p>
+<p class="lede">The other push. One recipient per call, like httpSMS's single-number
+form &mdash; but unlike httpSMS, there is no one fixed recipient. There are 145
+private channels, one per municipality, and a fire is posted to whichever one (or
+two, for the deliberately overlapping Sarajevo/Istočno Sarajevo pair) the
+enrichment stage tagged it with - <code>send_alert()</code> loops the event's
+matched municipalities and calls this once per channel, independently, so one
+channel failing or one municipality having no channel yet never blocks another.</p>
 
 <div class="io">
   <div class="io-h"><span class="verb">POST</span> one channel</div>
   <pre>https://api.telegram.org/bot&lt;token&gt;/sendMessage
-{"chat_id": "@firewatchzavidovici", "text": "…"}
+{"chat_id": "-1004423431890", "text": "…"}
 
 &rarr; 200 {"ok": true, "result": {"message_id": …, "chat": {…}, "date": …, …}}</pre>
 </div>
 
 <p>The bot must already be an administrator of the channel &mdash; a one-time step
-done in Telegram itself, not something this codebase can set up or verify. A
-correctly configured token against a channel the bot has not been added to still
-fails, quietly, as an ordinary 400.</p>
+done in Telegram itself (here, scripted via Telethon at provisioning time, since
+the Bot API itself has no method to create a channel or promote an admin), not
+something this codebase can set up or verify at runtime. A correctly configured
+token against a channel the bot has not been added to still fails, quietly, as an
+ordinary <code>400 chat not found</code> &mdash; and so does a token that
+authenticates fine but belongs to the <em>wrong</em> bot: <code>ready()</code> only
+checks that a token is present, not that it is the bot actually added to these
+145 channels, which is exactly the failure this deployment hit for real once
+(the Keychain still held an earlier single-municipality deployment's bot token).
+The channels are private rather than public specifically because Telegram
+enforces a real, hard, per-account cap on how many <em>public</em> channels one
+account can administer - there is no workaround for that at 145-channel scale, so
+each <code>chat_id</code> here is the channel's own numeric id (Telethon's bare id,
+"-100"-prefixed for the Bot API) rather than an <code>@handle</code>, and
+subscribing means following that channel's invite link rather than a public join
+link.</p>
 
 <div class="note warn">
   <span class="lbl">No character budget, unlike httpSMS</span>
@@ -696,8 +713,10 @@ fails, quietly, as an ordinary 400.</p>
   here is trimmed or transliterated. Bosnian diacritics are sent as-is &mdash;
   <code>Zavidovi&#263;i</code>, not <code>Zavidovici</code> &mdash; and the message
   carries lines httpSMS drops for segment cost: the detection count and its source
-  list, the footprint width, and an <code>IZVAN OP&Cacute;INE</code> marker for a
-  fire outside the municipality.</p>
+  list, the footprint width, and an <code>IZVAN BIH</code> marker for a fire in the
+  buffer band outside Bosnia and Herzegovina's own border (not "outside the
+  municipality" - a real mistranslation left over from the single-municipality
+  design, since fixed).</p>
 </div>
 
 <div class="note crit">
@@ -707,80 +726,87 @@ fails, quietly, as an ordinary 400.</p>
   <pre>&rarr; 429 {"ok": false, "error_code": 429,
        "description": "Too Many Requests: retry after 3",
        "parameters": {"retry_after": 3}}</pre>
-  <p>Ignoring it risks the bot being muted from the channel for longer than the
+  <p>Ignoring it risks the bot being muted from that channel for longer than the
   three seconds it actually asked for. <code>telegram.send()</code> waits the
   stated amount once, capped at 5 s (<code>MAX_RETRY_WAIT</code>) &mdash; past that
   cap the post is dropped rather than blocking the next poll cycle on it, since a
   channel post is not worth stalling the fast MTG path over.</p>
 </div>
 
-<p>A channel enforces roughly one post per second on its own, independent of any
-per-bot global limit. The token comes from <code>TELEGRAM_BOT_TOKEN</code> or the
-macOS Keychain (service <code>firewatch-telegram</code>), never
-<code>config.json</code> &mdash; same resolution order as the httpSMS key. The
-channel handle itself, unlike a phone number, is not sensitive - it is meant to
-be public - but <code>telegram_channel</code> ships with <strong>no built-in
-default</strong>, unlike most of what this instance hardcodes: a real default
-would mean a fork that sets its own <code>TELEGRAM_BOT_TOKEN</code> and forgets
-this posts, with its own bot, at this deployment's channel, and Telegram answers
-<code>403</code> rather than the clean "not configured" a missing setting gets
-everywhere else. Set it via <code>telegram_channel</code> in
-<code>config.json</code>, or <code>FIREWATCH_TELEGRAM_CHANNEL</code> in the
-environment for a deployment with no writable config file to edit (a container,
-or this repo's own GitHub Actions run, which rewrites <code>config.json</code>
-from a fixed literal every cycle). <code>telegram.channel()</code> checks the
-environment first, same order as <code>sms.recipients()</code> and
-<code>FIREWATCH_SMS_TO</code>.</p>
+<p>Each channel enforces roughly one post per second on its own, independent of any
+per-bot global limit or of the other 144 channels. The token comes from
+<code>TELEGRAM_BOT_TOKEN</code> or the macOS Keychain (service
+<code>firewatch-telegram</code>), never <code>config.json</code> &mdash; same
+resolution order as the httpSMS key, and the one Telegram secret this deployment
+still needs. Which municipality has which channel is committed data now, not a
+secret or a config key: <code>data/bih/municipalities.json</code>'s
+<code>telegram_channel</code> field, populated as each one is provisioned - a
+municipality with no channel yet gets <code>null</code> rather than a placeholder,
+and <code>telegram.channel_for(municipality_id)</code> returns <code>None</code>
+for it rather than posting somewhere that will 400.</p>
 
 <h2 id="nominatim">Nominatim <span class="tag build">build-time</span></h2>
 
-<p>Used once to resolve the municipality and pull its polygon. The result is committed
-as <code>data/zavidovici.geojson</code>, so this is never called at runtime.</p>
+<p>Used once per municipality (145 times, plus once for the country itself) to pull
+its polygon, via <code>firewatch/setup_bih.py</code> - a batch, resumable script,
+not the interactive single-place <code>setup.py</code> this branch forked away
+from. Every relation id is already known going in (an earlier
+<code>admin_level</code> 6/7 OSM sweep), so this calls <code>/lookup</code> by id
+rather than <code>/search</code> by name - no ambiguity to resolve, one request
+per relation. Results are committed as <code>data/bih/&lt;id&gt;.geojson</code>
+(and <code>data/bih/country.geojson</code> for the nation itself), so none of this
+runs at runtime.</p>
 
 <div class="io">
-  <div class="io-h"><span class="verb">GET</span> find the relation</div>
-  <pre>https://nominatim.openstreetmap.org/search?q=Grad+Zavidovi%C4%87i&amp;format=json&amp;limit=1
-  → {"osm_type": "relation", "osm_id": 2528292,
-     "class": "boundary", "type": "administrative", …}</pre>
-</div>
-<div class="io">
-  <div class="io-h"><span class="verb">GET</span> pull the geometry</div>
-  <pre>https://nominatim.openstreetmap.org/details
-  ?osmtype=R&amp;osmid=2528292&amp;format=json&amp;polygon_geojson=1
-  → admin_level 6 · Polygon · 731 points · single ring, no holes</pre>
+  <div class="io-h"><span class="verb">GET</span> pull the geometry for one already-known relation</div>
+  <pre>https://nominatim.openstreetmap.org/lookup
+  ?osm_ids=R2528292&amp;format=json&amp;polygon_geojson=1
+  → admin_level 6 · Polygon · 731 points · single ring, no holes
+  &nbsp;&nbsp;(Zavidovići, one of 145; the country itself, relation 2528142,
+  &nbsp;&nbsp;comes back as a 2-part MultiPolygon, 27,135 points total)</pre>
 </div>
 
 <p>Nominatim's usage policy requires a genuine identifying
-<code>User-Agent</code> and at most 1 request/second. We satisfy both trivially by
-calling it twice, ever.</p>
+<code>User-Agent</code> and at most 1 request/second - enforced here with an
+explicit 1.1 s delay between the 146 calls, since this is no longer "call it
+twice, ever".</p>
 
 <h2 id="overpass">Overpass <span class="tag build">build-time</span></h2>
 
 <p>Fetches the settlement names used to turn coordinates into
-<em>"7.0 km ESE of Kamenica"</em>. Committed as
-<code>data/settlements.json</code> (413 places).</p>
+<em>"7.0 km ESE of Kamenica"</em> - once per municipality, each a
+<code>around:</code> radius query centred on that municipality rather than one
+bounding box, since 145 separate radii cover the country far more precisely than
+one box would. The 145 raw results (59,545 rows, with real overlap between
+neighbouring municipalities) are merged and deduplicated into one file,
+<code>data/bih/settlements.json</code> (13,240 unique places).</p>
 
 <div class="io">
-  <div class="io-h"><span class="verb">POST</span> Overpass QL body</div>
-  <pre>[out:json][timeout:60];
+  <div class="io-h"><span class="verb">POST</span> Overpass QL body, per municipality</div>
+  <pre>[out:json][timeout:90];
 (
-  node["place"~"^(city|town|village|hamlet|suburb|isolated_dwelling|locality)$"]
-      (44.18,17.95,44.60,18.60);
+  node["place"~"^(city|town|village|hamlet)$"]
+      (around:25000,44.388,18.146);
 );
 out body;</pre>
 </div>
 
+<p>Two mirrors, tried in order
+(<code>overpass-api.de</code>, then <code>overpass.kumi.systems</code>) - global
+ones specifically, because a regional extract answers 200 with an empty element
+list for anywhere outside its own box, which reads exactly like "no settlements
+here" rather than the wrong-mirror problem it actually is.</p>
+
 <div class="note warn">
   <span class="lbl">Overpass failure modes</span>
-  <p>Bounding box order is <strong>(south, west, north, east)</strong> — the opposite
-  convention from FIRMS. Overload returns <strong>HTTP 200 with an HTML error
+  <p>Overload returns <strong>HTTP 200 with an HTML error
   page</strong> (<code>Dispatcher_Client::request_read_and_idx::timeout</code>), so a
-  JSON parse failure is the real signal. Mirrors are not equivalent either:
-  <code>overpass.osm.ch</code> serves Switzerland only and answered this query with
-  zero elements rather than an error. The fetch loop retries across
-  <code>overpass-api.de</code>, <code>kumi.systems</code> and
-  <code>private.coffee</code> with backoff, and treats an empty result as a
-  failure worth retrying.</p>
+  JSON parse failure is the real signal - <code>fetch_settlements()</code> catches
+  the exception per mirror rather than trusting a 200 status. An empty element list
+  is treated as a failure worth trying the next mirror for, not a genuine "no
+  settlements here" - the whole reason a regional mirror is unsafe at country
+  scale (see above) is that it returns exactly that empty-but-200 shape for
+  anywhere outside its own region.</p>
 </div>
 
 <h2 id="tiles">Map tiles <span class="tag build">browser only</span></h2>
@@ -1033,9 +1059,9 @@ feed looks wrong and you want to see raw provider output rather than our parse o
 <pre><code><span class="cmt"># 1. is the key healthy, and how much budget is left? (free)</span>
 curl -s "https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/?MAP_KEY=$KEY"
 
-<span class="cmt"># 2. raw FIRMS rows for the Zavidovići box, today</span>
+<span class="cmt"># 2. raw FIRMS rows for the whole country's box (+2 km pad), today</span>
 curl -s "https://firms.modaps.eosdis.nasa.gov/api/area/csv/$KEY/VIIRS_SNPP_NRT\
-/17.9845,44.2017,18.5684,44.5705/1/$(date -u +%F)"
+/15.7037,42.5373,19.6487,45.2944/1/$(date -u +%F)"
 
 <span class="cmt"># 3. raw Meteosat FRP points for the last 24 h</span>
 curl -s -G "https://view.eumetsat.int/geoserver/wfs" \
@@ -1043,7 +1069,7 @@ curl -s -G "https://view.eumetsat.int/geoserver/wfs" \
   --data-urlencode "request=GetFeature" --data-urlencode "typeNames=mtg_fd:frp" \
   --data-urlencode "outputFormat=application/json" \
   --data-urlencode "CQL_FILTER=time AFTER $(date -u -v-1d +%FT%TZ) \
-AND Lat BETWEEN 44.2017 AND 44.5705 AND Lon BETWEEN 17.9845 AND 18.5684" | jq '.numberMatched'
+AND Lat BETWEEN 42.5373 AND 45.2944 AND Lon BETWEEN 15.7037 AND 19.6487" | jq '.numberMatched'
 
 <span class="cmt"># 4. what fields does a layer have?</span>
 curl -s "https://view.eumetsat.int/geoserver/wfs?service=WFS&version=2.0.0\
