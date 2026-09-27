@@ -169,11 +169,31 @@ TEMPLATE = r"""<!doctype html>
   .leaflet-bottom.leaflet-right,
   .leaflet-bottom.leaflet-left{margin-bottom:94px}
   /* Leaflet's own popup pane is z-index 700 - comfortably below this page's own
-     fixed UI (langsw at 1250, the mobile drawer at 1300), so a municipality
+     fixed UI (langsw at 1250, the mobile drawer at 1300), so a fire/detection
      popup near the top of the visible map could in principle end up under one
      of them. Guaranteed on top of all of it instead, since a popup a reader
-     just opened should never be the thing something else covers. */
+     just opened should never be the thing something else covers. Municipality
+     info no longer uses this pane at all - see #muniinfo below. */
   .leaflet-popup-pane{z-index:1400}
+  /* Municipality info shows in a fixed, centered panel instead of a Leaflet
+     popup anchored to the click point. A popup anchored near a corner used
+     to overlap the layer control, the measure tool or the eye toggle, and
+     the previous fix (hiding those while a popup was open) made them
+     invisible *and* unusable rather than just temporarily out of the way -
+     centered with real padding on every side, nothing else needs to move or
+     hide to make room for it. Positioned like #langsw (centered over the map
+     area, accounting for the sidebar on desktop), not over the whole page. */
+  #muniinfo{position:fixed;top:50%;left:calc(50vw + 185px);transform:translate(-50%,-50%);
+    z-index:1260;display:none;max-width:280px;width:calc(100% - 48px);
+    max-height:70vh;overflow-y:auto;background:rgba(21,26,33,.97);
+    border:1px solid var(--line);border-radius:10px;padding:14px 34px 14px 16px;
+    box-shadow:0 10px 32px rgba(0,0,0,.45);backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);color:var(--fg);font-size:12.5px;line-height:1.5}
+  #muniinfo.show{display:block}
+  #muniinfo .miclose{position:absolute;top:8px;right:10px;width:24px;height:24px;
+    border:0;background:none;color:var(--dim);font-size:19px;line-height:1;cursor:pointer;
+    border-radius:5px}
+  #muniinfo .miclose:hover,#muniinfo .miclose:focus-visible{background:var(--panel2);color:var(--fg)}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
   .leaflet-popup-tip{background:var(--panel)}
   .leaflet-popup-content{margin:11px 13px;font-size:12.5px}
@@ -279,6 +299,7 @@ TEMPLATE = r"""<!doctype html>
     /* #side is an off-canvas overlay here, not docked, so #map already spans the
        full viewport width - the desktop offset above would be wrong here. */
     #langsw{left:50%}
+    #muniinfo{left:50%}
     #drawer-btn{display:flex;align-items:center;gap:7px;position:fixed;top:10px;left:10px;
       z-index:1300;background:rgba(21,26,33,.95);color:var(--fg);border:1px solid var(--line);
       border-radius:9px;padding:9px 12px;font:inherit;font-size:14px;cursor:pointer;
@@ -326,6 +347,7 @@ TEMPLATE = r"""<!doctype html>
 <div id="langsw" role="group" aria-label="Language / Jezik">
   <button data-l="bs" type="button">BS</button><button data-l="en" type="button">EN</button>
 </div>
+<div id="muniinfo" role="dialog"><button class="miclose" aria-label="Close" type="button">&times;</button><div id="muniinfo-body"></div></div>
 <div id="wrap">
   <div id="side">
     <header>
@@ -919,13 +941,50 @@ function muniPopupHtml(f){
     : "";
   return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}${tg}`;
 }
+// #muniinfo is one shared, fixed, centered panel (see its own CSS comment for
+// why it is not a Leaflet popup) rather than one popup per feature, since
+// only one municipality's info is ever shown at a time anyway.
+const muniInfoEl = document.getElementById("muniinfo");
+const muniInfoBody = document.getElementById("muniinfo-body");
+L.DomEvent.disableClickPropagation(muniInfoEl);
+L.DomEvent.disableScrollPropagation(muniInfoEl);
+muniInfoEl.querySelector(".miclose").addEventListener("click", () => closeMuniInfo());
+function openMuniInfo(f){
+  muniInfoBody.innerHTML = muniPopupHtml(f);
+  muniInfoEl.classList.add("show");
+}
+function closeMuniInfo(){
+  muniInfoEl.classList.remove("show");
+}
+// A click on a municipality is debounced rather than opened immediately, so
+// the first of the two clicks that make up a double-click (Leaflet's own
+// zoom-in gesture) never gets the chance to open it - without this,
+// double-clicking to zoom also flashed the info panel open on the way,
+// which double-clicking to zoom was never asking for. The map's own
+// "dblclick" fires after both constituent clicks, in time to cancel the
+// pending one.
+let muniClickTimer = null;
+map.on("dblclick", () => {
+  if(muniClickTimer){ clearTimeout(muniClickTimer); muniClickTimer = null; }
+});
+// Any other map click (a fire marker, open water, the boundary itself)
+// closes it - the same "click elsewhere to dismiss" convention as
+// closeExpandablePanels(). A layer click bubbles to the map by default, so
+// clicking a *different* municipality closes the current panel
+// synchronously before that municipality's own debounced open runs, which
+// is what makes switching between two panels feel instant rather than
+// stacking them.
+map.on("click", closeMuniInfo);
 const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
     && BIH_MUNICIPALITIES.features.length)
   ? L.geoJSON(BIH_MUNICIPALITIES,{renderer:L.canvas({padding:0.5}),
       style:{color:"#9fb3c8",weight:1,opacity:.6,fillColor:"#9fb3c8",fillOpacity:.02},
       onEachFeature:(f,lyr)=>{
         lyr.bindTooltip(f.properties.name,{sticky:true});
-        lyr.bindPopup(() => muniPopupHtml(f), {maxWidth:260});
+        lyr.on("click", () => {
+          if(muniClickTimer) clearTimeout(muniClickTimer);
+          muniClickTimer = setTimeout(() => { muniClickTimer = null; openMuniInfo(f); }, 300);
+        });
       }})
     .addTo(map)
   : null;
