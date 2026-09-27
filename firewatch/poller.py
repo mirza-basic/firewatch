@@ -171,31 +171,53 @@ class Poller:
             alerts = events.diff(previous, current)
             store.save_events(con, current)
 
+            # Cooldown stays per (event, kind), exactly as before grouping -
+            # reignited/corroborated/intensified/grew can genuinely all be
+            # true of the same event in the same cycle (see events.diff()),
+            # and sending one near-identical message per kind reads as spam
+            # rather than as separate news. Eligible alerts are grouped by
+            # event below so each channel sends at most one message per event
+            # per cycle, merging whichever kinds passed cooldown into it.
+            eligible = [a for a in alerts if not store.was_notified(
+                con, a["event"]["id"], a["kind"], CFG["notify_cooldown_min"])]
+            groups: dict[str, list[dict]] = {}
+            for a in eligible:
+                groups.setdefault(a["event"]["id"], []).append(a)
+
+            sms_kinds = set(CFG.get("sms_kinds") or [])
+            telegram_kinds = set(CFG.get("telegram_kinds") or [])
             sent = []
-            for a in alerts:
-                ev_id, kind = a["event"]["id"], a["kind"]
-                if store.was_notified(con, ev_id, kind, CFG["notify_cooldown_min"]):
-                    continue
-                notified = notify.notify_alert(a)
+            for ev_id, group in groups.items():
+                notified = notify.notify_alert_group(group)
                 # SMS and Telegram are separate channels and must go out even if
                 # the desktop notification failed - the Mac may be asleep or
                 # locked with nobody looking at it. Hence OR, not a gate.
                 try:
-                    texted = sms.send_alert(a)
+                    texted = sms.send_alert_group(group)
                 except Exception:
                     log.exception("sms alert failed")
                     texted = False
                 try:
-                    posted = telegram.send_alert(a)
+                    posted = telegram.send_alert_group(group)
                 except Exception:
                     log.exception("telegram alert failed")
                     posted = False
-                if notified or texted or posted:
-                    store.mark_notified(con, ev_id, kind)
-                    sent.append(a)
-                    log.info("alerted %s: %s (%s) [notify=%s sms=%s telegram=%s]",
-                             kind, a["event"]["place"], a.get("detail", ""),
-                             notified, texted, posted)
+                kinds_label = "+".join(a["kind"] for a in group)
+                log.info("alerted %s: %s [notify=%s sms=%s telegram=%s]",
+                         kinds_label, group[0]["event"]["place"],
+                         notified, texted, posted)
+                # A kind only counts as delivered through a channel that would
+                # actually have included it - sms_kinds/telegram_kinds filter
+                # per kind even within one merged message, so marking every
+                # kind in the group as notified just because *something* sent
+                # would wrongly suppress a kind neither channel was
+                # configured to carry, the one time it later shows up alone.
+                for a in group:
+                    delivered = notified or (texted and a["kind"] in sms_kinds) \
+                        or (posted and a["kind"] in telegram_kinds)
+                    if delivered:
+                        store.mark_notified(con, ev_id, a["kind"])
+                        sent.append(a)
 
             # Before the snapshot is written, not after: the menu bar and the map
             # read the URL from it, and a tunnel that died since the last cycle

@@ -312,21 +312,29 @@ def _compose(ev, code, T, kind, sev, peak, latest, place, url) -> str:
     return ascii_only("\n".join(lines))
 
 
-def alert_text(alert: dict) -> str:
+def merged_alert_text(alerts: list[dict]) -> str:
     """What changed, where, how hot, the conditions, and the map - in one segment.
+
+    One message for every kind that fired for the same event in the same cycle,
+    instead of one near-identical text per kind - reignited, intensified and
+    grew (corroborated is excluded from sms_kinds already) can genuinely all be
+    true of the same event at once, see events.diff() - and two or three
+    separate texts about the same fire cost real segments for no new
+    information beyond the first.
 
     Every field the operator asked for is here, so the fitting is done by degrading
     the *place phrase*, which is the only part with slack: "99.9 km SSZ od Ekolosko
     izletiste" carries far less than the settlement name alone. Real fires never
     reach that - the longest measured is 155 characters - but a relocation to a
     municipality with longer names would, and a silent second segment is exactly the
-    kind of thing nobody notices until the bill.
+    kind of thing nobody notices until the bill. A merged label spends part of that
+    same slack, so it degrades through the identical ladder rather than a separate one.
     """
-    ev = alert["event"]
+    ev = alerts[0]["event"]
     code, T = _lang()
     peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
     latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
-    kind = T["kind"].get(alert["kind"], f"FIRE {alert['kind'].upper()}")
+    kind = " + ".join(T["kind"].get(a["kind"], f"FIRE {a['kind'].upper()}") for a in alerts)
     sev = T["sev"].get(ev["severity"], ev["severity"].upper())
     url = map_url() or ""
 
@@ -347,6 +355,11 @@ def alert_text(alert: dict) -> str:
         text = _compose(ev, code, T, kind, sev, peak, latest,
                         cut.rstrip(' ,-"\'') or name[:3], url)
     return text
+
+
+def alert_text(alert: dict) -> str:
+    """What changed, where, how hot, the conditions, and the map - in one segment."""
+    return merged_alert_text([alert])
 
 
 def worst_case(code: str | None = None) -> dict:
@@ -486,20 +499,30 @@ def send(text: str, to: list[str] | None = None) -> bool:
     return True
 
 
-def send_alert(alert: dict) -> bool:
+def send_alert_group(alerts: list[dict]) -> bool:
+    """Same filtering as send_alert(), but for however many kinds fired for
+    one event in the same cycle - one text, not one per kind (see
+    merged_alert_text())."""
     kinds = CFG.get("sms_kinds") or []
-    if kinds and alert["kind"] not in kinds:
+    included = [a for a in alerts if not kinds or a["kind"] in kinds]
+    if not included:
         return False
+    ev = included[0]["event"]
     # Empty means unrestricted (every deployment before this one, and any
     # single-municipality fork); non-empty means only these municipalities'
     # fires reach the one SMS recipient list - unlike Telegram, which already
     # routes per-municipality on its own and needs no equivalent filter.
     only = sms_municipalities()
-    if only and not set(alert["event"].get("municipalities") or []) & set(only):
+    if only and not set(ev.get("municipalities") or []) & set(only):
         return False
-    text = alert_text(alert)
+    text = merged_alert_text(included)
     if send(text):
         log.info("sms sent to %d recipient(s) (%d chars, %d segment(s)) for %s",
-                 len(recipients()), len(text), segments(text), alert["kind"])
+                 len(recipients()), len(text), segments(text),
+                 "+".join(a["kind"] for a in included))
         return True
     return False
+
+
+def send_alert(alert: dict) -> bool:
+    return send_alert_group([alert])

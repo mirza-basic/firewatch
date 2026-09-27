@@ -223,18 +223,32 @@ def _compose(ev, code, T, kind, sev, peak, latest, place, url, emoji) -> str:
     return "\n".join(lines)
 
 
-def alert_text(alert: dict) -> str:
-    """What changed, where, how hot, the conditions, and the map."""
-    ev = alert["event"]
+def merged_alert_text(alerts: list[dict]) -> str:
+    """One message for every kind that fired for the same event in the same
+    cycle, instead of one near-identical post per kind - reignited,
+    corroborated, intensified and grew can genuinely all be true of the same
+    event at once (see events.diff()), and two or three separate posts about
+    the same fire read as spam rather than as separate news. The body is one
+    event snapshot regardless of which kind(s) triggered it - merging only
+    ever changes the leading label line, never the facts underneath it.
+    """
+    ev = alerts[0]["event"]
     code, T = _lang()
     peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
     latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
-    kind_key = alert["kind"]
-    kind = T["kind"].get(kind_key, f"FIRE {kind_key.upper()}")
+    kind_keys = [a["kind"] for a in alerts]
+    kind = " + ".join(T["kind"].get(k, f"FIRE {k.upper()}") for k in kind_keys)
     sev = T["sev"].get(ev["severity"], ev["severity"].upper())
-    emoji = KIND_EMOJI.get(kind_key, DEFAULT_EMOJI)
+    # The calm checkmark only when the whole message is just that - any other
+    # kind alongside it means something is still actively worth the fire emoji.
+    emoji = KIND_EMOJI.get(kind_keys[0], DEFAULT_EMOJI) if len(kind_keys) == 1 else DEFAULT_EMOJI
     return _compose(ev, code, T, kind, sev, peak, latest, _place(ev, code),
                      map_url() or "", emoji)
+
+
+def alert_text(alert: dict) -> str:
+    """What changed, where, how hot, the conditions, and the map."""
+    return merged_alert_text([alert])
 
 
 def test_text() -> str:
@@ -329,19 +343,21 @@ def send(text: str, chat_id: str) -> bool:
     return True
 
 
-def send_alert(alert: dict) -> bool:
-    """Post to every municipality the event's location matched - one for an
-    ordinary municipality, two for a fire inside Sarajevo or Istocno Sarajevo
-    (see events.build_events()). Each channel is independent: one missing
-    channel or one failed post never blocks another, the same "isolate
-    failures" rule the rest of this project follows for its alert channels."""
+def send_alert_group(alerts: list[dict]) -> bool:
+    """Same fan-out as send_alert(), but for however many kinds fired for one
+    event in the same cycle - one message per municipality, not one per kind
+    (see merged_alert_text()). Each kind is filtered by telegram_kinds
+    independently before merging, same as send_alert() always filtered the
+    one kind it was given."""
     kinds = CFG.get("telegram_kinds") or []
-    if kinds and alert["kind"] not in kinds:
+    included = [a for a in alerts if not kinds or a["kind"] in kinds]
+    if not included:
         return False
-    municipality_ids = alert["event"].get("municipalities") or []
+    municipality_ids = included[0]["event"].get("municipalities") or []
     if not municipality_ids:
         return False
-    text = alert_text(alert)
+    text = merged_alert_text(included)
+    kinds_label = "+".join(a["kind"] for a in included)
     any_sent = False
     for mid in municipality_ids:
         chat_id = channel_for(mid)
@@ -349,6 +365,15 @@ def send_alert(alert: dict) -> bool:
             log.info("telegram: no channel configured for municipality %s", mid)
             continue
         if send(text, chat_id):
-            log.info("telegram posted to %s (%s) for %s", mid, chat_id, alert["kind"])
+            log.info("telegram posted to %s (%s) for %s", mid, chat_id, kinds_label)
             any_sent = True
     return any_sent
+
+
+def send_alert(alert: dict) -> bool:
+    """Post to every municipality the event's location matched - one for an
+    ordinary municipality, two for a fire inside Sarajevo or Istocno Sarajevo
+    (see events.build_events()). Each channel is independent: one missing
+    channel or one failed post never blocks another, the same "isolate
+    failures" rule the rest of this project follows for its alert channels."""
+    return send_alert_group([alert])

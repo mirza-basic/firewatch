@@ -88,15 +88,20 @@ def maps_url(lat: float, lon: float) -> str:
     return f"https://www.google.com/maps?q={lat},{lon}"
 
 
-def alert_text(alert: dict) -> tuple[str, str, str]:
-    """(title, subtitle, message) for an alert record."""
-    ev = alert["event"]
-    kind = alert["kind"]
-    icon = ICONS.get(kind, "🔥")
+def merged_alert_text(alerts: list[dict]) -> tuple[str, str, str]:
+    """(title, subtitle, message) for however many kinds fired for the same
+    event in the same cycle, instead of one notification per kind - reignited,
+    corroborated, intensified and grew can genuinely all be true of the same
+    event at once (see events.diff()), and two or three popups about the same
+    fire in one cycle is worse than one that says all of it."""
+    ev = alerts[0]["event"]
+    kinds = [a["kind"] for a in alerts]
+    icon = ICONS.get(kinds[0], "🔥") if len(kinds) == 1 else "🔥"
     where = "in Bosnia and Herzegovina" if ev["inside"] else "near the border"
-    title = f"{icon} {TITLES.get(kind, kind)} {where}"
+    kind_label = " + ".join(TITLES.get(k, k) for k in kinds)
+    title = f"{icon} {kind_label} {where}"
     subtitle = ev["place"]
-    bits = [alert.get("detail", "")]
+    bits = [a.get("detail", "") for a in alerts]
     if ev.get("latest_frp") is not None:
         bits.append(f"{ev['latest_frp']:.1f} MW")
     if ev.get("wind"):
@@ -106,15 +111,27 @@ def alert_text(alert: dict) -> tuple[str, str, str]:
     return title, subtitle, message
 
 
-def notify_alert(alert: dict) -> bool:
-    ev = alert["event"]
-    title, subtitle, message = alert_text(alert)
-    sound = CFG["sound_new"] if alert["kind"] in ("new", "reignited") \
+def alert_text(alert: dict) -> tuple[str, str, str]:
+    """(title, subtitle, message) for an alert record."""
+    return merged_alert_text([alert])
+
+
+def notify_alert_group(alerts: list[dict]) -> bool:
+    """Same as notify_alert(), but for however many kinds fired for one event
+    in the same cycle - one popup, not one per kind."""
+    ev = alerts[0]["event"]
+    kinds = [a["kind"] for a in alerts]
+    title, subtitle, message = merged_alert_text(alerts)
+    sound = CFG["sound_new"] if any(k in ("new", "reignited") for k in kinds) \
         else CFG["sound_update"]
-    if alert["kind"] == "extinguished":
+    if kinds == ["extinguished"]:
         sound = None
     return send(title, message, subtitle=subtitle, sound=sound,
                 url=maps_url(ev["lat"], ev["lon"]))
+
+
+def notify_alert(alert: dict) -> bool:
+    return notify_alert_group([alert])
 
 
 def backend() -> str:
