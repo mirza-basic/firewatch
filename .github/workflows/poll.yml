@@ -14,6 +14,13 @@
 #   FIREWATCH_SMS_TO            optional, comma-separated recipients. This is why
 #                               it exists: a phone number must not be committed
 #                               to a public repository.
+#   FIREWATCH_SMS_MUNICIPALITIES  optional, comma-separated municipality ids (e.g.
+#                               "zavidovici") that restrict SMS to those
+#                               municipalities' fires - unset means every one of
+#                               the 145 reaches FIREWATCH_SMS_TO. A secret for the
+#                               same reason as the number itself: which
+#                               municipality this is set to says roughly where
+#                               that person lives.
 #   TELEGRAM_BOT_TOKEN          optional, for Telegram alerts. The only Telegram
 #                               secret needed here: which municipality gets which
 #                               channel is committed data
@@ -82,6 +89,7 @@ jobs:
           HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
           HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+          FIREWATCH_SMS_MUNICIPALITIES: ${{ secrets.FIREWATCH_SMS_MUNICIPALITIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
           mkdir -p state/config public
@@ -97,12 +105,11 @@ jobs:
           # unconditionally costs nothing when the token is absent, and costs
           # nothing extra for a still-partially-provisioned deployment either
           # (send_alert() posts to whichever municipalities have a channel).
-          # sms_municipalities restricts SMS to Zavidovići only - FIREWATCH_SMS_TO
-          # is one person's own phone, not a per-municipality broadcast the way
-          # each Telegram channel is, so without this every one of the 145
-          # municipalities' new fires would text that number. Telegram needs no
-          # equivalent - it already routes per-municipality on its own.
-          echo '{"auto_expose": false, "telegram_enabled": true, "sms_municipalities": ["zavidovici"]}' > state/config/config.json
+          # sms_municipalities is deliberately not set here - FIREWATCH_SMS_MUNICIPALITIES
+          # (an env var, same as FIREWATCH_SMS_TO) is how this workflow sets it, since
+          # unlike telegram_enabled it is personal information (roughly where the SMS
+          # recipient lives), not something safe to commit as a literal.
+          echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
           python3 -m firewatch poll
 
       - name: Commit the database back, but only when something actually changed

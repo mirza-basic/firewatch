@@ -401,6 +401,9 @@ def cmd_sms_status() -> int:
     print(f"  to from      : {sms_mod.recipients_source()}")
     print(f"  api key      : {'found' if sms_mod.api_key() else 'not found'}")
     print(f"  alert kinds  : {', '.join(CFG['sms_kinds'])}")
+    only = sms_mod.sms_municipalities()
+    print(f"  municipalities: {', '.join(only) if only else '(unrestricted - all 145)'}"
+          f"  [{sms_mod.sms_municipalities_source()}]")
     print(f"  max chars    : {CFG['sms_max_chars']}")
     print(f"  map url      : {sms_mod.map_url() or '(map not published)'}")
     # How close the longest alert this place can produce comes to spilling into a

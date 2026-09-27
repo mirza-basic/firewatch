@@ -42,6 +42,13 @@ KEYCHAIN_SERVICE = "firewatch-httpsms"
 # a committed file would be published.
 SMS_TO_ENV = "FIREWATCH_SMS_TO"
 
+# Same reasoning as SMS_TO_ENV, for the municipality filter rather than the
+# numbers themselves: which municipality's fires reach one person's own phone
+# is personal information too (it says roughly where that person lives), so a
+# public repository's committed config.json is the wrong place for it, same as
+# the phone number itself.
+SMS_MUNICIPALITIES_ENV = "FIREWATCH_SMS_MUNICIPALITIES"
+
 # Characters that would force UCS-2 encoding, and their GSM-7 equivalents.
 TRANSLIT = {
     "ć": "c", "Ć": "C", "č": "c", "Č": "C", "ž": "z", "Ž": "Z",
@@ -144,6 +151,28 @@ def recipients() -> list[str]:
     if isinstance(raw, str):
         raw = raw.replace(";", ",").split(",")
     return [n.strip() for n in raw if n and n.strip()]
+
+
+def sms_municipalities_source() -> str:
+    """Where the municipality filter is coming from, so status output can say."""
+    return "environment" if (os.environ.get(SMS_MUNICIPALITIES_ENV) or "").strip() else "config.json"
+
+
+def sms_municipalities() -> list[str]:
+    """Which municipality ids' fires reach the SMS recipient list - empty means
+    unrestricted, every deployment before this filter existed. Same env-wins-over-
+    config.json precedence as recipients(), for the same reason: a public
+    repository's committed config.json is the wrong place for it."""
+    env = (os.environ.get(SMS_MUNICIPALITIES_ENV) or "").strip()
+    if env:
+        raw = env
+    else:
+        raw = _live("sms_municipalities")
+        if raw is None:
+            raw = CFG.get("sms_municipalities") or []
+    if isinstance(raw, str):
+        raw = raw.replace(";", ",").split(",")
+    return [m.strip() for m in raw if m and m.strip()]
 
 
 def ready() -> tuple[bool, str]:
@@ -461,12 +490,11 @@ def send_alert(alert: dict) -> bool:
     kinds = CFG.get("sms_kinds") or []
     if kinds and alert["kind"] not in kinds:
         return False
-    # See config.py's own comment: empty means unrestricted (every deployment
-    # before this one, and any single-municipality fork), non-empty means only
-    # these municipalities' fires reach the one SMS recipient list - unlike
-    # Telegram, which already routes per-municipality on its own and needs no
-    # equivalent filter.
-    only = CFG.get("sms_municipalities") or []
+    # Empty means unrestricted (every deployment before this one, and any
+    # single-municipality fork); non-empty means only these municipalities'
+    # fires reach the one SMS recipient list - unlike Telegram, which already
+    # routes per-municipality on its own and needs no equivalent filter.
+    only = sms_municipalities()
     if only and not set(alert["event"].get("municipalities") or []) & set(only):
         return False
     text = alert_text(alert)

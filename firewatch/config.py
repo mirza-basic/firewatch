@@ -202,6 +202,10 @@ DEFAULTS = {
     # Telegram channel is - that person likely wants a text only for fires near
     # them, not all 145 municipalities' worth. Telegram is unaffected either way,
     # since it already routes per-municipality on its own.
+    # FIREWATCH_SMS_MUNICIPALITIES overrides this from the environment, same
+    # precedence as FIREWATCH_SMS_TO and for the same reason: which municipality
+    # this reaches is personal information (roughly where that person lives),
+    # so a public repository's committed config.json is the wrong place for it.
     "sms_municipalities": [],
     # Language for alert text. "bs" or "en" - the map is bilingual, and the people
     # receiving these texts are local. Diacritics are folded to ASCII on the way out
