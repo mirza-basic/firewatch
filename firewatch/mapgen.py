@@ -31,6 +31,29 @@ from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON
 BIH_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "bih"
 BIH_MUNI_FILE = BIH_DATA_DIR / "municipalities.json"
 
+# The loading screen's satellite/planet/HUD scene - one copy, in its own
+# file rather than duplicated inline in TEMPLATE below, so there is exactly
+# one place to edit it. See that file's own header comment for the design
+# history (why preserveAspectRatio is "slice", why the satellite fades
+# instead of flies, why the planet sways).
+SPLASH_SVG_FILE = Path(__file__).resolve().parent.parent / "docs" / "img" / "splash-screen.svg"
+
+
+def _splash_svg() -> str:
+    """The scene's own <svg>...</svg>, stripped of the XML prolog and the
+    standalone-file header comment above it - both are for someone opening
+    the file directly, not for a copy spliced into an HTML page that
+    already has its own doctype and its own explanation of what this is.
+    Finds the real opening tag by its xmlns attribute specifically, not by
+    a bare "<svg" - that header comment is free-text English describing
+    this same file and is entirely capable of containing the literal
+    substring "<svg>...</svg>" itself, which a bare search would find
+    first since it comes earlier in the file."""
+    text = SPLASH_SVG_FILE.read_text(encoding="utf-8")
+    start = text.index('<svg xmlns=')
+    return text[start:].strip()
+
+
 TEMPLATE = r"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -370,354 +393,14 @@ TEMPLATE = r"""<!doctype html>
 <div id="loading" role="status" aria-live="polite">
   <div class="ldwrap">
     <div class="ldscene" aria-hidden="true">
-      <!-- Two rounds of "still crops on a wider screen" (1.5, then 2.0)
-           made the actual rule explicit: under preserveAspectRatio="slice"
-           (cover-style, no letterbox), there is zero vertical crop exactly
-           as long as this viewBox's own aspect ratio is >= the window's -
-           there is no amount of "close enough", it is a hard threshold.
-           2560x1080 (a real 21:9 ultrawide, aspect ~2.37) was still past
-           the 2.0 tried second. Rather than keep chasing the next wider
-           monitor one report at a time, this is now 3200x800 (aspect 4:1)
-           - past even 32:9 super-ultrawide (~3.56) with room to spare - so
-           the margin is deliberately far more generous than any single
-           screen actually needs. That costs nothing on an ordinary screen:
-           slice then crops the *width* instead to cover the height, and
-           the extra margin is nothing but empty sky either side of the
-           actual scene, which sits centered in the middle regardless of
-           how wide the canvas around it is. The letterbox bars this
-           replaces were never just cosmetic either: GPU compositing an
-           animated layer (the satellite) right where its bounds meet a
-           differently-rendered background is measurably more expensive
-           than compositing it over more of the same surface, and that seam
-           was sitting exactly where the flight path starts. -->
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1200 0 3200 800" width="100%" height="100%"
-        preserveAspectRatio="xMidYMid slice">
-        <defs>
-          <radialGradient id="ldSpaceBg" cx="50%" cy="40%" r="70%">
-            <stop offset="0%" stop-color="#0F172A"/>
-            <stop offset="100%" stop-color="#020617"/>
-          </radialGradient>
-          <radialGradient id="ldCurvedEarthGrad" cx="50%" cy="1400" r="800" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#1E40AF"/>
-            <stop offset="75%" stop-color="#1E3A8A"/>
-            <stop offset="98%" stop-color="#0F172A"/>
-            <stop offset="100%" stop-color="#020617"/>
-          </radialGradient>
-          <linearGradient id="ldSolarBlue" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#0284C7"/>
-            <stop offset="100%" stop-color="#38BDF8"/>
-          </linearGradient>
-          <linearGradient id="ldSmallFireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%" stop-color="#EA580C"/>
-            <stop offset="70%" stop-color="#EF4444"/>
-            <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
-          </linearGradient>
-          <linearGradient id="ldHealthyTree" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#059669"/>
-            <stop offset="100%" stop-color="#064E3B"/>
-          </linearGradient>
-          <linearGradient id="ldBgTree" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#047857"/>
-            <stop offset="100%" stop-color="#022C22"/>
-          </linearGradient>
-          <linearGradient id="ldBeamFade" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#EF4444" stop-opacity="0.4"/>
-            <stop offset="100%" stop-color="#EF4444" stop-opacity="0"/>
-          </linearGradient>
-          <style>
-            /* The narrative half (zoom, satellite, laser, HUD) plays ONCE
-               over 3s to match LOAD_MIN_MS, then holds on its last frame -
-               "infinite" here was the bug: a satellite that loops forever
-               necessarily flies past a second time, and "flies off and
-               fades" contradicts a reader who lands on a detected fire and
-               is supposed to see it stay detected. animation-fill-mode:
-               forwards is what makes it hold instead of snapping back to
-               frame 0 when the single run ends. Only the ambient loops
-               below (fire flicker, smoke, the HUD's own spinning sweep)
-               stay infinite - they're meant to read as still-live under a
-               scene that has otherwise settled. */
-            /* Two acts, not one blended pass: the satellite flies in fast
-               (0-35%, ~1s) and parks, then the freed-up two-thirds of the
-               3s goes entirely to the zoom - camera pushing in on the fire
-               while the laser fires and the HUD locks on, all landing
-               together right at the end. */
-            /* This used to scale .ld-planet-group - the dome, all 18 trees,
-               the fire and the smoke together, ~25 gradient-filled shapes -
-               continuously for 2 of the 3 seconds. Three rounds of "the
-               satellite is lagging" reports survived removing a couple of
-               individually expensive properties (an animated filter, a
-               rotating dash pattern) before it became clear the actual bulk
-               of the cost was never any one property but the sheer size of
-               what was being repainted every frame. The zoom now lives on
-               .ld-fire-zoom instead - just the fire and its smoke, ~6
-               shapes - so "the camera pushes in on the fire" still happens,
-               it just doesn't drag the whole forest and horizon along for
-               the ride to do it. will-change on everything that still
-               animates a transform is the other half: it's a standing
-               request to the compositor to give the element its own layer
-               up front, rather than deciding reactively (often late, with a
-               visible stutter right as an animation starts). */
-            /* The satellite no longer moves at all - it renders already
-               parked above the fire and just fades in. Every earlier round
-               here was chasing the same underlying tension: duration, not
-               curve, is what correlated with visible lag (a long glide
-               lagged, a near-instant front-loaded jump didn't but looked
-               broken, ~450ms was smooth right up until it wasn't on a
-               later run). A translating compositor layer was the one thing
-               every version had in common, whatever else changed around
-               it. Removing the translate removes that whole class of
-               problem instead of continuing to search for a duration this
-               environment tolerates - a fade is opacity-only, the cheapest
-               thing a compositor does, with no per-frame position to
-               compute and nothing for a curve choice to get wrong. The
-               fire zoom, laser and HUD lock-on are unaffected and still
-               carry the rest of the sequence's pacing. */
-            @keyframes ldFireZoom {
-              0%, 35% { transform: scale(1); }
-              55%, 100% { transform: scale(1.3); }
-            }
-            .ld-fire-zoom {
-              animation-name: ldFireZoom;
-              animation-duration: 3s;
-              animation-timing-function: ease-out;
-              animation-iteration-count: 1;
-              animation-fill-mode: forwards;
-              transform-origin: 400px 600px;
-              will-change: transform;
-            }
-            /* A gentle sway, not a spin - this dome is a horizon arc, not a
-               full sphere, so it only reads correctly across a small angle
-               range; a full rotation would flip the horizon upside-down
-               partway through. transform-origin is the arc's own geometric
-               centre (400,1400 - see the dome path's own comment below),
-               so the visible curve tilts in place rather than swinging
-               around some arbitrary point on screen.
-               Real risk, said plainly: .ld-planet-group is the exact large
-               subtree (dome + all 18 trees + the fire-zoom nested inside
-               it, ~25 shapes) that the fire-zoom animation was deliberately
-               moved OFF OF earlier in this file, because animating a
-               transform on this whole group was the original, real cause
-               of this scene's lag investigation. This brings that same
-               sustained-transform-on-a-big-subtree pattern back on
-               purpose, at a small angle and slow speed to keep the actual
-               per-frame change tiny - but if lag reappears, this is the
-               first thing to revert, not the satellite or the zoom again. */
-            @keyframes ldPlanetSway {
-              0%, 100% { transform: rotate(0deg); }
-              50% { transform: rotate(4deg); }
-            }
-            .ld-planet-group {
-              transform-origin: 400px 1400px;
-              animation: ldPlanetSway 3s ease-in-out infinite;
-              will-change: transform;
-            }
-            @keyframes ldSatelliteFadeIn {
-              0% { opacity: 0; }
-              100% { opacity: 1; }
-            }
-            .ld-orbiting-satellite {
-              transform: translate(400px, 170px);
-              opacity: 0;
-              animation-name: ldSatelliteFadeIn;
-              animation-duration: .6s;
-              animation-delay: .15s;
-              animation-timing-function: ease-out;
-              animation-iteration-count: 1;
-              animation-fill-mode: forwards;
-            }
-            @keyframes ldActiveLaser {
-              0%, 45% { opacity: 0; }
-              65%, 100% { opacity: 1; }
-            }
-            .ld-scanning-laser {
-              animation-name: ldActiveLaser;
-              animation-duration: 3s;
-              animation-timing-function: ease-in-out;
-              animation-iteration-count: 1;
-              animation-fill-mode: forwards;
-            }
-            @keyframes ldTelemetryHud {
-              0%, 55% { opacity: 0; transform: scale(0.6); }
-              80%, 100% { opacity: 1; transform: scale(1); }
-            }
-            .ld-target-hud {
-              animation-name: ldTelemetryHud;
-              animation-duration: 3s;
-              animation-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.2);
-              animation-iteration-count: 1;
-              animation-fill-mode: forwards;
-              transform-origin: 400px 600px;
-              will-change: transform, opacity;
-            }
-            @keyframes ldFireFlicker {
-              0%, 100% { opacity: 0.85; transform: scale(0.95); }
-              50% { opacity: 1; transform: scale(1.05); }
-            }
-            .ld-live-fire-mesh {
-              animation: ldFireFlicker 0.3s ease-in-out infinite;
-              transform-origin: 400px 600px;
-            }
-            @keyframes ldRiseSmoke {
-              0% { transform: translateY(0px) scale(0.5); opacity: 0; }
-              25% { opacity: 0.4; }
-              100% { transform: translateY(-30px) translateX(-5px) scale(1.3); opacity: 0; }
-            }
-            .ld-smoke-cloud-1 { animation: ldRiseSmoke 1.2s ease-out infinite; transform-origin: 390px 560px; }
-            .ld-smoke-cloud-2 { animation: ldRiseSmoke 1.2s ease-out infinite 0.4s; transform-origin: 410px 560px; }
-            /* A rotating dashed stroke is one of the few things in SVG that
-               is genuinely expensive to animate - every frame re-rasterizes
-               the whole dash pattern along the arc, not just a cheap
-               transform. It ran the entire time the satellite was also
-               moving, so any jank it caused showed up as "the satellite is
-               lagging" even though the satellite's own animation (a plain
-               translate) was never the expensive part. Left static: still
-               reads as a HUD ring, no longer costs anything per frame. */
-            @media (prefers-reduced-motion: reduce) {
-              .ld-fire-zoom, .ld-orbiting-satellite, .ld-scanning-laser, .ld-target-hud,
-              .ld-live-fire-mesh, .ld-smoke-cloud-1, .ld-smoke-cloud-2 {
-                animation: none;
-              }
-            }
-          </style>
-        </defs>
-
-        <rect x="-1200" width="3200" height="800" fill="url(#ldSpaceBg)"/>
-
-        <g class="ld-planet-group">
-          <!-- The dome curve alone leaves the deep-space background showing
-               through in the bottom corners: at x=0 or x=800 (the original
-               800-wide viewBox's own edges - still where this curve's own
-               math runs out, independent of how much wider the viewBox
-               around it has since become) the arc doesn't dip below
-               y=707.2, so anything below that was black. A plain rect was
-               tried here first, but a rect's flat top edge
-               overshoots the curve everywhere except at the exact corners -
-               from x=0 out to wherever the real arc first rises above
-               y=600, it painted ground colour into what should still be
-               sky, as a visible rectangular block. This path instead
-               traces up the left edge to the arc's own y=707.2 at x=0,
-               follows the identical circle (same centre/radius/sweep as the
-               horizon arc below, just started and stopped at the viewBox's
-               edges instead of off-canvas) across to x=800, then down the
-               right edge - it can only ever fill exactly what the curve
-               itself leaves bare, nothing more. -->
-          <path d="M 0,800 L 0,707.2 A 800,800 0 0,1 800,707.2 L 800,800 Z"
-            fill="url(#ldCurvedEarthGrad)"/>
-          <path d="M -400,1400 A 800,800 0 0,1 1200,1400 Z" fill="url(#ldCurvedEarthGrad)"
-            stroke="#1D4ED8" stroke-width="2.5"/>
-
-          <!-- Reusable pine tree shapes, drawn once (apex at negative y,
-               base at y=0, trunk hanging below it into the ground) and
-               stamped wherever needed via <use> - a real tree silhouette
-               with a trunk and layered canopy tiers, not a flat triangle. -->
-          <g id="ld-forest-assets" display="none">
-            <g id="ld-pine-healthy">
-              <rect x="-2" y="0" width="4" height="12" fill="#78350F"/>
-              <path d="M 0,-40 L 10,-28 L 6,-28 L 14,-14 L 8,-14 L 18,0 L -18,0
-                L -8,-14 L -14,-14 L -6,-28 L -10,-28 Z" fill="url(#ldHealthyTree)"/>
-            </g>
-            <g id="ld-pine-dark">
-              <rect x="-2" y="0" width="4" height="10" fill="#451A03"/>
-              <path d="M 0,-34 L 8,-24 L 5,-24 L 12,-12 L 7,-12 L 15,0 L -15,0
-                L -7,-12 L -12,-12 L -5,-24 L -8,-24 Z" fill="url(#ldBgTree)"/>
-            </g>
-          </g>
-
-          <!-- Background treeline, base sitting on the ground curve. -->
-          <g opacity="0.6">
-            <use href="#ld-pine-dark" x="160" y="626"/>
-            <use href="#ld-pine-healthy" x="180" y="621"/>
-            <use href="#ld-pine-dark" x="240" y="614"/>
-            <use href="#ld-pine-healthy" x="260" y="611"/>
-            <use href="#ld-pine-dark" x="300" y="606"/>
-            <use href="#ld-pine-dark" x="500" y="606"/>
-            <use href="#ld-pine-healthy" x="540" y="612"/>
-            <use href="#ld-pine-dark" x="560" y="615"/>
-            <use href="#ld-pine-healthy" x="620" y="623"/>
-            <use href="#ld-pine-dark" x="640" y="627"/>
-          </g>
-
-          <!-- The incident canopy flanking the fire. -->
-          <use href="#ld-pine-dark" x="325" y="602"/>
-          <use href="#ld-pine-healthy" x="345" y="601"/>
-          <use href="#ld-pine-healthy" x="365" y="601"/>
-          <use href="#ld-pine-healthy" x="385" y="600"/>
-          <use href="#ld-pine-healthy" x="415" y="601"/>
-          <use href="#ld-pine-healthy" x="435" y="602"/>
-          <use href="#ld-pine-healthy" x="455" y="601"/>
-          <use href="#ld-pine-dark" x="475" y="602"/>
-
-          <!-- Just the fire and its smoke, not the whole forest - see the
-               .ld-fire-zoom comment above for why the zoom lives on this
-               small a group rather than on .ld-planet-group itself. -->
-          <g class="ld-fire-zoom">
-            <!-- A contained brushfire licking around the trunks, not a solid
-                 burning-canopy block - the gradient fades to transparent at
-                 the tip instead of a flat colour stop. -->
-            <g class="ld-live-fire-mesh" fill="url(#ldSmallFireGrad)">
-              <path d="M 355,601 C 350,585 360,580 365,565 C 370,580 375,585 380,600 Z"/>
-              <path d="M 375,600 C 370,580 380,570 385,550 C 390,570 395,575 405,600 Z"/>
-              <path d="M 395,600 C 390,580 405,570 410,555 C 415,570 420,575 430,601 Z"/>
-              <path d="M 420,601 C 415,585 425,580 430,565 C 435,580 440,585 445,602 Z"/>
-            </g>
-
-            <g fill="#6B7280" opacity="0.35">
-              <circle class="ld-smoke-cloud-1" cx="385" cy="545" r="10"/>
-              <circle class="ld-smoke-cloud-2" cx="415" cy="540" r="12"/>
-            </g>
-          </g>
-        </g>
-
-        <g class="ld-target-hud">
-          <g stroke="#EF4444" stroke-width="1.5" fill="none">
-            <circle cx="400" cy="600" r="50" stroke-dasharray="6 6"/>
-            <circle cx="400" cy="600" r="20" opacity="0.6"/>
-            <circle cx="400" cy="600" r="3" fill="#EF4444"/>
-            <path d="M 340,600 L 355,600"/><path d="M 460,600 L 445,600"/>
-            <path d="M 400,540 L 400,555"/><path d="M 400,660 L 400,645"/>
-          </g>
-          <circle class="ld-hud-wheel" cx="400" cy="600" r="68" fill="none" stroke="#38BDF8"
-            stroke-width="1" stroke-dasharray="16 32" opacity="0.6"/>
-          <g font-family="monospace" font-size="7" font-weight="bold" fill="#38BDF8">
-            <text x="475" y="570">LAT: 44.333 N</text>
-            <text x="475" y="582">LON: 17.822 E</text>
-            <text x="475" y="594" fill="#EF4444">ALERT: DETECTED</text>
-          </g>
-        </g>
-
-        <!-- The laser lives outside the satellite group on purpose, fixed
-             at the satellite's own resting point (400,170) - it is only
-             ever visible from 65% onward, by which point the satellite has
-             already arrived and stopped moving, so it never needs to track
-             the flight path at all. Nested inside .ld-orbiting-satellite it
-             was dead weight riding along on the one fast transform in the
-             whole scene: a full-height gradient-filled polygon composited
-             every frame of the flight while invisible, which is exactly the
-             shape of "only the satellite is choppy, only at the start". -->
-        <polygon class="ld-scanning-laser" transform="translate(400, 170)"
-          points="0,0 -140,430 140,430" fill="url(#ldBeamFade)"/>
-
-        <g class="ld-orbiting-satellite">
-          <rect x="-110" y="-10" width="65" height="20" rx="2" fill="url(#ldSolarBlue)"
-            stroke="#334155" stroke-width="1"/>
-          <line x1="-45" y1="0" x2="-20" y2="0" stroke="#94A3B8" stroke-width="3"/>
-          <rect x="45" y="-10" width="65" height="20" rx="2" fill="url(#ldSolarBlue)"
-            stroke="#334155" stroke-width="1"/>
-          <line x1="20" y1="0" x2="45" y2="0" stroke="#94A3B8" stroke-width="3"/>
-          <rect x="-20" y="-16" width="40" height="32" rx="4" fill="#F8FAFC"
-            stroke="#475569" stroke-width="1.5"/>
-          <circle cx="0" cy="0" r="8" fill="#1E293B"/>
-          <path d="M -12,16 Q 0,26 12,16 Z" fill="#94A3B8"/>
-          <circle cx="0" cy="24" r="2.5" fill="#EF4444"/>
-        </g>
-
-        <g transform="translate(400, 700)" text-anchor="middle">
-          <text x="0" y="0" font-family="system-ui, -apple-system, sans-serif" font-size="34"
-            font-weight="900" fill="#FFFFFF" letter-spacing="2">FIRE<tspan fill="#EF4444">WATCH</tspan></text>
-          <text x="0" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="15"
-            font-weight="700" fill="#38BDF8" letter-spacing="4">BOSNIA &amp; HERZEGOVINA</text>
-        </g>
-      </svg>
+      <!-- The scene (planet horizon, satellite, HUD) lives in its own
+           file, docs/img/splash-screen.svg, loaded and inlined here by
+           render() below - not duplicated inline, so there is exactly one
+           copy of this markup to edit. That file's own header comment
+           carries the design history (why preserveAspectRatio, why the
+           satellite fades instead of flies, why the planet sways); this
+           placeholder is just where render() splices it in. -->
+      __SPLASH_SVG__
     </div>
     <div class="ldsub">Loading map&hellip;</div>
     <div class="ldsig">Created by Mirza Basic</div>
@@ -2736,7 +2419,8 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
             .replace("__BIH_MUNICIPALITIES__", json.dumps(bih_munis, separators=(",", ":")))
             .replace("__DATA_JS__", data_path_for(out).name)
             .replace("__TOWN_LAT__", repr(TOWN_LAT))
-            .replace("__TOWN_LON__", repr(TOWN_LON)))
+            .replace("__TOWN_LON__", repr(TOWN_LON))
+            .replace("__SPLASH_SVG__", _splash_svg()))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     write_data(snapshot, out)

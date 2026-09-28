@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- FireWatch loading/splash screen - a satellite arriving overhead,
-     detecting and locking onto a wildfire on the curved horizon below.
-     Fully self-contained (no external assets, no CSS custom properties
-     from a parent page) - open directly in a browser to preview it.
-     This is also embedded inline in firewatch/mapgen.py's fire-map.html
-     (the #loading overlay shown while the real map loads); keep the two
-     in sync if you edit either one. -->
+<!-- FireWatch loading/splash screen - a satellite fading in above a curved
+     horizon, locking onto a wildfire with a scanning laser and HUD reticle
+     while the planet dome gently sways and the camera pushes in on the
+     fire. Fully self-contained (no external assets, no CSS custom
+     properties from a parent page) - open directly in a browser to
+     preview it.
+
+     This is also the actual source for fire-map.html's #loading overlay
+     (the scene shown while the real map loads) - firewatch/mapgen.py's
+     render() reads this file and splices its <svg>...</svg> in at build
+     time (see _splash_svg() and the __SPLASH_SVG__ placeholder there), so
+     there is exactly one copy of this markup to edit, not two kept in
+     sync by hand. This header comment and the XML prolog above it are
+     stripped before splicing - they're for whoever opens this file
+     directly, not for the page it ends up inside. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1200 0 3200 800" width="100%" height="100%"
   preserveAspectRatio="xMidYMid slice">
   <defs>
@@ -41,73 +49,88 @@
       <stop offset="100%" stop-color="#EF4444" stop-opacity="0"/>
     </linearGradient>
     <style>
-      /* The narrative half (zoom, satellite, laser, HUD) plays ONCE
-         over 3s, then holds on its last frame - "infinite" here was the
-         bug: a satellite that loops forever necessarily flies past a
-         second time, and "flies off and fades" contradicts a reader who
-         lands on a detected fire and is supposed to see it stay
-         detected. animation-fill-mode: forwards is what makes it hold
-         instead of snapping back to frame 0 when the single run ends.
-         Only the ambient loops below (fire flicker, smoke, the HUD's own
-         spinning sweep) stay infinite - they're meant to read as
+      /* The narrative half (zoom, laser, HUD) plays ONCE over 3s, then
+         holds on its last frame - "infinite" here was the bug: a reader
+         who lands on a detected fire is supposed to see it stay detected,
+         not watch it fade and repeat. Only the ambient loops below (fire
+         flicker, smoke) stay infinite - they're meant to read as
          still-live under a scene that has otherwise settled.
 
-         Two acts, not one blended pass: the satellite flies in fast
-         (0-35%, ~1s) and parks, then the freed-up two-thirds of the 3s
-         goes entirely to the zoom - camera pushing in on the fire while
-         the laser fires and the HUD locks on, all landing together
-         right at the end.
-
-         The zoom lives on .ld-fire-zoom (just the fire and its smoke,
-         ~6 shapes) rather than on the whole scene, because animating a
-         transform on ~25 gradient-filled shapes together (every tree,
-         the dome, the fire, the smoke) for two of the three seconds was
-         the real performance cost once this ran full-screen - "the
-         camera pushes in on the fire" still happens, it just doesn't
-         drag the whole forest and horizon along for the ride. will-change
-         on everything that still animates a transform is the other half:
-         a standing request to the compositor to give the element its
-         own layer up front, rather than deciding reactively (often late,
-         with a visible stutter right as an animation starts). */
+         This used to scale .ld-planet-group - the dome, all 18 trees, the
+         fire and the smoke together, ~25 gradient-filled shapes -
+         continuously for 2 of the 3 seconds. Three rounds of "the
+         satellite is lagging" reports survived removing a couple of
+         individually expensive properties (an animated filter, a rotating
+         dash pattern) before it became clear the actual bulk of the cost
+         was never any one property but the sheer size of what was being
+         repainted every frame. The zoom now lives on .ld-fire-zoom instead
+         - just the fire and its smoke, ~6 shapes - so "the camera pushes
+         in on the fire" still happens without dragging the whole forest
+         and horizon along for the ride. */
       @keyframes ldFireZoom {
         0%, 35% { transform: scale(1); }
-        90%, 100% { transform: scale(1.3); }
+        55%, 100% { transform: scale(1.3); }
       }
       .ld-fire-zoom {
         animation-name: ldFireZoom;
         animation-duration: 3s;
-        animation-timing-function: cubic-bezier(0.77, 0, 0.175, 1);
+        animation-timing-function: ease-out;
         animation-iteration-count: 1;
         animation-fill-mode: forwards;
         transform-origin: 400px 600px;
         will-change: transform;
       }
-      @keyframes ldSatelliteFlightPath {
-        0% { transform: translate(-150px, 170px); }
-        35%, 100% { transform: translate(400px, 170px); }
+      /* A gentle sway, not a spin - this dome is a horizon arc, not a full
+         sphere, so it only reads correctly across a small angle range; a
+         full rotation would flip the horizon upside-down partway through.
+         transform-origin is the arc's own geometric centre (400,1400 -
+         see the dome path's own comment below), so the visible curve
+         tilts in place rather than swinging around some arbitrary point
+         on screen.
+         Real risk, said plainly: .ld-planet-group is the exact large
+         subtree (dome + all 18 trees + the fire-zoom nested inside it,
+         ~25 shapes) that the fire-zoom animation was deliberately moved
+         OFF OF above, because animating a transform on this whole group
+         was the original, real cause of this scene's lag investigation.
+         This brings that same sustained-transform-on-a-big-subtree
+         pattern back on purpose, at a small angle and slow speed to keep
+         the actual per-frame change tiny - but if lag reappears, this is
+         the first thing to revert, not the satellite or the zoom again. */
+      @keyframes ldPlanetSway {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(4deg); }
+      }
+      .ld-planet-group {
+        transform-origin: 400px 1400px;
+        animation: ldPlanetSway 3s ease-in-out infinite;
+        will-change: transform;
+      }
+      /* The satellite no longer moves at all - it renders already parked
+         above the fire and just fades in. Every earlier round here was
+         chasing the same underlying tension: duration, not curve, is
+         what correlated with visible lag (a long glide lagged, a
+         near-instant front-loaded jump didn't but looked broken, a short
+         glide was smooth right up until it wasn't on a later run). A
+         translating compositor layer was the one thing every version had
+         in common, whatever else changed around it. Removing the
+         translate removes that whole class of problem instead of
+         continuing to search for a duration this environment tolerates -
+         a fade is opacity-only, the cheapest thing a compositor does,
+         with no per-frame position to compute and nothing for a curve
+         choice to get wrong. */
+      @keyframes ldSatelliteFadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
       }
       .ld-orbiting-satellite {
-        animation-name: ldSatelliteFlightPath;
-        animation-duration: 3s;
-        /* will-change only promises the browser a layer will be needed -
-           it doesn't guarantee the promotion has actually landed before
-           frame 1. A 150ms delay gives it a moment to happen while the
-           satellite is still sitting still, so the first real frame of
-           motion is already on its own compositor layer instead of
-           promoting reactively mid-move.
-           That delay needs animation-fill-mode:both, not just forwards -
-           forwards only ever governs what happens AFTER an animation
-           ends, not the delay before it starts. Without "both", the
-           satellite would render with transform:none (raw SVG-space
-           0,0 - nowhere near either end of the flight path) for the
-           whole 150ms, then jump to its real start the instant the
-           delay elapsed. "both" fills backwards through the delay too,
-           so the 0% keyframe is what actually renders during it. */
+        transform: translate(400px, 170px);
+        opacity: 0;
+        animation-name: ldSatelliteFadeIn;
+        animation-duration: .6s;
         animation-delay: .15s;
-        animation-timing-function: ease-in-out;
+        animation-timing-function: ease-out;
         animation-iteration-count: 1;
-        animation-fill-mode: both;
-        will-change: transform;
+        animation-fill-mode: forwards;
       }
       @keyframes ldActiveLaser {
         0%, 45% { opacity: 0; }
@@ -155,8 +178,8 @@
          cheap transform), and it used to run the entire time the
          satellite was also moving. */
       @media (prefers-reduced-motion: reduce) {
-        .ld-fire-zoom, .ld-orbiting-satellite, .ld-scanning-laser, .ld-target-hud,
-        .ld-live-fire-mesh, .ld-smoke-cloud-1, .ld-smoke-cloud-2 {
+        .ld-fire-zoom, .ld-planet-group, .ld-orbiting-satellite, .ld-scanning-laser,
+        .ld-target-hud, .ld-live-fire-mesh, .ld-smoke-cloud-1, .ld-smoke-cloud-2 {
           animation: none;
         }
       }
@@ -167,25 +190,30 @@
 
   <g class="ld-planet-group">
     <!-- The dome curve alone leaves the deep-space background showing
-         through in the bottom corners: at x=0 or x=800 the arc doesn't
-         dip below y=707.2, so anything below that was black. A plain
-         rect was tried here first, but a rect's flat top edge overshoots
-         the curve everywhere except at the exact corners. This path
-         instead traces up the left edge to the arc's own y=707.2 at
-         x=0, follows the identical circle (same centre/radius/sweep as
-         the horizon arc below, just started and stopped at the
-         viewBox's edges instead of off-canvas) across to x=800, then
-         down the right edge - it can only ever fill exactly what the
-         curve itself leaves bare, nothing more. -->
+         through in the bottom corners: at x=0 or x=800 (the original
+         800-wide viewBox's own edges - still where this curve's own math
+         runs out, independent of how much wider the viewBox around it has
+         since become) the arc doesn't dip below y=707.2, so anything
+         below that was black. A plain rect was tried here first, but a
+         rect's flat top edge overshoots the curve everywhere except at
+         the exact corners - from x=0 out to wherever the real arc first
+         rises above y=600, it painted ground colour into what should
+         still be sky, as a visible rectangular block. This path instead
+         traces up the left edge to the arc's own y=707.2 at x=0, follows
+         the identical circle (same centre/radius/sweep as the horizon
+         arc below, just started and stopped at the viewBox's edges
+         instead of off-canvas) across to x=800, then down the right edge
+         - it can only ever fill exactly what the curve itself leaves
+         bare, nothing more. -->
     <path d="M 0,800 L 0,707.2 A 800,800 0 0,1 800,707.2 L 800,800 Z"
       fill="url(#ldCurvedEarthGrad)"/>
     <path d="M -400,1400 A 800,800 0 0,1 1200,1400 Z" fill="url(#ldCurvedEarthGrad)"
       stroke="#1D4ED8" stroke-width="2.5"/>
 
-    <!-- Reusable pine tree shapes, drawn once (apex at negative y, base
-         at y=0, trunk hanging below it into the ground) and stamped
-         wherever needed via <use> - a real tree silhouette with a trunk
-         and layered canopy tiers, not a flat triangle. -->
+    <!-- Reusable pine tree shapes, drawn once (apex at negative y, base at
+         y=0, trunk hanging below it into the ground) and stamped wherever
+         needed via <use> - a real tree silhouette with a trunk and
+         layered canopy tiers, not a flat triangle. -->
     <g id="ld-forest-assets" display="none">
       <g id="ld-pine-healthy">
         <rect x="-2" y="0" width="4" height="12" fill="#78350F"/>
@@ -224,12 +252,12 @@
     <use href="#ld-pine-dark" x="475" y="602"/>
 
     <!-- Just the fire and its smoke, not the whole forest - see the
-         .ld-fire-zoom comment above for why the zoom lives on this
-         small a group rather than on .ld-planet-group itself. -->
+         .ld-fire-zoom comment above for why the zoom lives on this small
+         a group rather than on .ld-planet-group itself. -->
     <g class="ld-fire-zoom">
       <!-- A contained brushfire licking around the trunks, not a solid
-           burning-canopy block - the gradient fades to transparent at
-           the tip instead of a flat colour stop. -->
+           burning-canopy block - the gradient fades to transparent at the
+           tip instead of a flat colour stop. -->
       <g class="ld-live-fire-mesh" fill="url(#ldSmallFireGrad)">
         <path d="M 355,601 C 350,585 360,580 365,565 C 370,580 375,585 380,600 Z"/>
         <path d="M 375,600 C 370,580 380,570 385,550 C 390,570 395,575 405,600 Z"/>
