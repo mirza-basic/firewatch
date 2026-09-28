@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Just the background and the burning tree - the detection-reticle
+       overlay and the wordmark (see app-icon.svg) both dropped out for this
+       variant, used wherever the icon renders small (favicon, apple-touch-
+       icon, macOS menu bar). -->
+  <defs>
+    <radialGradient id="appBg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </radialGradient>
+    <linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#EA580C" />
+      <stop offset="50%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#FBBF24" />
+    </linearGradient>
+    <filter id="coreGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#appBg)" />
+
+  <g transform="translate(256, 256) scale(1.7)" filter="url(#coreGlow)">
+    <path d="M 0,-75 L 22,-45 L 12,-45 L 32,-10 L 18,-10 L 45,35 L -45,35 L -18,-10 L -32,-10 L -12,-45 L -22,-45 Z" fill="url(#fireGrad)" />
+    <path d="M 0,-45 L 11,-25 L 6,-25 L 16,5 L 8,5 L 22,35 L -22,35 L -8,5 L -16,5 L -6,-25 L -11,-25 Z" fill="#FDE047" opacity="0.9" />
+    <line x1="0" y1="35" x2="0" y2="-15" stroke="#0F172A" stroke-width="4" stroke-linecap="round" opacity="0.9" />
+  </g>
+</svg>

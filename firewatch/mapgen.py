@@ -35,6 +35,8 @@ TEMPLATE = r"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FireWatch Bosna i Hercegovina</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20512%20512%22%20width%3D%22512%22%20height%3D%22512%22%3E%0A%20%20%3C%21--%20Just%20the%20background%20and%20the%20burning%20tree%20-%20the%20detection-reticle%0A%20%20%20%20%20%20%20overlay%20and%20the%20wordmark%20%28see%20app-icon.svg%29%20both%20dropped%20out%20for%20this%0A%20%20%20%20%20%20%20variant%2C%20used%20wherever%20the%20icon%20renders%20small%20%28favicon%2C%20apple-touch-%0A%20%20%20%20%20%20%20icon%2C%20macOS%20menu%20bar%29.%20--%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22appBg%22%20cx%3D%2250%25%22%20cy%3D%2240%25%22%20r%3D%2260%25%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231E293B%22%20/%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%230F172A%22%20/%3E%0A%20%20%20%20%3C/radialGradient%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22fireGrad%22%20x1%3D%220%25%22%20y1%3D%22100%25%22%20x2%3D%220%25%22%20y2%3D%220%25%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23EA580C%22%20/%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%2250%25%22%20stop-color%3D%22%23EF4444%22%20/%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23FBBF24%22%20/%3E%0A%20%20%20%20%3C/linearGradient%3E%0A%20%20%20%20%3Cfilter%20id%3D%22coreGlow%22%20x%3D%22-20%25%22%20y%3D%22-20%25%22%20width%3D%22140%25%22%20height%3D%22140%25%22%3E%0A%20%20%20%20%20%20%3CfeGaussianBlur%20stdDeviation%3D%228%22%20result%3D%22blur%22%20/%3E%0A%20%20%20%20%20%20%3CfeComposite%20in%3D%22SourceGraphic%22%20in2%3D%22blur%22%20operator%3D%22over%22%20/%3E%0A%20%20%20%20%3C/filter%3E%0A%20%20%3C/defs%3E%0A%0A%20%20%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22url%28%23appBg%29%22%20/%3E%0A%0A%20%20%3Cg%20transform%3D%22translate%28256%2C%20256%29%20scale%281.7%29%22%20filter%3D%22url%28%23coreGlow%29%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M%200%2C-75%20L%2022%2C-45%20L%2012%2C-45%20L%2032%2C-10%20L%2018%2C-10%20L%2045%2C35%20L%20-45%2C35%20L%20-18%2C-10%20L%20-32%2C-10%20L%20-12%2C-45%20L%20-22%2C-45%20Z%22%20fill%3D%22url%28%23fireGrad%29%22%20/%3E%0A%20%20%20%20%3Cpath%20d%3D%22M%200%2C-45%20L%2011%2C-25%20L%206%2C-25%20L%2016%2C5%20L%208%2C5%20L%2022%2C35%20L%20-22%2C35%20L%20-8%2C5%20L%20-16%2C5%20L%20-6%2C-25%20L%20-11%2C-25%20Z%22%20fill%3D%22%23FDE047%22%20opacity%3D%220.9%22%20/%3E%0A%20%20%20%20%3Cline%20x1%3D%220%22%20y1%3D%2235%22%20x2%3D%220%22%20y2%3D%22-15%22%20stroke%3D%22%230F172A%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.9%22%20/%3E%0A%20%20%3C/g%3E%0A%3C/svg%3E%0A"/>
+<link rel="apple-touch-icon" href="data:image/png;base64,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"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -175,14 +177,15 @@ TEMPLATE = r"""<!doctype html>
      just opened should never be the thing something else covers. Municipality
      info no longer uses this pane at all - see #muniinfo below. */
   .leaflet-popup-pane{z-index:1400}
-  /* Municipality info shows in a fixed, centered panel instead of a Leaflet
-     popup anchored to the click point. A popup anchored near a corner used
-     to overlap the layer control, the measure tool or the eye toggle, and
-     the previous fix (hiding those while a popup was open) made them
-     invisible *and* unusable rather than just temporarily out of the way -
-     centered with real padding on every side, nothing else needs to move or
-     hide to make room for it. Positioned like #langsw (centered over the map
-     area, accounting for the sidebar on desktop), not over the whole page. */
+  /* One shared fixed, centered panel for municipality info, fire events and
+     raw detections alike - none of them use a Leaflet popup anchored to the
+     click point any more. An anchored popup near a corner used to overlap
+     the layer control, the measure tool or the eye toggle, and the previous
+     fix (hiding those while a popup was open) made them invisible *and*
+     unusable rather than just temporarily out of the way - centered with
+     real padding on every side, nothing else needs to move or hide to make
+     room for it. Positioned like #langsw (centered over the map area,
+     accounting for the sidebar on desktop), not over the whole page. */
   #muniinfo{position:fixed;top:50%;left:calc(50vw + 185px);transform:translate(-50%,-50%);
     z-index:1260;display:none;max-width:280px;width:calc(100% - 48px);
     max-height:70vh;overflow-y:auto;background:rgba(21,26,33,.97);
@@ -194,6 +197,37 @@ TEMPLATE = r"""<!doctype html>
     border:0;background:none;color:var(--dim);font-size:19px;line-height:1;cursor:pointer;
     border-radius:5px}
   #muniinfo .miclose:hover,#muniinfo .miclose:focus-visible{background:var(--panel2);color:var(--fg)}
+  /* First-paint cover. Sits above everything (including the popup pane at
+     1400) because it must hide the map, sidebar and controls all assembling
+     at once, not just one of them. Removed after the initial inlined DATA
+     is drawn (see the applyStaticLabels()/recompute() call near the bottom
+     of the script) - never waits on a network fetch, since fire-map.html
+     always ships with a snapshot already inlined for first paint. */
+  #loading{position:fixed;inset:0;z-index:2000;
+    background:radial-gradient(ellipse at 50% 42%,#0d1626 0%,#080b14 55%,var(--bg) 80%);
+    transition:opacity .6s ease,visibility 0s linear .6s}
+  #loading.hide{opacity:0;visibility:hidden;pointer-events:none}
+  .ldwrap{position:absolute;inset:0;color:var(--fg)}
+  /* The scene is a single self-contained SVG (planet horizon, burning
+     treeline, orbiting satellite, scanning HUD) with its own <style> block
+     of keyframes, filling the whole screen behind everything else with no
+     letterbox bars (see preserveAspectRatio="slice" in the HTML) - a
+     square viewBox forced a choice between cropping content on a wide
+     window (slice) or leaving bars down the sides (meet), and the bars
+     turned out not to be free: an animated layer (the satellite) compositing
+     right at the seam between the SVG's own rendered area and the page's
+     CSS background behind it was measurably more expensive than compositing
+     it over more of the same surface, and that seam sat exactly where the
+     flight path starts. The viewBox is 1200x800 now instead of 800x800 -
+     close enough to a real window's aspect ratio that "slice" needs far
+     less vertical scale-up to cover the width, so there is much less crop
+     left to cause the original problem. */
+  .ldscene{position:absolute;inset:0;overflow:hidden}
+  .ldscene svg{display:block;width:100%;height:100%}
+  .ldsub{position:absolute;right:16px;bottom:38px;color:var(--dim);
+    font-size:12px;letter-spacing:.02em;text-align:right}
+  .ldsig{position:absolute;right:16px;bottom:16px;color:var(--dim);
+    font-size:11px;letter-spacing:.03em;opacity:.7;text-align:right}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:9px}
   .leaflet-popup-tip{background:var(--panel)}
   .leaflet-popup-content{margin:11px 13px;font-size:12.5px}
@@ -259,23 +293,16 @@ TEMPLATE = r"""<!doctype html>
      CSS transform for panning - that transform makes .leaflet-map-pane the
      containing block for everything positioned inside it, so no z-index on
      .leaflet-popup-pane (however high) can ever paint above ANY sibling of
-     .leaflet-map-pane that has its own explicit z-index. That covers every
-     button on the map: Leaflet gives its own corner containers
-     (.leaflet-top/.leaflet-bottom - zoom, the layer control, and every custom
-     L.control this page adds: the fire-zoom button, the eye toggle, the
-     measure tool, the legend) z-index:1000, and this page's own #timebar and
-     #langsw sit at 1050/1250 - all of them siblings of the trapped map-pane,
-     all of them able to paint over a popup no matter how high its own pane's
-     z-index is set. Raising #wrap's (or #map's) own z-index would fix that,
-     but it would also lift the map's opaque tiles above every one of these
-     for as long as any popup anywhere is open, hiding them entirely - worse
-     than the bug it fixes. Ceding the spot instead costs nothing: nobody
-     needs a button in the instant they are reading a popup. */
-  body.popup-open #langsw,
-  body.popup-open #timebar,
-  body.popup-open #drawer-btn,
-  body.popup-open .leaflet-top,
-  body.popup-open .leaflet-bottom{opacity:0!important;pointer-events:none!important}
+     .leaflet-map-pane that has its own explicit z-index (Leaflet's own corner
+     containers, #timebar, #langsw...). This used to be worked around by
+     hiding every one of those buttons while any popup was open - but the two
+     things left still using a real anchored popup at all (a single raw
+     detection, the measure tool) are both small, deliberately out of the
+     reader's way to begin with, and hiding every button on the map to guard
+     against the rare case one of them happens to sit where a popup lands is
+     a worse trade than just letting that rare overlap happen. Municipality
+     info and fire events both moved off Leaflet popups entirely for this
+     same reason - see #muniinfo below - and no longer need working around. */
   #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
@@ -340,6 +367,362 @@ TEMPLATE = r"""<!doctype html>
   }
   @media (prefers-reduced-motion:reduce){#side,#backdrop{transition:none}}
 </style></head><body>
+<div id="loading" role="status" aria-live="polite">
+  <div class="ldwrap">
+    <div class="ldscene" aria-hidden="true">
+      <!-- Two rounds of "still crops on a wider screen" (1.5, then 2.0)
+           made the actual rule explicit: under preserveAspectRatio="slice"
+           (cover-style, no letterbox), there is zero vertical crop exactly
+           as long as this viewBox's own aspect ratio is >= the window's -
+           there is no amount of "close enough", it is a hard threshold.
+           2560x1080 (a real 21:9 ultrawide, aspect ~2.37) was still past
+           the 2.0 tried second. Rather than keep chasing the next wider
+           monitor one report at a time, this is now 3200x800 (aspect 4:1)
+           - past even 32:9 super-ultrawide (~3.56) with room to spare - so
+           the margin is deliberately far more generous than any single
+           screen actually needs. That costs nothing on an ordinary screen:
+           slice then crops the *width* instead to cover the height, and
+           the extra margin is nothing but empty sky either side of the
+           actual scene, which sits centered in the middle regardless of
+           how wide the canvas around it is. The letterbox bars this
+           replaces were never just cosmetic either: GPU compositing an
+           animated layer (the satellite) right where its bounds meet a
+           differently-rendered background is measurably more expensive
+           than compositing it over more of the same surface, and that seam
+           was sitting exactly where the flight path starts. -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1200 0 3200 800" width="100%" height="100%"
+        preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="ldSpaceBg" cx="50%" cy="40%" r="70%">
+            <stop offset="0%" stop-color="#0F172A"/>
+            <stop offset="100%" stop-color="#020617"/>
+          </radialGradient>
+          <radialGradient id="ldCurvedEarthGrad" cx="50%" cy="1400" r="800" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#1E40AF"/>
+            <stop offset="75%" stop-color="#1E3A8A"/>
+            <stop offset="98%" stop-color="#0F172A"/>
+            <stop offset="100%" stop-color="#020617"/>
+          </radialGradient>
+          <linearGradient id="ldSolarBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0284C7"/>
+            <stop offset="100%" stop-color="#38BDF8"/>
+          </linearGradient>
+          <linearGradient id="ldSmallFireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stop-color="#EA580C"/>
+            <stop offset="70%" stop-color="#EF4444"/>
+            <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="ldHealthyTree" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#059669"/>
+            <stop offset="100%" stop-color="#064E3B"/>
+          </linearGradient>
+          <linearGradient id="ldBgTree" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#047857"/>
+            <stop offset="100%" stop-color="#022C22"/>
+          </linearGradient>
+          <linearGradient id="ldBeamFade" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#EF4444" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#EF4444" stop-opacity="0"/>
+          </linearGradient>
+          <style>
+            /* The narrative half (zoom, satellite, laser, HUD) plays ONCE
+               over 3s to match LOAD_MIN_MS, then holds on its last frame -
+               "infinite" here was the bug: a satellite that loops forever
+               necessarily flies past a second time, and "flies off and
+               fades" contradicts a reader who lands on a detected fire and
+               is supposed to see it stay detected. animation-fill-mode:
+               forwards is what makes it hold instead of snapping back to
+               frame 0 when the single run ends. Only the ambient loops
+               below (fire flicker, smoke, the HUD's own spinning sweep)
+               stay infinite - they're meant to read as still-live under a
+               scene that has otherwise settled. */
+            /* Two acts, not one blended pass: the satellite flies in fast
+               (0-35%, ~1s) and parks, then the freed-up two-thirds of the
+               3s goes entirely to the zoom - camera pushing in on the fire
+               while the laser fires and the HUD locks on, all landing
+               together right at the end. */
+            /* This used to scale .ld-planet-group - the dome, all 18 trees,
+               the fire and the smoke together, ~25 gradient-filled shapes -
+               continuously for 2 of the 3 seconds. Three rounds of "the
+               satellite is lagging" reports survived removing a couple of
+               individually expensive properties (an animated filter, a
+               rotating dash pattern) before it became clear the actual bulk
+               of the cost was never any one property but the sheer size of
+               what was being repainted every frame. The zoom now lives on
+               .ld-fire-zoom instead - just the fire and its smoke, ~6
+               shapes - so "the camera pushes in on the fire" still happens,
+               it just doesn't drag the whole forest and horizon along for
+               the ride to do it. will-change on everything that still
+               animates a transform is the other half: it's a standing
+               request to the compositor to give the element its own layer
+               up front, rather than deciding reactively (often late, with a
+               visible stutter right as an animation starts). */
+            /* The satellite no longer moves at all - it renders already
+               parked above the fire and just fades in. Every earlier round
+               here was chasing the same underlying tension: duration, not
+               curve, is what correlated with visible lag (a long glide
+               lagged, a near-instant front-loaded jump didn't but looked
+               broken, ~450ms was smooth right up until it wasn't on a
+               later run). A translating compositor layer was the one thing
+               every version had in common, whatever else changed around
+               it. Removing the translate removes that whole class of
+               problem instead of continuing to search for a duration this
+               environment tolerates - a fade is opacity-only, the cheapest
+               thing a compositor does, with no per-frame position to
+               compute and nothing for a curve choice to get wrong. The
+               fire zoom, laser and HUD lock-on are unaffected and still
+               carry the rest of the sequence's pacing. */
+            @keyframes ldFireZoom {
+              0%, 35% { transform: scale(1); }
+              55%, 100% { transform: scale(1.3); }
+            }
+            .ld-fire-zoom {
+              animation-name: ldFireZoom;
+              animation-duration: 3s;
+              animation-timing-function: ease-out;
+              animation-iteration-count: 1;
+              animation-fill-mode: forwards;
+              transform-origin: 400px 600px;
+              will-change: transform;
+            }
+            /* A gentle sway, not a spin - this dome is a horizon arc, not a
+               full sphere, so it only reads correctly across a small angle
+               range; a full rotation would flip the horizon upside-down
+               partway through. transform-origin is the arc's own geometric
+               centre (400,1400 - see the dome path's own comment below),
+               so the visible curve tilts in place rather than swinging
+               around some arbitrary point on screen.
+               Real risk, said plainly: .ld-planet-group is the exact large
+               subtree (dome + all 18 trees + the fire-zoom nested inside
+               it, ~25 shapes) that the fire-zoom animation was deliberately
+               moved OFF OF earlier in this file, because animating a
+               transform on this whole group was the original, real cause
+               of this scene's lag investigation. This brings that same
+               sustained-transform-on-a-big-subtree pattern back on
+               purpose, at a small angle and slow speed to keep the actual
+               per-frame change tiny - but if lag reappears, this is the
+               first thing to revert, not the satellite or the zoom again. */
+            @keyframes ldPlanetSway {
+              0%, 100% { transform: rotate(0deg); }
+              50% { transform: rotate(4deg); }
+            }
+            .ld-planet-group {
+              transform-origin: 400px 1400px;
+              animation: ldPlanetSway 3s ease-in-out infinite;
+              will-change: transform;
+            }
+            @keyframes ldSatelliteFadeIn {
+              0% { opacity: 0; }
+              100% { opacity: 1; }
+            }
+            .ld-orbiting-satellite {
+              transform: translate(400px, 170px);
+              opacity: 0;
+              animation-name: ldSatelliteFadeIn;
+              animation-duration: .6s;
+              animation-delay: .15s;
+              animation-timing-function: ease-out;
+              animation-iteration-count: 1;
+              animation-fill-mode: forwards;
+            }
+            @keyframes ldActiveLaser {
+              0%, 45% { opacity: 0; }
+              65%, 100% { opacity: 1; }
+            }
+            .ld-scanning-laser {
+              animation-name: ldActiveLaser;
+              animation-duration: 3s;
+              animation-timing-function: ease-in-out;
+              animation-iteration-count: 1;
+              animation-fill-mode: forwards;
+            }
+            @keyframes ldTelemetryHud {
+              0%, 55% { opacity: 0; transform: scale(0.6); }
+              80%, 100% { opacity: 1; transform: scale(1); }
+            }
+            .ld-target-hud {
+              animation-name: ldTelemetryHud;
+              animation-duration: 3s;
+              animation-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.2);
+              animation-iteration-count: 1;
+              animation-fill-mode: forwards;
+              transform-origin: 400px 600px;
+              will-change: transform, opacity;
+            }
+            @keyframes ldFireFlicker {
+              0%, 100% { opacity: 0.85; transform: scale(0.95); }
+              50% { opacity: 1; transform: scale(1.05); }
+            }
+            .ld-live-fire-mesh {
+              animation: ldFireFlicker 0.3s ease-in-out infinite;
+              transform-origin: 400px 600px;
+            }
+            @keyframes ldRiseSmoke {
+              0% { transform: translateY(0px) scale(0.5); opacity: 0; }
+              25% { opacity: 0.4; }
+              100% { transform: translateY(-30px) translateX(-5px) scale(1.3); opacity: 0; }
+            }
+            .ld-smoke-cloud-1 { animation: ldRiseSmoke 1.2s ease-out infinite; transform-origin: 390px 560px; }
+            .ld-smoke-cloud-2 { animation: ldRiseSmoke 1.2s ease-out infinite 0.4s; transform-origin: 410px 560px; }
+            /* A rotating dashed stroke is one of the few things in SVG that
+               is genuinely expensive to animate - every frame re-rasterizes
+               the whole dash pattern along the arc, not just a cheap
+               transform. It ran the entire time the satellite was also
+               moving, so any jank it caused showed up as "the satellite is
+               lagging" even though the satellite's own animation (a plain
+               translate) was never the expensive part. Left static: still
+               reads as a HUD ring, no longer costs anything per frame. */
+            @media (prefers-reduced-motion: reduce) {
+              .ld-fire-zoom, .ld-orbiting-satellite, .ld-scanning-laser, .ld-target-hud,
+              .ld-live-fire-mesh, .ld-smoke-cloud-1, .ld-smoke-cloud-2 {
+                animation: none;
+              }
+            }
+          </style>
+        </defs>
+
+        <rect x="-1200" width="3200" height="800" fill="url(#ldSpaceBg)"/>
+
+        <g class="ld-planet-group">
+          <!-- The dome curve alone leaves the deep-space background showing
+               through in the bottom corners: at x=0 or x=800 (the original
+               800-wide viewBox's own edges - still where this curve's own
+               math runs out, independent of how much wider the viewBox
+               around it has since become) the arc doesn't dip below
+               y=707.2, so anything below that was black. A plain rect was
+               tried here first, but a rect's flat top edge
+               overshoots the curve everywhere except at the exact corners -
+               from x=0 out to wherever the real arc first rises above
+               y=600, it painted ground colour into what should still be
+               sky, as a visible rectangular block. This path instead
+               traces up the left edge to the arc's own y=707.2 at x=0,
+               follows the identical circle (same centre/radius/sweep as the
+               horizon arc below, just started and stopped at the viewBox's
+               edges instead of off-canvas) across to x=800, then down the
+               right edge - it can only ever fill exactly what the curve
+               itself leaves bare, nothing more. -->
+          <path d="M 0,800 L 0,707.2 A 800,800 0 0,1 800,707.2 L 800,800 Z"
+            fill="url(#ldCurvedEarthGrad)"/>
+          <path d="M -400,1400 A 800,800 0 0,1 1200,1400 Z" fill="url(#ldCurvedEarthGrad)"
+            stroke="#1D4ED8" stroke-width="2.5"/>
+
+          <!-- Reusable pine tree shapes, drawn once (apex at negative y,
+               base at y=0, trunk hanging below it into the ground) and
+               stamped wherever needed via <use> - a real tree silhouette
+               with a trunk and layered canopy tiers, not a flat triangle. -->
+          <g id="ld-forest-assets" display="none">
+            <g id="ld-pine-healthy">
+              <rect x="-2" y="0" width="4" height="12" fill="#78350F"/>
+              <path d="M 0,-40 L 10,-28 L 6,-28 L 14,-14 L 8,-14 L 18,0 L -18,0
+                L -8,-14 L -14,-14 L -6,-28 L -10,-28 Z" fill="url(#ldHealthyTree)"/>
+            </g>
+            <g id="ld-pine-dark">
+              <rect x="-2" y="0" width="4" height="10" fill="#451A03"/>
+              <path d="M 0,-34 L 8,-24 L 5,-24 L 12,-12 L 7,-12 L 15,0 L -15,0
+                L -7,-12 L -12,-12 L -5,-24 L -8,-24 Z" fill="url(#ldBgTree)"/>
+            </g>
+          </g>
+
+          <!-- Background treeline, base sitting on the ground curve. -->
+          <g opacity="0.6">
+            <use href="#ld-pine-dark" x="160" y="626"/>
+            <use href="#ld-pine-healthy" x="180" y="621"/>
+            <use href="#ld-pine-dark" x="240" y="614"/>
+            <use href="#ld-pine-healthy" x="260" y="611"/>
+            <use href="#ld-pine-dark" x="300" y="606"/>
+            <use href="#ld-pine-dark" x="500" y="606"/>
+            <use href="#ld-pine-healthy" x="540" y="612"/>
+            <use href="#ld-pine-dark" x="560" y="615"/>
+            <use href="#ld-pine-healthy" x="620" y="623"/>
+            <use href="#ld-pine-dark" x="640" y="627"/>
+          </g>
+
+          <!-- The incident canopy flanking the fire. -->
+          <use href="#ld-pine-dark" x="325" y="602"/>
+          <use href="#ld-pine-healthy" x="345" y="601"/>
+          <use href="#ld-pine-healthy" x="365" y="601"/>
+          <use href="#ld-pine-healthy" x="385" y="600"/>
+          <use href="#ld-pine-healthy" x="415" y="601"/>
+          <use href="#ld-pine-healthy" x="435" y="602"/>
+          <use href="#ld-pine-healthy" x="455" y="601"/>
+          <use href="#ld-pine-dark" x="475" y="602"/>
+
+          <!-- Just the fire and its smoke, not the whole forest - see the
+               .ld-fire-zoom comment above for why the zoom lives on this
+               small a group rather than on .ld-planet-group itself. -->
+          <g class="ld-fire-zoom">
+            <!-- A contained brushfire licking around the trunks, not a solid
+                 burning-canopy block - the gradient fades to transparent at
+                 the tip instead of a flat colour stop. -->
+            <g class="ld-live-fire-mesh" fill="url(#ldSmallFireGrad)">
+              <path d="M 355,601 C 350,585 360,580 365,565 C 370,580 375,585 380,600 Z"/>
+              <path d="M 375,600 C 370,580 380,570 385,550 C 390,570 395,575 405,600 Z"/>
+              <path d="M 395,600 C 390,580 405,570 410,555 C 415,570 420,575 430,601 Z"/>
+              <path d="M 420,601 C 415,585 425,580 430,565 C 435,580 440,585 445,602 Z"/>
+            </g>
+
+            <g fill="#6B7280" opacity="0.35">
+              <circle class="ld-smoke-cloud-1" cx="385" cy="545" r="10"/>
+              <circle class="ld-smoke-cloud-2" cx="415" cy="540" r="12"/>
+            </g>
+          </g>
+        </g>
+
+        <g class="ld-target-hud">
+          <g stroke="#EF4444" stroke-width="1.5" fill="none">
+            <circle cx="400" cy="600" r="50" stroke-dasharray="6 6"/>
+            <circle cx="400" cy="600" r="20" opacity="0.6"/>
+            <circle cx="400" cy="600" r="3" fill="#EF4444"/>
+            <path d="M 340,600 L 355,600"/><path d="M 460,600 L 445,600"/>
+            <path d="M 400,540 L 400,555"/><path d="M 400,660 L 400,645"/>
+          </g>
+          <circle class="ld-hud-wheel" cx="400" cy="600" r="68" fill="none" stroke="#38BDF8"
+            stroke-width="1" stroke-dasharray="16 32" opacity="0.6"/>
+          <g font-family="monospace" font-size="7" font-weight="bold" fill="#38BDF8">
+            <text x="475" y="570">LAT: 44.333 N</text>
+            <text x="475" y="582">LON: 17.822 E</text>
+            <text x="475" y="594" fill="#EF4444">ALERT: DETECTED</text>
+          </g>
+        </g>
+
+        <!-- The laser lives outside the satellite group on purpose, fixed
+             at the satellite's own resting point (400,170) - it is only
+             ever visible from 65% onward, by which point the satellite has
+             already arrived and stopped moving, so it never needs to track
+             the flight path at all. Nested inside .ld-orbiting-satellite it
+             was dead weight riding along on the one fast transform in the
+             whole scene: a full-height gradient-filled polygon composited
+             every frame of the flight while invisible, which is exactly the
+             shape of "only the satellite is choppy, only at the start". -->
+        <polygon class="ld-scanning-laser" transform="translate(400, 170)"
+          points="0,0 -140,430 140,430" fill="url(#ldBeamFade)"/>
+
+        <g class="ld-orbiting-satellite">
+          <rect x="-110" y="-10" width="65" height="20" rx="2" fill="url(#ldSolarBlue)"
+            stroke="#334155" stroke-width="1"/>
+          <line x1="-45" y1="0" x2="-20" y2="0" stroke="#94A3B8" stroke-width="3"/>
+          <rect x="45" y="-10" width="65" height="20" rx="2" fill="url(#ldSolarBlue)"
+            stroke="#334155" stroke-width="1"/>
+          <line x1="20" y1="0" x2="45" y2="0" stroke="#94A3B8" stroke-width="3"/>
+          <rect x="-20" y="-16" width="40" height="32" rx="4" fill="#F8FAFC"
+            stroke="#475569" stroke-width="1.5"/>
+          <circle cx="0" cy="0" r="8" fill="#1E293B"/>
+          <path d="M -12,16 Q 0,26 12,16 Z" fill="#94A3B8"/>
+          <circle cx="0" cy="24" r="2.5" fill="#EF4444"/>
+        </g>
+
+        <g transform="translate(400, 700)" text-anchor="middle">
+          <text x="0" y="0" font-family="system-ui, -apple-system, sans-serif" font-size="34"
+            font-weight="900" fill="#FFFFFF" letter-spacing="2">FIRE<tspan fill="#EF4444">WATCH</tspan></text>
+          <text x="0" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="15"
+            font-weight="700" fill="#38BDF8" letter-spacing="4">BOSNIA &amp; HERZEGOVINA</text>
+        </g>
+      </svg>
+    </div>
+    <div class="ldsub">Loading map&hellip;</div>
+    <div class="ldsig">Created by Mirza Basic</div>
+  </div>
+</div>
 <button id="drawer-btn" aria-controls="side" aria-expanded="false" aria-label="Show fire list">
   <span aria-hidden="true">&#9776;</span><span id="drawer-label">Fires</span><span id="drawer-badge"></span>
 </button>
@@ -378,6 +761,12 @@ TEMPLATE = r"""<!doctype html>
   </div>
 </div>
 <script>
+// Captured before anything else runs, so the loading screen's minimum
+// display time (see LOAD_MIN_MS below) is measured from first paint, not
+// from whenever the initial render happens to finish - a fast machine on a
+// warm cache would otherwise flash the animation for a few milliseconds.
+const LOAD_START = Date.now();
+
 let DATA = __DATA__;
 const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
@@ -941,40 +1330,68 @@ function muniPopupHtml(f){
     : "";
   return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}${tg}`;
 }
-// #muniinfo is one shared, fixed, centered panel (see its own CSS comment for
-// why it is not a Leaflet popup) rather than one popup per feature, since
-// only one municipality's info is ever shown at a time anyway.
+// One shared, fixed, centered panel (see its own CSS comment for why it is
+// not a Leaflet popup) rather than one popup per feature - a municipality, a
+// fire event and a raw detection all render their own HTML into the same
+// element, since only one of them is ever shown at a time anyway.
 const muniInfoEl = document.getElementById("muniinfo");
 const muniInfoBody = document.getElementById("muniinfo-body");
 L.DomEvent.disableClickPropagation(muniInfoEl);
 L.DomEvent.disableScrollPropagation(muniInfoEl);
-muniInfoEl.querySelector(".miclose").addEventListener("click", () => closeMuniInfo());
-function openMuniInfo(f){
-  muniInfoBody.innerHTML = muniPopupHtml(f);
+muniInfoEl.querySelector(".miclose").addEventListener("click", () => closeInfoPanel());
+function openInfoPanel(html){
+  muniInfoBody.innerHTML = html;
   muniInfoEl.classList.add("show");
 }
-function closeMuniInfo(){
+function closeInfoPanel(){
+  if(muniInfoEl.classList.contains("show")) lastDismissAt = Date.now();
   muniInfoEl.classList.remove("show");
 }
-// A click on a municipality is debounced rather than opened immediately, so
-// the first of the two clicks that make up a double-click (Leaflet's own
-// zoom-in gesture) never gets the chance to open it - without this,
-// double-clicking to zoom also flashed the info panel open on the way,
-// which double-clicking to zoom was never asking for. The map's own
-// "dblclick" fires after both constituent clicks, in time to cancel the
-// pending one.
-let muniClickTimer = null;
+function openMuniInfo(f){ openInfoPanel(muniPopupHtml(f)); }
+// A click on a municipality/event/detection is debounced rather than opened
+// immediately, so the first of the two clicks that make up a double-click
+// (Leaflet's own zoom-in gesture) never gets the chance to open it - without
+// this, double-clicking to zoom also flashed the info panel open on the
+// way, which double-clicking to zoom was never asking for. The map's own
+// "dblclick" fires after both constituent clicks, in time to cancel
+// whichever one of the three is pending - they share one timer because only
+// one panel can ever be open, so only one open can ever be pending too.
+let infoClickTimer = null;
 map.on("dblclick", () => {
-  if(muniClickTimer){ clearTimeout(muniClickTimer); muniClickTimer = null; }
+  if(infoClickTimer){ clearTimeout(infoClickTimer); infoClickTimer = null; }
 });
+// A click that dismisses something open should only do that - not also
+// register as this same click's normal map action (concretely: dropping a
+// measurement point while the reader was just trying to close a popup, see
+// the measure tool's own click handler further down).
+//
+// First cut of this tracked a plain "was something open" boolean, read by
+// a handler registered before the ones that close things and reset by the
+// measure tool's handler after. It broke the measure tool outright after
+// the first popup: Leaflet's own built-in closePopupOnClick runs as part of
+// the map's internal click handling, registered when the map itself was
+// constructed - long before any handler this page adds - so by the time
+// this page's handlers ran, a popup that the click was *closing* had
+// already been closed and looked exactly like "nothing was open" to begin
+// with. A boolean keyed to handler-registration order can't win that race
+// reliably in either direction.
+//
+// A timestamp sidesteps the ordering question entirely: every handler for
+// one click fires synchronously in the same tick, so it does not matter
+// whether the code that closes something runs before or after the code
+// that checks lastDismissAt below - both see the same "just now". Recorded
+// only on an actual close *transition* (never merely because something
+// happens to be open), so it also can never get stuck true the way the
+// boolean did.
+let lastDismissAt = 0;
+map.on("popupclose", () => { lastDismissAt = Date.now(); });
 // Any other map click (a fire marker, open water, the boundary itself)
 // closes it - the same "click elsewhere to dismiss" convention as
 // closeExpandablePanels(). A layer click bubbles to the map by default, so
-// clicking a *different* municipality closes the current panel
-// synchronously before that municipality's own debounced open runs, which
-// is what makes switching between two panels feel instant rather than
-// stacking them.
-map.on("click", closeMuniInfo);
+// clicking a *different* feature closes the current panel synchronously
+// before that feature's own debounced open runs, which is what makes
+// switching between two panels feel instant rather than stacking them.
+map.on("click", closeInfoPanel);
 const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
     && BIH_MUNICIPALITIES.features.length)
   ? L.geoJSON(BIH_MUNICIPALITIES,{renderer:L.canvas({padding:0.5}),
@@ -982,8 +1399,8 @@ const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
       onEachFeature:(f,lyr)=>{
         lyr.bindTooltip(f.properties.name,{sticky:true});
         lyr.on("click", () => {
-          if(muniClickTimer) clearTimeout(muniClickTimer);
-          muniClickTimer = setTimeout(() => { muniClickTimer = null; openMuniInfo(f); }, 300);
+          if(infoClickTimer) clearTimeout(infoClickTimer);
+          infoClickTimer = setTimeout(() => { infoClickTimer = null; openMuniInfo(f); }, 300);
         });
       }})
     .addTo(map)
@@ -1105,9 +1522,6 @@ const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
 // municipality popup Leaflet already handles this way) - the same "click
 // elsewhere to dismiss" convention throughout this page.
 map.on("click", closeExpandablePanels);
-// See #langsw's own CSS comment: this is the other half of that fix.
-map.on("popupopen", () => document.body.classList.add("popup-open"));
-map.on("popupclose", () => document.body.classList.remove("popup-open"));
 
 function fwiDetail(mid){
   const fd = (DATA.fire_danger || {})[mid];
@@ -1266,14 +1680,14 @@ function footprintM(e){
   return Math.max(400, m + 100);          // +100 m so edge dots sit inside the ring
 }
 
-// Markers are rebuilt on every refresh, which closes any open popup. Track them
-// by event id so an open popup can be restored afterwards.
-const markerById = {};
-let popupOpenId = null;
+// Markers are rebuilt on every refresh, which would otherwise leave a stale
+// event's info panel open with no marker behind it. Track the open one's id
+// so applyData() can refresh the panel with the event's new data afterwards,
+// or close it if the event no longer exists.
+let infoOpenId = null;
 
 function drawEvents(){
   evLayer.clearLayers();
-  for(const k in markerById) delete markerById[k];
   EVENTS.forEach(e=>{
     const col = SEVC[e.severity]||SEVC.unknown;
     const quiet = e.status!=="active";
@@ -1303,12 +1717,14 @@ function drawEvents(){
       opacity:1,
       fillColor:col, fillOpacity:quiet?.10:.45,
       dashArray:quiet?"6,4":null});
-    c.bindPopup(popupHtml(e),{maxWidth:290});
-    c.on("click",()=>select(e.id,false));
-    c.on("popupopen",()=>{popupOpenId = e.id});
-    c.on("popupclose",()=>{ if(popupOpenId===e.id) popupOpenId = null; });
+    c.on("click", () => {
+      select(e.id,false);
+      if(infoClickTimer) clearTimeout(infoClickTimer);
+      infoClickTimer = setTimeout(() => {
+        infoClickTimer = null; infoOpenId = e.id; openInfoPanel(popupHtml(e));
+      }, 300);
+    });
     c.addTo(evLayer);
-    markerById[e.id] = c;
     if(!quiet){
       L.circleMarker([e.lat,e.lon],{radius:e.max_frp?frpR(e.max_frp)+7:13,color:col,
         weight:1,opacity:.45,fill:false,className:"pulse"}).addTo(evLayer);
@@ -1369,6 +1785,9 @@ function drawDets(upto){
     const dr = detR();
     L.circleMarker([d.lat,d.lon],{radius:dr,color:"#0b0f14",
       weight:3.4,opacity:op*.8,fill:false,interactive:false}).addTo(detLayer);
+    // Unlike a fire event, a single detection is a point-in-time reading, not
+    // an ongoing thing worth a centred dialog - anchored to where it was
+    // actually clicked stays closer to a normal map tooltip.
     L.circleMarker([d.lat,d.lon],{radius:dr,color:"#ffffff",
       weight:2,opacity:op*.95,fillOpacity:op*.95,fillColor:dc})
       .bindPopup(`${SRC[d.source]?.n||d.source}<br>${fmtLocal(d.t)}<br>FRP ${d.frp==null?"n/a":d.frp+" MW"}`)
@@ -2062,7 +2481,14 @@ function exitMeasure(){
 }
 mCtl.addTo(map);
 
-map.on("click", e => { if(mMode) addPoint(e.latlng); });
+map.on("click", e => {
+  // See lastDismissAt's own comment further up: a click that just closed a
+  // popup (however that happened, and regardless of whether this handler
+  // runs before or after the one that did the closing) reads as "now",
+  // which is well within this 50ms window - so it drops no point. Any
+  // click even a little later is a deliberate new point again.
+  if(mMode && Date.now() - lastDismissAt > 50) addPoint(e.latlng);
+});
 map.on("dblclick", () => { if(mMode) finishDraft(); });
 map.on("mousemove", e => { if(mMode) onMeasureMove(e); });
 document.addEventListener("keydown", e => {
@@ -2126,6 +2552,24 @@ applyStaticLabels();
 s2Sync();
 recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
 setSliderTime(tMax); drawDets(sliderTime());
+// The initial DATA is always inlined into this page for first paint (see the
+// module docstring), so the cover never waits on a network request - it hides
+// the instant this first synchronous render above has actually run, which is
+// the true "data is on the map" moment. requestAnimationFrame lets that
+// render's own paint land before the fade starts, rather than racing it.
+const LOAD_MIN_MS = 3000;
+setTimeout(() => {
+  const ld = document.getElementById("loading");
+  if(!ld) return;
+  ld.classList.add("hide");
+  // visibility:hidden alone does not stop CSS animations - the scene's
+  // ambient loops (fire flicker, rising smoke, the HUD's spinning ring) are
+  // "infinite" by design and would otherwise keep computing every frame
+  // forever on an invisible element, competing with the real map for CPU.
+  // display:none is what actually stops them; it waits for the .6s fade so
+  // the transition itself is still visible.
+  setTimeout(() => { ld.style.display = "none"; }, 600);
+}, Math.max(0, LOAD_MIN_MS - (Date.now() - LOAD_START)));
 // ---- live refresh without losing the reader's place ------------------------
 // A file:// page cannot fetch() a sibling JSON file, but it can load one as a
 // script. The poller rewrites fire-map-data.js each cycle; we pull it in with a
@@ -2157,20 +2601,19 @@ function applyData(d){
   // no fitBounds, no setView, no flyTo.
   s2Sync();
   if(!DATA.range_cutoffs || !DATA.range_cutoffs[RANGE]) RANGE = DATA.default_range || "3d";
-  const wasOpen = popupOpenId;
+  const wasOpen = infoOpenId;
   recompute();
   renderRange(); renderHeader(); drawEvents(); renderList();
   setSliderTime(at);
   drawDets(sliderTime());
-  if(wasOpen && markersOn && markerById[wasOpen]){
-    // openPopup() auto-pans to fit the popup, which would nudge the view the
-    // reader chose. Suppress it for this programmatic restore only - a popup the
-    // reader opens by clicking still pans normally.
-    const mk = markerById[wasOpen], pu = mk.getPopup();
-    const prevAutoPan = pu.options.autoPan;
-    pu.options.autoPan = false;
-    mk.openPopup();
-    pu.options.autoPan = prevAutoPan;
+  if(wasOpen && markersOn){
+    // Refreshed with the event's own new data (FRP, status, age...), not
+    // just reopened as-is - the whole point of surviving a refresh is that
+    // a fire actively changing is exactly the one a reader is watching.
+    // Gone entirely (the event no longer exists in this range) closes it
+    // instead of leaving stale info on screen with nothing behind it.
+    const ev = EVENTS.find(x=>x.id===wasOpen);
+    if(ev) openInfoPanel(popupHtml(ev)); else { infoOpenId = null; closeInfoPanel(); }
   }
   const sub = document.getElementById("hsub");
   sub.classList.add("flash");

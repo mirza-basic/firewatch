@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FireWatch loading/splash screen - a satellite arriving overhead,
+     detecting and locking onto a wildfire on the curved horizon below.
+     Fully self-contained (no external assets, no CSS custom properties
+     from a parent page) - open directly in a browser to preview it.
+     This is also embedded inline in firewatch/mapgen.py's fire-map.html
+     (the #loading overlay shown while the real map loads); keep the two
+     in sync if you edit either one. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1200 0 3200 800" width="100%" height="100%"
+  preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="ldSpaceBg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </radialGradient>
+    <radialGradient id="ldCurvedEarthGrad" cx="50%" cy="1400" r="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="75%" stop-color="#1E3A8A"/>
+      <stop offset="98%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </radialGradient>
+    <linearGradient id="ldSolarBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="ldSmallFireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#EA580C"/>
+      <stop offset="70%" stop-color="#EF4444"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ldHealthyTree" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#064E3B"/>
+    </linearGradient>
+    <linearGradient id="ldBgTree" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#047857"/>
+      <stop offset="100%" stop-color="#022C22"/>
+    </linearGradient>
+    <linearGradient id="ldBeamFade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#EF4444" stop-opacity="0"/>
+    </linearGradient>
+    <style>
+      /* The narrative half (zoom, satellite, laser, HUD) plays ONCE
+         over 3s, then holds on its last frame - "infinite" here was the
+         bug: a satellite that loops forever necessarily flies past a
+         second time, and "flies off and fades" contradicts a reader who
+         lands on a detected fire and is supposed to see it stay
+         detected. animation-fill-mode: forwards is what makes it hold
+         instead of snapping back to frame 0 when the single run ends.
+         Only the ambient loops below (fire flicker, smoke, the HUD's own
+         spinning sweep) stay infinite - they're meant to read as
+         still-live under a scene that has otherwise settled.
+
+         Two acts, not one blended pass: the satellite flies in fast
+         (0-35%, ~1s) and parks, then the freed-up two-thirds of the 3s
+         goes entirely to the zoom - camera pushing in on the fire while
+         the laser fires and the HUD locks on, all landing together
+         right at the end.
+
+         The zoom lives on .ld-fire-zoom (just the fire and its smoke,
+         ~6 shapes) rather than on the whole scene, because animating a
+         transform on ~25 gradient-filled shapes together (every tree,
+         the dome, the fire, the smoke) for two of the three seconds was
+         the real performance cost once this ran full-screen - "the
+         camera pushes in on the fire" still happens, it just doesn't
+         drag the whole forest and horizon along for the ride. will-change
+         on everything that still animates a transform is the other half:
+         a standing request to the compositor to give the element its
+         own layer up front, rather than deciding reactively (often late,
+         with a visible stutter right as an animation starts). */
+      @keyframes ldFireZoom {
+        0%, 35% { transform: scale(1); }
+        90%, 100% { transform: scale(1.3); }
+      }
+      .ld-fire-zoom {
+        animation-name: ldFireZoom;
+        animation-duration: 3s;
+        animation-timing-function: cubic-bezier(0.77, 0, 0.175, 1);
+        animation-iteration-count: 1;
+        animation-fill-mode: forwards;
+        transform-origin: 400px 600px;
+        will-change: transform;
+      }
+      @keyframes ldSatelliteFlightPath {
+        0% { transform: translate(-150px, 170px); }
+        35%, 100% { transform: translate(400px, 170px); }
+      }
+      .ld-orbiting-satellite {
+        animation-name: ldSatelliteFlightPath;
+        animation-duration: 3s;
+        /* will-change only promises the browser a layer will be needed -
+           it doesn't guarantee the promotion has actually landed before
+           frame 1. A 150ms delay gives it a moment to happen while the
+           satellite is still sitting still, so the first real frame of
+           motion is already on its own compositor layer instead of
+           promoting reactively mid-move.
+           That delay needs animation-fill-mode:both, not just forwards -
+           forwards only ever governs what happens AFTER an animation
+           ends, not the delay before it starts. Without "both", the
+           satellite would render with transform:none (raw SVG-space
+           0,0 - nowhere near either end of the flight path) for the
+           whole 150ms, then jump to its real start the instant the
+           delay elapsed. "both" fills backwards through the delay too,
+           so the 0% keyframe is what actually renders during it. */
+        animation-delay: .15s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: 1;
+        animation-fill-mode: both;
+        will-change: transform;
+      }
+      @keyframes ldActiveLaser {
+        0%, 45% { opacity: 0; }
+        65%, 100% { opacity: 1; }
+      }
+      .ld-scanning-laser {
+        animation-name: ldActiveLaser;
+        animation-duration: 3s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: 1;
+        animation-fill-mode: forwards;
+      }
+      @keyframes ldTelemetryHud {
+        0%, 55% { opacity: 0; transform: scale(0.6); }
+        80%, 100% { opacity: 1; transform: scale(1); }
+      }
+      .ld-target-hud {
+        animation-name: ldTelemetryHud;
+        animation-duration: 3s;
+        animation-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.2);
+        animation-iteration-count: 1;
+        animation-fill-mode: forwards;
+        transform-origin: 400px 600px;
+        will-change: transform, opacity;
+      }
+      @keyframes ldFireFlicker {
+        0%, 100% { opacity: 0.85; transform: scale(0.95); }
+        50% { opacity: 1; transform: scale(1.05); }
+      }
+      .ld-live-fire-mesh {
+        animation: ldFireFlicker 0.3s ease-in-out infinite;
+        transform-origin: 400px 600px;
+      }
+      @keyframes ldRiseSmoke {
+        0% { transform: translateY(0px) scale(0.5); opacity: 0; }
+        25% { opacity: 0.4; }
+        100% { transform: translateY(-30px) translateX(-5px) scale(1.3); opacity: 0; }
+      }
+      .ld-smoke-cloud-1 { animation: ldRiseSmoke 1.2s ease-out infinite; transform-origin: 390px 560px; }
+      .ld-smoke-cloud-2 { animation: ldRiseSmoke 1.2s ease-out infinite 0.4s; transform-origin: 410px 560px; }
+      /* The HUD's outer ring is a plain static dashed circle, not an
+         animated one - a rotating dashed stroke is one of the few things
+         in SVG that is genuinely expensive to animate (every frame
+         re-rasterizes the whole dash pattern along the arc, not just a
+         cheap transform), and it used to run the entire time the
+         satellite was also moving. */
+      @media (prefers-reduced-motion: reduce) {
+        .ld-fire-zoom, .ld-orbiting-satellite, .ld-scanning-laser, .ld-target-hud,
+        .ld-live-fire-mesh, .ld-smoke-cloud-1, .ld-smoke-cloud-2 {
+          animation: none;
+        }
+      }
+    </style>
+  </defs>
+
+  <rect x="-1200" width="3200" height="800" fill="url(#ldSpaceBg)"/>
+
+  <g class="ld-planet-group">
+    <!-- The dome curve alone leaves the deep-space background showing
+         through in the bottom corners: at x=0 or x=800 the arc doesn't
+         dip below y=707.2, so anything below that was black. A plain
+         rect was tried here first, but a rect's flat top edge overshoots
+         the curve everywhere except at the exact corners. This path
+         instead traces up the left edge to the arc's own y=707.2 at
+         x=0, follows the identical circle (same centre/radius/sweep as
+         the horizon arc below, just started and stopped at the
+         viewBox's edges instead of off-canvas) across to x=800, then
+         down the right edge - it can only ever fill exactly what the
+         curve itself leaves bare, nothing more. -->
+    <path d="M 0,800 L 0,707.2 A 800,800 0 0,1 800,707.2 L 800,800 Z"
+      fill="url(#ldCurvedEarthGrad)"/>
+    <path d="M -400,1400 A 800,800 0 0,1 1200,1400 Z" fill="url(#ldCurvedEarthGrad)"
+      stroke="#1D4ED8" stroke-width="2.5"/>
+
+    <!-- Reusable pine tree shapes, drawn once (apex at negative y, base
+         at y=0, trunk hanging below it into the ground) and stamped
+         wherever needed via <use> - a real tree silhouette with a trunk
+         and layered canopy tiers, not a flat triangle. -->
+    <g id="ld-forest-assets" display="none">
+      <g id="ld-pine-healthy">
+        <rect x="-2" y="0" width="4" height="12" fill="#78350F"/>
+        <path d="M 0,-40 L 10,-28 L 6,-28 L 14,-14 L 8,-14 L 18,0 L -18,0
+          L -8,-14 L -14,-14 L -6,-28 L -10,-28 Z" fill="url(#ldHealthyTree)"/>
+      </g>
+      <g id="ld-pine-dark">
+        <rect x="-2" y="0" width="4" height="10" fill="#451A03"/>
+        <path d="M 0,-34 L 8,-24 L 5,-24 L 12,-12 L 7,-12 L 15,0 L -15,0
+          L -7,-12 L -12,-12 L -5,-24 L -8,-24 Z" fill="url(#ldBgTree)"/>
+      </g>
+    </g>
+
+    <!-- Background treeline, base sitting on the ground curve. -->
+    <g opacity="0.6">
+      <use href="#ld-pine-dark" x="160" y="626"/>
+      <use href="#ld-pine-healthy" x="180" y="621"/>
+      <use href="#ld-pine-dark" x="240" y="614"/>
+      <use href="#ld-pine-healthy" x="260" y="611"/>
+      <use href="#ld-pine-dark" x="300" y="606"/>
+      <use href="#ld-pine-dark" x="500" y="606"/>
+      <use href="#ld-pine-healthy" x="540" y="612"/>
+      <use href="#ld-pine-dark" x="560" y="615"/>
+      <use href="#ld-pine-healthy" x="620" y="623"/>
+      <use href="#ld-pine-dark" x="640" y="627"/>
+    </g>
+
+    <!-- The incident canopy flanking the fire. -->
+    <use href="#ld-pine-dark" x="325" y="602"/>
+    <use href="#ld-pine-healthy" x="345" y="601"/>
+    <use href="#ld-pine-healthy" x="365" y="601"/>
+    <use href="#ld-pine-healthy" x="385" y="600"/>
+    <use href="#ld-pine-healthy" x="415" y="601"/>
+    <use href="#ld-pine-healthy" x="435" y="602"/>
+    <use href="#ld-pine-healthy" x="455" y="601"/>
+    <use href="#ld-pine-dark" x="475" y="602"/>
+
+    <!-- Just the fire and its smoke, not the whole forest - see the
+         .ld-fire-zoom comment above for why the zoom lives on this
+         small a group rather than on .ld-planet-group itself. -->
+    <g class="ld-fire-zoom">
+      <!-- A contained brushfire licking around the trunks, not a solid
+           burning-canopy block - the gradient fades to transparent at
+           the tip instead of a flat colour stop. -->
+      <g class="ld-live-fire-mesh" fill="url(#ldSmallFireGrad)">
+        <path d="M 355,601 C 350,585 360,580 365,565 C 370,580 375,585 380,600 Z"/>
+        <path d="M 375,600 C 370,580 380,570 385,550 C 390,570 395,575 405,600 Z"/>
+        <path d="M 395,600 C 390,580 405,570 410,555 C 415,570 420,575 430,601 Z"/>
+        <path d="M 420,601 C 415,585 425,580 430,565 C 435,580 440,585 445,602 Z"/>
+      </g>
+
+      <g fill="#6B7280" opacity="0.35">
+        <circle class="ld-smoke-cloud-1" cx="385" cy="545" r="10"/>
+        <circle class="ld-smoke-cloud-2" cx="415" cy="540" r="12"/>
+      </g>
+    </g>
+  </g>
+
+  <g class="ld-target-hud">
+    <g stroke="#EF4444" stroke-width="1.5" fill="none">
+      <circle cx="400" cy="600" r="50" stroke-dasharray="6 6"/>
+      <circle cx="400" cy="600" r="20" opacity="0.6"/>
+      <circle cx="400" cy="600" r="3" fill="#EF4444"/>
+      <path d="M 340,600 L 355,600"/><path d="M 460,600 L 445,600"/>
+      <path d="M 400,540 L 400,555"/><path d="M 400,660 L 400,645"/>
+    </g>
+    <circle class="ld-hud-wheel" cx="400" cy="600" r="68" fill="none" stroke="#38BDF8"
+      stroke-width="1" stroke-dasharray="16 32" opacity="0.6"/>
+    <g font-family="monospace" font-size="7" font-weight="bold" fill="#38BDF8">
+      <text x="475" y="570">LAT: 44.333 N</text>
+      <text x="475" y="582">LON: 17.822 E</text>
+      <text x="475" y="594" fill="#EF4444">ALERT: DETECTED</text>
+    </g>
+  </g>
+
+  <!-- The laser lives outside the satellite group on purpose, fixed at
+       the satellite's own resting point (400,170) - it is only ever
+       visible from 65% onward, by which point the satellite has already
+       arrived and stopped moving, so it never needs to track the flight
+       path at all. Nested inside .ld-orbiting-satellite it was dead
+       weight riding along on the one fast transform in the whole scene:
+       a full-height gradient-filled polygon composited every frame of
+       the flight while invisible. -->
+  <polygon class="ld-scanning-laser" transform="translate(400, 170)"
+    points="0,0 -140,430 140,430" fill="url(#ldBeamFade)"/>
+
+  <g class="ld-orbiting-satellite">
+    <rect x="-110" y="-10" width="65" height="20" rx="2" fill="url(#ldSolarBlue)"
+      stroke="#334155" stroke-width="1"/>
+    <line x1="-45" y1="0" x2="-20" y2="0" stroke="#94A3B8" stroke-width="3"/>
+    <rect x="45" y="-10" width="65" height="20" rx="2" fill="url(#ldSolarBlue)"
+      stroke="#334155" stroke-width="1"/>
+    <line x1="20" y1="0" x2="45" y2="0" stroke="#94A3B8" stroke-width="3"/>
+    <rect x="-20" y="-16" width="40" height="32" rx="4" fill="#F8FAFC"
+      stroke="#475569" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="8" fill="#1E293B"/>
+    <path d="M -12,16 Q 0,26 12,16 Z" fill="#94A3B8"/>
+    <circle cx="0" cy="24" r="2.5" fill="#EF4444"/>
+  </g>
+
+  <g transform="translate(400, 700)" text-anchor="middle">
+    <text x="0" y="0" font-family="system-ui, -apple-system, sans-serif" font-size="34"
+      font-weight="900" fill="#FFFFFF" letter-spacing="2">FIRE<tspan fill="#EF4444">WATCH</tspan></text>
+    <text x="0" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="15"
+      font-weight="700" fill="#38BDF8" letter-spacing="4">BOSNIA &amp; HERZEGOVINA</text>
+  </g>
+</svg>

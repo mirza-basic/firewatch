@@ -29,6 +29,13 @@ log = logging.getLogger("firewatch.menubar")
 
 IDLE_TITLE = "🌲"
 SERVICE_LABEL = "com.firewatch.bih"
+# Committed, not generated at runtime - same rationale as the geojson/
+# settlements build artifacts in data/bih/: a 44x44 PNG rasterized once from
+# docs/img/app-icon-mark.svg (the app-icon SVG with its wordmark dropped,
+# since text is illegible at menu-bar size). template=False because the
+# artwork is in colour; a template image would flatten it to the system's
+# monochrome menu-bar tint.
+ICON_PATH = Path(__file__).resolve().parent / "menubar-icon.png"
 SEV_MARK = {"low": "", "moderate": "!", "high": "!!", "severe": "!!!"}
 
 
@@ -59,7 +66,9 @@ def service_loaded() -> bool:
 
 class FireWatchApp(rumps.App):
     def __init__(self):
-        super().__init__("FireWatch", title=IDLE_TITLE, quit_button=None)
+        super().__init__("FireWatch", title=IDLE_TITLE, quit_button=None,
+                          icon=str(ICON_PATH) if ICON_PATH.exists() else None,
+                          template=False)
         self.snapshot = poller.load_snapshot()
         self.range_key = ev_mod.resolve_range(CFG.get("default_range"))
         self.poller = poller.Poller(on_update=self._on_update)
