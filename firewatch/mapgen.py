@@ -258,6 +258,29 @@ TEMPLATE = r"""<!doctype html>
   .leaflet-popup-content a{color:#7cc4ff}
   .leaflet-bar a{background:var(--panel2);color:var(--fg);border-color:var(--line)}
   .leaflet-bar a:hover{background:#31404f}
+  /* Layers control dressed as the legend: a labelled button that opens a card on
+     click (not hover), sharing .legend-toggle / .legend-body so the two panels
+     cannot drift apart. Leaflet's own toggle icon is hidden and its list is shown
+     only while .open - the extra :not(.open) keeps the selector above Leaflet's
+     own "expanded" rule. Opens downward, since the control sits top-right. */
+  .leaflet-control-layers.layersctl{background:transparent;border:0;box-shadow:none;
+    padding:0;color:var(--fg)}
+  .layersctl .leaflet-control-layers-toggle{display:none}
+  .layersctl .legend-toggle{margin:0 0 6px auto;width:auto;min-width:0}
+  .layersctl:not(.open) .leaflet-control-layers-list{display:none}
+  .layersctl.open .leaflet-control-layers-list{display:block;margin:0;
+    background:rgba(21,26,33,.96);border:1px solid var(--line);border-radius:9px;
+    padding:8px 10px;width:min(74vw,300px);max-height:60dvh;overflow-y:auto;
+    color:var(--dim);font-size:11.5px;box-shadow:none;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .layersctl label{display:block;margin:0}
+  .layersctl label>span{display:flex;align-items:center;gap:8px;padding:4px 4px;
+    border-radius:5px;cursor:pointer;font-size:12px;line-height:1.5;color:var(--fg)}
+  .layersctl label>span:hover{background:rgba(255,255,255,.07)}
+  .layersctl .leaflet-control-layers-selector{margin:0;width:14px;height:14px;
+    flex:none;accent-color:var(--accent);cursor:pointer;position:static;top:auto}
+  .layersctl .leaflet-control-layers-separator{height:1px;border:0;margin:6px 0;
+    background:var(--line)}
   /* --- measure tool -------------------------------------------------------
      While measuring, the fire markers and the boundary must not swallow a click
      that is meant to drop a vertex, so hit testing is turned off for the panes
@@ -330,8 +353,12 @@ TEMPLATE = r"""<!doctype html>
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
   #langsw button.on{background:var(--accent);color:#fff}
-  .pulse{animation:pulse 2.1s ease-out infinite}
-  @keyframes pulse{0%{r:8;opacity:.85}70%{opacity:0}100%{r:26;opacity:0}}
+  /* Scales from the ring's own centre, so it always starts at the marker's edge
+     and expands past it. The old version animated an absolute r (8 -> 26 px),
+     which sat wholly underneath any marker larger than that. */
+  .pulse{transform-box:fill-box;transform-origin:center;
+         animation:pulse 1.8s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(1);opacity:1}100%{transform:scale(2.1);opacity:0}}
   /* Desktop keeps the panel docked; these two are only used on small screens. */
   #drawer-btn{display:none}
   #drawer-close{display:none}
@@ -474,7 +501,7 @@ const I18N = {
     firesNoneActive:["{n} fire, none active","{n} fires, none active","{n} fires, none active"],
     detections:"detections", ok:"ok", fail:"fail",
     drawerFires:"Fires", showList:"Show fire list", closeList:"Close fire list",
-    key:"Key", legDet:"Detections", legSev:"Fire severity", legSize:"(size ∝ FRP)",
+    key:"Key", layers:"Layers", legDet:"Detections", legSev:"Fire severity", legSize:"(size ∝ FRP)",
     legState:"State", legBurning:"solid & filled — burning now",
     legQuiet:"dashed — quiet / out",
     sev_low:"low", sev_moderate:"moderate", sev_high:"high", sev_severe:"severe",
@@ -536,7 +563,7 @@ const I18N = {
                      "{n} požara, nijedan aktivan"],
     detections:"detekcije", ok:"ok", fail:"greška",
     drawerFires:"Požari", showList:"Prikaži listu požara", closeList:"Zatvori listu",
-    key:"Legenda", legDet:"Detekcije", legSev:"Jačina požara", legSize:"(veličina ∝ FRP)",
+    key:"Legenda", layers:"Slojevi", legDet:"Detekcije", legSev:"Jačina požara", legSize:"(veličina ∝ FRP)",
     legState:"Stanje", legBurning:"puna linija — trenutno gori",
     legQuiet:"crtkano — mirno / ugašeno",
     sev_low:"nizak", sev_moderate:"umjeren", sev_high:"visok", sev_severe:"ekstreman",
@@ -635,6 +662,16 @@ function placeOf(e){
   if(!p || !p.name) return e.place;                 // older snapshot: use the server text
   if(p.km == null) return p.name;                   // sitting on the settlement itself
   return t("placeOf", {km:p.km, dir:dir(p.dir), name:genitive(p.name)});
+}
+
+// Municipality names for an event's tagged ids (two for the deliberately
+// overlapping Sarajevo/Istočno Sarajevo polygons), from the layer data already
+// on the page. Empty when the event is outside every municipality.
+const MUNI_NAME = {};
+((BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features) || []).forEach(
+  f=>{ MUNI_NAME[f.properties.id] = f.properties.name; });
+function muniOf(e){
+  return (e.municipalities||[]).map(id=>MUNI_NAME[id]).filter(Boolean).join(" / ");
 }
 
 // ---- range selection -------------------------------------------------------
@@ -1106,9 +1143,23 @@ const overlays = () => {
   return o;
 };
 
-let layersCtl = L.control.layers(
-  bases(), overlays(),
-  {position:"topright"}).addTo(map);
+// Built as an always-expanded Leaflet control (collapsed:false) whose list and
+// button are then driven by the same open/close machinery as the legend, so the
+// two share one-open-at-a-time and click-the-map-to-dismiss.
+function makeLayersCtl(){
+  const c = L.control.layers(bases(), overlays(), {position:"topright", collapsed:false});
+  c.addTo(map);
+  const d = c.getContainer();
+  d.classList.add("layersctl");
+  const btn = L.DomUtil.create("button","legend-toggle");
+  btn.setAttribute("aria-expanded","false");
+  btn.innerHTML = `\u2630\u00a0 ${t("layers")}`;
+  d.insertBefore(btn, d.firstChild);
+  c._el = d;
+  btn.addEventListener("click", () => togglePanel(c));
+  expandablePanels.push(c);
+  return c;
+}
 
 // Brighter and slightly heavier than it needed to be on the pale street map -
 // a mid-blue hairline disappears against dark forest imagery.
@@ -1190,6 +1241,7 @@ legend.onAdd = () => {
 };
 legend.addTo(map);
 expandablePanels.push(legend);
+let layersCtl = makeLayersCtl();
 
 // ---- fire danger -------------------------------------------------------------
 // One weather-derived index per municipality now, not one for the whole
@@ -1339,7 +1391,6 @@ const ago = m => m<1 ? t("justNow")
   : m<60 ? t("agoMin",{n:Math.round(m)})
   : m<1440 ? t("agoH",{n:(m/60).toFixed(1)})
   : t("agoD",{n:(m/1440).toFixed(1)});
-const frpR = f => f==null?13:Math.max(13,Math.min(54,10+Math.sqrt(f)*5));
 // Detection dots grow as you zoom in. Fixed-size dots either vanish at
 // municipality zoom or merge into one mass when a fire has 45 of them in 2 km.
 const detR = () => {
@@ -1363,6 +1414,14 @@ function footprintM(e){
   return Math.max(400, m + 100);          // +100 m so edge dots sit inside the ring
 }
 
+// Radius of the event circle in metres. It is the real footprint, but never
+// smaller on screen than a detection dot plus 3 px: zoomed out, a 400 m circle
+// is sub-pixel and could neither be seen nor clicked.
+function evRadiusM(e){
+  const mpp = 156543.03392*Math.cos(e.lat*Math.PI/180)/Math.pow(2,map.getZoom());
+  return Math.max(footprintM(e), (detR()+3)*mpp);
+}
+
 // Markers are rebuilt on every refresh, which would otherwise leave a stale
 // event's info panel open with no marker behind it. Track the open one's id
 // so applyData() can refresh the panel with the event's new data afterwards,
@@ -1371,46 +1430,32 @@ let infoOpenId = null;
 
 function drawEvents(){
   evLayer.clearLayers();
-  EVENTS.forEach(e=>{
+  const openOf = e => () => {
+    select(e.id,false);
+    if(infoClickTimer) clearTimeout(infoClickTimer);
+    infoClickTimer = setTimeout(() => {
+      infoClickTimer = null; infoOpenId = e.id; openInfoPanel(popupHtml(e));
+    }, 300);
+  };
+
+  // One circle per event, in METRES so it scales with zoom and keeps enclosing the
+  // detections it summarises (see evRadiusM for the floor). It is also the click
+  // target for the info panel. Largest first, so a small cluster inside a big one
+  // is drawn on top of it and stays clickable.
+  EVENTS.map(e=>({e, m:evRadiusM(e)})).sort((x,y)=>y.m-x.m).forEach(({e,m})=>{
     const col = SEVC[e.severity]||SEVC.unknown;
     const quiet = e.status!=="active";
-
-    // Footprint: L.circle takes a radius in METRES, so it scales with zoom and
-    // keeps enclosing the detections it summarises. The intensity marker below is
-    // L.circleMarker, whose radius is in screen pixels and deliberately fixed -
-    // mixing the two in one symbol is what made the old marker look broken past
-    // zoom ~11, where geographic spread outgrows any fixed pixel radius.
-    // Floor of 400 m keeps a single-detection event visible at all.
     L.circle([e.lat,e.lon],{
-      radius:footprintM(e),
-      color:col, weight:1.4, opacity:quiet?.35:.6,
-      fillColor:col, fillOpacity:quiet?.04:.08,
-      dashArray:"4,5", interactive:false}).addTo(evLayer);
-
-    // Soft dark halo so a warm ring keeps an edge on light terrain.
-    L.circleMarker([e.lat,e.lon],{
-      radius:frpR(e.max_frp)+1, color:"#0b0f14", weight:4, opacity:.34,
-      fill:false, interactive:false}).addTo(evLayer);
-
-    const c = L.circleMarker([e.lat,e.lon],{
-      radius:frpR(e.max_frp), color:col, weight:quiet?2.5:3.5,
+      radius:m, color:col, weight:quiet?2.5:3.5,
       // Stroke keeps full hue even when quiet: a faded fill over green terrain
       // desaturates toward olive, and a burnt-out severe fire should still read
       // as severe. Dash + thin fill carry "not burning", not the colour.
       opacity:1,
       fillColor:col, fillOpacity:quiet?.10:.45,
-      dashArray:quiet?"6,4":null});
-    c.on("click", () => {
-      select(e.id,false);
-      if(infoClickTimer) clearTimeout(infoClickTimer);
-      infoClickTimer = setTimeout(() => {
-        infoClickTimer = null; infoOpenId = e.id; openInfoPanel(popupHtml(e));
-      }, 300);
-    });
-    c.addTo(evLayer);
+      dashArray:quiet?"6,4":null}).on("click", openOf(e)).addTo(evLayer);
     if(!quiet){
-      L.circleMarker([e.lat,e.lon],{radius:e.max_frp?frpR(e.max_frp)+7:13,color:col,
-        weight:1,opacity:.45,fill:false,className:"pulse"}).addTo(evLayer);
+      L.circle([e.lat,e.lon],{radius:m,color:col,weight:3,opacity:.9,fill:false,
+        interactive:false,className:"pulse"}).addTo(evLayer);
     }
   });
 }
@@ -1516,7 +1561,7 @@ function renderList(){
     const col = e.status==="active"?(SEVC[e.severity]||"#888"):"#6b7785";
     const w = e.weather;
     return `<div class="ev" id="ev-${e.id}" data-id="${e.id}" style="border-left-color:${col}">
-      <h2><span>${e.status==="active"?"🔥":"💤"} ${placeOf(e)}</span>
+      <h2><span>${e.status==="active"?"🔥":"💤"} ${muniOf(e)?`${muniOf(e)} <span style="color:#8b98a5;font-weight:400">· ${placeOf(e)}</span>`:placeOf(e)}</span>
           <span class="sev" style="color:${col}">${t("sev_"+e.severity)}</span></h2>
       <div class="meta">
         <span>FRP</span><span>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW "+t("peak")+" / "+
@@ -1791,7 +1836,7 @@ scrollEl.addEventListener("keydown", e => {
   paintTicks(); syncAria(); drawDets(sliderTime());
 });
 
-map.on("zoomend", () => drawDets(sliderTime()));
+map.on("zoomend", () => { drawEvents(); drawDets(sliderTime()); });
 addEventListener("resize", () => rebuildSlider());
 let timer=null;
 // Playback speed is a rate over timeline *steps*, not a fixed duration per pass.
@@ -2201,10 +2246,11 @@ function applyStaticLabels(){
 
 function rebuildControls(){
   legend.remove(); legend.addTo(map);
+  const wasOpen = layersCtl._el.classList.contains("open");
+  expandablePanels.splice(expandablePanels.indexOf(layersCtl), 1);
   layersCtl.remove();
-  layersCtl = L.control.layers(
-    bases(), overlays(),
-    {position:"topright"}).addTo(map);
+  layersCtl = makeLayersCtl();
+  if(wasOpen) setPanelOpen(layersCtl, true);
   zoomBtn.remove(); zoomBtn.addTo(map);
   eyeBtn.remove(); eyeBtn.addTo(map);
   imgCtl.remove(); imgCtl.addTo(map);
