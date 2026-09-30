@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- FireWatch loading/splash screen - a satellite fading in above a curved
      horizon, locking onto a wildfire with a scanning laser and HUD reticle
-     while the planet dome gently sways and the camera pushes in on the
-     fire. Fully self-contained (no external assets, no CSS custom
+     while the camera pushes in on the fire. Fully self-contained (no external assets, no CSS custom
      properties from a parent page) - open directly in a browser to
      preview it.
 
@@ -80,31 +79,10 @@
         transform-origin: 400px 600px;
         will-change: transform;
       }
-      /* A gentle sway, not a spin - this dome is a horizon arc, not a full
-         sphere, so it only reads correctly across a small angle range; a
-         full rotation would flip the horizon upside-down partway through.
-         transform-origin is the arc's own geometric centre (400,1400 -
-         see the dome path's own comment below), so the visible curve
-         tilts in place rather than swinging around some arbitrary point
-         on screen.
-         Real risk, said plainly: .ld-planet-group is the exact large
-         subtree (dome + all 18 trees + the fire-zoom nested inside it,
-         ~25 shapes) that the fire-zoom animation was deliberately moved
-         OFF OF above, because animating a transform on this whole group
-         was the original, real cause of this scene's lag investigation.
-         This brings that same sustained-transform-on-a-big-subtree
-         pattern back on purpose, at a small angle and slow speed to keep
-         the actual per-frame change tiny - but if lag reappears, this is
-         the first thing to revert, not the satellite or the zoom again. */
-      @keyframes ldPlanetSway {
-        0%, 100% { transform: rotate(0deg); }
-        50% { transform: rotate(4deg); }
-      }
-      .ld-planet-group {
-        transform-origin: 400px 1400px;
-        animation: ldPlanetSway 3s ease-in-out infinite;
-        will-change: transform;
-      }
+      /* The planet is deliberately static. A sway on .ld-planet-group
+         (dome + all trees + fire, ~25 shapes) was tried and lagged: it
+         repaints that whole subtree every frame, which is exactly what
+         the fire-zoom above was moved off of. Don't bring it back. */
       /* The satellite no longer moves at all - it renders already parked
          above the fire and just fades in. Every earlier round here was
          chasing the same underlying tension: duration, not curve, is
@@ -133,15 +111,16 @@
         animation-fill-mode: forwards;
       }
       @keyframes ldActiveLaser {
-        0%, 45% { opacity: 0; }
-        65%, 100% { opacity: 1; }
+        0% { opacity: 0; }
+        100% { opacity: 1; }
       }
       .ld-scanning-laser {
         animation-name: ldActiveLaser;
-        animation-duration: 3s;
-        animation-timing-function: ease-in-out;
+        animation-duration: 1.6s;
+        animation-delay: 1.0s;
+        animation-timing-function: ease-out;
         animation-iteration-count: 1;
-        animation-fill-mode: forwards;
+        animation-fill-mode: both;
       }
       @keyframes ldTelemetryHud {
         0%, 55% { opacity: 0; transform: scale(0.6); }
@@ -178,7 +157,7 @@
          cheap transform), and it used to run the entire time the
          satellite was also moving. */
       @media (prefers-reduced-motion: reduce) {
-        .ld-fire-zoom, .ld-planet-group, .ld-orbiting-satellite, .ld-scanning-laser,
+        .ld-fire-zoom,  .ld-orbiting-satellite, .ld-scanning-laser,
         .ld-target-hud, .ld-live-fire-mesh, .ld-smoke-cloud-1, .ld-smoke-cloud-2 {
           animation: none;
         }

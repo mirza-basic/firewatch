@@ -94,6 +94,9 @@ TEMPLATE = r"""<!doctype html>
   .seg button.on{background:var(--accent);color:#fff;font-weight:600}
   .seg button b{font-weight:700;font-variant-numeric:tabular-nums}
   .seg button.on b{color:#fff}
+  /* The count sits under the range label, not beside it: five buttons share
+     one row, so side by side it forced a wrap or clipped the number. */
+  #hrange button b{display:block;font-size:10.5px;line-height:1.2;margin-top:1px}
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;font-size:11.5px;color:var(--dim)}
   .chip b{color:var(--fg);font-weight:600}
@@ -1603,7 +1606,7 @@ function renderRange(){
     const c = (DATA.range_counts||{})[k]||{};
     const label = t("r_"+k), short = t("rs_"+k);
     return `<button data-r="${k}" class="${k===RANGE?"on":""}" title="${label}">${short}${
-      c.events!=null?` <b>(${c.events})</b>`:""}</button>`;
+      c.events!=null?`<b>(${c.events})</b>`:""}</button>`;
   }).join("");
   el.querySelectorAll("button").forEach(b=>b.onclick=()=>{
     RANGE = b.dataset.r;
