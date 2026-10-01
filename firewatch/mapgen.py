@@ -20,7 +20,8 @@ import shutil
 from pathlib import Path
 
 from . import geo, imagery
-from .config import BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON
+from .config import (BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON,
+                     firebase_config)
 
 # All 145 BiH municipality boundaries, drawn as one extra toggleable reference
 # layer (see bih_municipalities_geojson()) - independent of BOUNDARY, which
@@ -473,6 +474,31 @@ TEMPLATE = r"""<!doctype html>
     <span id="tlabel"></span>
   </div>
 </div>
+<script>
+// Usage analytics (Firebase / GA4). fwTrack exists either way so call sites need no
+// guard; it queues until the SDK has loaded and is a no-op when there is no config.
+// file:// is skipped because Firebase Analytics needs http(s) + IndexedDB and would
+// only log a console error. Nothing here touches applyData's 60 s refresh: page_view
+// fires once per visit and every other event is a deliberate reader action.
+const FW_FIREBASE = __FIREBASE__;
+const fwQueue = [];
+let fwLog = null;
+function fwTrack(name, params){
+  if(!FW_FIREBASE) return;
+  if(fwLog) fwLog(name, params); else fwQueue.push([name, params]);
+}
+if(FW_FIREBASE && /^https?:$/.test(location.protocol)){
+  const V = "11.0.2", B = "https://www.gstatic.com/firebasejs/" + V + "/";
+  Promise.all([import(B + "firebase-app.js"), import(B + "firebase-analytics.js")])
+    .then(([app, an]) => an.isSupported().then(ok => {
+      if(!ok) return;
+      const a = an.getAnalytics(app.initializeApp(FW_FIREBASE));
+      fwLog = (n, p) => an.logEvent(a, n, p);
+      fwQueue.splice(0).forEach(q => fwLog(q[0], q[1]));
+    }))
+    .catch(() => { /* blocked by an ad blocker or offline: analytics is optional */ });
+}
+</script>
 <script>
 // Captured before anything else runs, so the loading screen's minimum
 // display time (see LOAD_MIN_MS below) is measured from first paint, not
@@ -999,6 +1025,7 @@ function syncImagery(ms){
 // Exclusivity within a group only. Sentinel-2 is a visible layer like any
 // other, so it competes for the "vis" slot rather than clearing the map.
 map.on("overlayadd", e => {
+  if(e.name) fwTrack("layer_add", {layer: String(e.name).replace(/<[^>]*>/g, "").slice(0, 60)});
   if(s2Layer && e.layer === s2Layer){
     if(imgOn.vis){ map.removeLayer(imgOn.vis.lyr); imgOn.vis = null; }
     syncImagery(sliderTime());
@@ -1070,7 +1097,17 @@ function closeInfoPanel(){
   if(muniInfoEl.classList.contains("show")) lastDismissAt = Date.now();
   muniInfoEl.classList.remove("show");
 }
-function openMuniInfo(f){ openInfoPanel(muniPopupHtml(f)); }
+function openMuniInfo(f){
+  fwTrack("municipality_open", {municipality_id: f.properties.id, municipality: f.properties.name});
+  openInfoPanel(muniPopupHtml(f));
+}
+// Delegated, because the panel's HTML is rebuilt on every open and refresh. This
+// counts clicks on the subscribe link, not subscriptions - Telegram never tells us
+// whether the reader then pressed Join.
+muniInfoEl.addEventListener("click", ev => {
+  const a = ev.target.closest && ev.target.closest("a.muni-tg");
+  if(a) fwTrack("telegram_subscribe_click", {link: a.href});
+});
 // A click on a municipality/event/detection is debounced rather than opened
 // immediately, so the first of the two clicks that make up a double-click
 // (Leaflet's own zoom-in gesture) never gets the chance to open it - without
@@ -1437,7 +1474,9 @@ function drawEvents(){
     select(e.id,false);
     if(infoClickTimer) clearTimeout(infoClickTimer);
     infoClickTimer = setTimeout(() => {
-      infoClickTimer = null; infoOpenId = e.id; openInfoPanel(popupHtml(e));
+      infoClickTimer = null; infoOpenId = e.id;
+      fwTrack("fire_open", {event_id: e.id, status: e.status});
+      openInfoPanel(popupHtml(e));
     }, 300);
   };
 
@@ -1610,6 +1649,7 @@ function renderRange(){
   }).join("");
   el.querySelectorAll("button").forEach(b=>b.onclick=()=>{
     RANGE = b.dataset.r;
+    fwTrack("range_change", {range: RANGE});
     recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
     setSliderTime(tMax); drawDets(sliderTime());
 // clientWidth is only trustworthy after the first layout pass, and the track's
@@ -2273,6 +2313,7 @@ function renderAll(){
 function setLang(l){
   if(!I18N[l] || l === LANG) return;
   LANG = l;
+  fwTrack("language_change", {language: l});
   try { localStorage.setItem("fw_lang", l); } catch(e) { /* storage may be blocked */ }
   rebuildControls();
   renderAll();
@@ -2462,6 +2503,7 @@ def render(snapshot: dict, path: Path | None = None) -> Path:
     band = geo.load_buffer()
     bih_munis = bih_municipalities_geojson()
     html = (TEMPLATE
+            .replace("__FIREBASE__", json.dumps(firebase_config(), separators=(",", ":")).replace("</", "<\\/"))
             .replace("__DATA__", json.dumps(snapshot, ensure_ascii=False))
             .replace("__BOUNDARY__", json.dumps(boundary, separators=(",", ":")))
             .replace("__BUFFER__", json.dumps(band, separators=(",", ":")))

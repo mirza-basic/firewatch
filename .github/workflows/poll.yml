@@ -91,6 +91,7 @@ jobs:
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
           FIREWATCH_SMS_MUNICIPALITIES: ${{ secrets.FIREWATCH_SMS_MUNICIPALITIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREWATCH_FIREBASE_CONFIG: ${{ secrets.FIREWATCH_FIREBASE_CONFIG }}
         run: |
           mkdir -p state/config public
           # auto_expose must stay off: there is no ngrok agent here, and leaving it

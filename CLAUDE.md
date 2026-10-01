@@ -780,6 +780,27 @@ a failure in one never suppresses another.
   `None` for one rather than advertising a
   link that cannot work.
 
+## Usage analytics (Firebase)
+
+The map reports reader actions to Firebase Analytics (GA4), loaded from the gstatic
+CDN so there is still no package manager. `config.firebase_config()` reads the web
+config JSON from `FIREWATCH_FIREBASE_CONFIG` (repo secret in `poll.yml`); `mapgen.render()`
+inlines it as `FW_FIREBASE`. None of it is secret, but it has **no built-in default** for
+the same reason as `telegram_channel`: a fork that forgot to set its own would feed this
+deployment's property. Unset or invalid means `null`, `fwTrack()` is a no-op, nothing loads.
+
+* `fwTrack(name, params)` queues until the SDK is up and swallows load failures (ad
+  blockers). It does nothing on `file://`, where Firebase Analytics cannot run - only the
+  Pages, ngrok and `serve` copies report.
+* Events: automatic `page_view` (once per visit - the 60 s refresh is not a reload),
+  `municipality_open`, `fire_open`, `range_change`, `language_change`, `layer_add`,
+  `telegram_subscribe_click`. Never call `fwTrack` from `applyData()`: it would log an
+  event per open tab per minute.
+* **`telegram_subscribe_click` counts clicks on the invite link, not subscriptions.**
+  Telegram does not tell us whether the reader then pressed Join; real joins are each
+  channel's member count.
+* There is no consent banner. Add Consent Mode before relying on this for EU readers.
+
 ## The GitHub deployment
 
 This repository *is* a running instance, not just the source of one. `.github/workflows/`
