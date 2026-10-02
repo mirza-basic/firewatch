@@ -144,7 +144,7 @@ TELEGRAM_TEXT = {
         "outside": "IZVAN BIH", "wind": "Vjetar", "rh": "vlaga ",
         "risk_word": "rizik", "sample": "Primjer",
         "test": "FIREWATCH TEST - nema požara, provjera Telegram kanala",
-        "open_map": "Otvori na mapi",
+        "open_map": "\U0001F525 Otvori na mapi",
     },
     "en": {
         "kind": {"new": "NEW FIRE", "reignited": "BURNING AGAIN",
@@ -158,7 +158,7 @@ TELEGRAM_TEXT = {
         "outside": "OUTSIDE Bosnia and Herzegovina", "wind": "Wind", "rh": "RH ",
         "risk_word": "risk", "sample": "Sample",
         "test": "FIREWATCH TEST - no fire, checking the Telegram channel",
-        "open_map": "Open on map",
+        "open_map": "\U0001F525 Open on map",
     },
 }
 
@@ -167,6 +167,10 @@ COMPASS_BS = {"N": "S", "NNE": "SSI", "NE": "SI", "ENE": "ISI", "E": "I",
               "ESE": "IJI", "SE": "JI", "SSE": "JJI", "S": "J", "SSW": "JJZ",
               "SW": "JZ", "WSW": "ZJZ", "W": "Z", "WNW": "ZSZ", "NW": "SZ",
               "NNW": "SSZ"}
+
+# Bot API 9.4 buttons take only preset colors ("primary" blue, "success" green, "danger"
+# red) - there is no orange. Red is the nearest to fire; see send() for the fallback.
+BUTTON_STYLE = "danger"
 
 # Kinds that read as good news get a check rather than a flame.
 KIND_EMOJI = {"extinguished": "✅"}
@@ -305,10 +309,25 @@ def test_button_url() -> str | None:
 
 
 def _latest_events() -> list[dict]:
-    """Events from the published snapshot, newest first. Empty on any problem."""
+    """Events from the published snapshot (else the database), newest first. Empty on any
+    problem."""
     try:
         from .config import SNAPSHOT_PATH
-        return json.loads(SNAPSHOT_PATH.read_text()).get("events") or []
+        evs = json.loads(SNAPSHOT_PATH.read_text()).get("events") or []
+        if evs:
+            return evs
+    except Exception:
+        pass
+    # No snapshot - a GitHub runner only has the committed database - so read the
+    # newest events straight from it, which keeps the test post's sample and map link real.
+    try:
+        from . import store
+        con = store.connect()
+        try:
+            evs = list(store.load_events(con).values())
+        finally:
+            con.close()
+        return sorted(evs, key=lambda e: e.get("last_ts") or "", reverse=True)
     except Exception:
         return []
 
@@ -360,13 +379,25 @@ def send(text: str, chat_id: str, button_url: str | None = None) -> bool:
     body = {"chat_id": chat_id, "text": text}
     if button_url:
         body["reply_markup"] = {"inline_keyboard": [[
-            {"text": _lang()[1]["open_map"], "url": button_url}]]}
+            {"text": _lang()[1]["open_map"], "url": button_url, "style": BUTTON_STYLE}]]}
     r = _post(url, body)
     if r is None:
         return False
-    if r.status_code == 400 and "reply_markup" in body and "BUTTON_URL_INVALID" in r.text:
-        log.warning("telegram refused the map button (%s) - sending without it", button_url)
-        body.pop("reply_markup")
+    # Two ways a button can be refused, each with its own smaller step down: a bad
+    # address loses the button, a rejected `style` (older Bot API) loses only the color.
+    for _ in range(2):
+        if r.status_code != 400 or "reply_markup" not in body:
+            break
+        if "BUTTON_URL_INVALID" in r.text:
+            log.warning("telegram refused the map button (%s) - sending without it",
+                        button_url)
+            body.pop("reply_markup")
+        elif "style" in body["reply_markup"]["inline_keyboard"][0][0]:
+            log.warning("telegram refused the button style (%s) - sending uncolored",
+                        r.text[:120])
+            body["reply_markup"]["inline_keyboard"][0][0].pop("style")
+        else:
+            break
         r = _post(url, body)
         if r is None:
             return False
