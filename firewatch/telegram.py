@@ -1,11 +1,9 @@
 """Telegram alerts, one channel per municipality (https://core.telegram.org/bots/api).
 
-145 private channels (see the "too many public channels" account cap this
-project's provisioning history hit, and the invite-link-only design that came
-out of it), one per municipality - not one channel for the whole deployment,
-the shape this module started as when it covered Zavidovici alone. Whichever
+145 private channels, one per municipality (private because of Telegram's cap
+on public channels per account; readers join by invite link). Whichever
 municipality (or two, for a fire inside Sarajevo or Istocno Sarajevo) an
-event's location matched is what decides who gets posted to - see
+event's location matched decides who gets posted to - see
 events.build_events()'s "municipalities" field and channel_for(). A bot posts
 to a channel the same way it posts to a private chat, as long as it has been
 added as an administrator of it:
@@ -17,22 +15,19 @@ send_alert() fans out to every matched municipality independently - unlike
 sms.py's single recipient list, this is a real per-target loop, and one
 channel failing or being unconfigured never blocks another.
 
-Telegram is UTF-8 end to end and the limit is 4096 characters per message, so
-none of sms.py's reasons to exist apply here:
+Telegram is UTF-8 end to end with a 4096-character limit per message, so
+sms.py's constraints do not apply here:
 
 * No GSM-7/UCS-2 split - Bosnian diacritics cost nothing, so alerts keep
   "Zavidovići" rather than folding to "Zavidovici".
-* No one-segment budget to fit inside - everything SMS had to drop for cost
-  (the detection count and source list, the IZVAN BIH marker) fits here
-  with room left over, so nothing is trimmed and there is no `worst_case()`
-  degradation ladder to build or measure.
+* No one-segment budget - the detection count and source list and the IZVAN BIH
+  marker that SMS drops all fit, so nothing is trimmed and there is no
+  `worst_case()` degradation ladder.
 
-`TELEGRAM_TEXT` is `sms.SMS_TEXT` copied rather than imported, on purpose: this
-project does not abstract two things that happen to look alike today into one
-that would have to be prised back apart the day they diverge - see sms.py's own
-note on this, which applies here for the same reason. `_place`/`_dir`/
-`COMPASS_BS` are copied for the same reason rather than imported as sms.py
-internals.
+`TELEGRAM_TEXT` is `sms.SMS_TEXT` copied rather than imported, on purpose: two
+things that look alike today are not abstracted into one that would have to be
+prised apart when the wording diverges. `_place`/`_dir`/`COMPASS_BS` are copied
+for the same reason.
 
 A channel enforces its own rate limit - roughly one message per second - and
 ignoring a 429's `retry_after` risks the bot being muted from the channel for
@@ -62,19 +57,18 @@ KEYCHAIN_SERVICE = "firewatch-telegram"
 # however long Telegram asks.
 MAX_RETRY_WAIT = 5.0
 
-# One channel per municipality, not one fixed channel for the whole deployment
-# - data/bih/municipalities.json is the mapping (municipality id ->
-# Bot-API-postable chat id, e.g. "-1004423431890"), populated once the private
-# channels are provisioned. A private channel has no @handle to post to; the
-# Bot API needs the numeric chat id, which is the channel's own id with a
-# "-100" prefix - Telethon (used to create the channels, since the Bot API has
-# no method to do that) reports the bare id, so that prefix is added when the
-# provisioning results get merged into this file, not here.
+# data/bih/municipalities.json maps municipality id -> Bot-API-postable chat id
+# (e.g. "-1004423431890"), populated as private channels are provisioned. A
+# private channel has no @handle; the Bot API needs the numeric chat id, which is
+# the channel's own id with a "-100" prefix. Telethon (used to create the
+# channels, since the Bot API cannot) reports the bare id, so the prefix is added
+# when provisioning results are merged into this file, not here.
 BIH_MUNI_FILE = Path(__file__).resolve().parent.parent / "data" / "bih" / "municipalities.json"
 
 
 @lru_cache(maxsize=1)
 def _municipality_channels() -> dict[str, str]:
+    """municipality id -> chat id for every municipality that has a channel (cached)."""
     try:
         rows = json.loads(BIH_MUNI_FILE.read_text())
     except (OSError, ValueError):
@@ -83,9 +77,8 @@ def _municipality_channels() -> dict[str, str]:
 
 
 def channel_for(municipality_id: str) -> str | None:
-    """The chat id to post to for one municipality, or None if that one has no
-    channel yet - a partially-provisioned deployment alerts on what it has
-    rather than posting nowhere until all 145 exist."""
+    """The chat id to post to for one municipality, or None if it has no channel
+    yet, so a partially provisioned deployment alerts on what it has."""
     return _municipality_channels().get(municipality_id)
 
 
@@ -100,10 +93,8 @@ def bot_token() -> str | None:
 
 
 def ready() -> tuple[bool, str]:
-    """(usable, reason). Unlike the single-channel deployment this branch
-    forked from, readiness does not depend on any *particular* municipality
-    having a channel yet - that is what channel_for() answers per-alert, and
-    a still-partially-provisioned deployment should alert on what it has."""
+    """(usable, reason). Readiness does not depend on any particular municipality
+    having a channel; channel_for() answers that per alert."""
     if not CFG.get("telegram_enabled"):
         return False, "telegram_enabled is false"
     if not bot_token():
@@ -178,11 +169,13 @@ DEFAULT_EMOJI = "\U0001F525"
 
 
 def _lang() -> tuple[str, dict]:
+    """(language code, wording table) for telegram_language, falling back to English."""
     code = str(CFG.get("telegram_language") or "bs").lower()
     return code, TELEGRAM_TEXT.get(code, TELEGRAM_TEXT["en"])
 
 
 def _dir(d: str, code: str) -> str:
+    """Compass bearing in the alert language."""
     return COMPASS_BS.get(d, d) if code == "bs" else d
 
 
@@ -230,13 +223,12 @@ def _compose(ev, code, T, kind, sev, peak, latest, place, emoji) -> str:
 
 
 def merged_alert_text(alerts: list[dict]) -> str:
-    """One message for every kind that fired for the same event in the same
-    cycle, instead of one near-identical post per kind - reignited,
-    corroborated, intensified and grew can genuinely all be true of the same
-    event at once (see events.diff()), and two or three separate posts about
-    the same fire read as spam rather than as separate news. The body is one
-    event snapshot regardless of which kind(s) triggered it - merging only
-    ever changes the leading label line, never the facts underneath it.
+    """One message for every kind that fired for the same event in the same cycle.
+
+    Reignited, corroborated, intensified and grew can all be true of one event at
+    once (see events.diff()), and separate posts about the same fire read as spam.
+    The body is one event snapshot whichever kinds triggered it; merging only
+    changes the leading label line.
     """
     ev = alerts[0]["event"]
     code, T = _lang()
@@ -245,8 +237,8 @@ def merged_alert_text(alerts: list[dict]) -> str:
     kind_keys = [a["kind"] for a in alerts]
     kind = " + ".join(T["kind"].get(k, f"FIRE {k.upper()}") for k in kind_keys)
     sev = T["sev"].get(ev["severity"], ev["severity"].upper())
-    # The calm checkmark only when the whole message is just that - any other
-    # kind alongside it means something is still actively worth the fire emoji.
+    # The check mark only when the whole message is that kind alone; any other
+    # kind alongside it keeps the fire emoji.
     emoji = KIND_EMOJI.get(kind_keys[0], DEFAULT_EMOJI) if len(kind_keys) == 1 else DEFAULT_EMOJI
     return _compose(ev, code, T, kind, sev, peak, latest, _place(ev, code),
                     emoji)
@@ -258,8 +250,7 @@ def deep_link(url: str | None, ev: dict, with_event: bool = False) -> str:
 
     GitHub Pages ignores query strings, so this costs nothing server-side - the page's
     own script reads them (see `deepLink()` in mapgen). `with_event` adds `e=<id>`,
-    which makes the map also open that event's panel; alerts leave it off (the reader
-    sees the fire on the map and opens what they want), but the map still supports it.
+    which makes the map also open that event's panel; alerts leave it off.
     The slash before `?` is explicit: `/firewatch?x` makes Pages redirect to
     `/firewatch/` and is one more hop for nothing. SMS deliberately does not use any of
     this - its 160-character budget has two characters of headroom.
@@ -279,7 +270,7 @@ def button_url(alerts: list[dict]) -> str | None:
 
 
 def alert_text(alert: dict) -> str:
-    """What changed, where, how hot, the conditions, and the map."""
+    """A single alert as one message; see merged_alert_text()."""
     return merged_alert_text([alert])
 
 
@@ -318,8 +309,8 @@ def _latest_events() -> list[dict]:
             return evs
     except Exception:
         pass
-    # No snapshot - a GitHub runner only has the committed database - so read the
-    # newest events straight from it, which keeps the test post's sample and map link real.
+    # No snapshot (a GitHub runner only has the committed database): read the
+    # newest events straight from it.
     try:
         from . import store
         con = store.connect()
@@ -335,6 +326,7 @@ def _latest_events() -> list[dict]:
 # ------------------------------------------------------------------------- send
 
 def _post(url: str, body: dict) -> requests.Response | None:
+    """POST a JSON body; None on a transport error."""
     # api.telegram.org publishes an AAAA record, and GitHub Actions runners have
     # no IPv6 route - see config.force_ipv4(). A no-op unless FIREWATCH_FORCE_IPV4
     # is set, and cheap enough to call on every post rather than once at startup.
@@ -349,6 +341,7 @@ def _post(url: str, body: dict) -> requests.Response | None:
 
 
 def _retry_after(r: requests.Response) -> float | None:
+    """Seconds Telegram asks us to wait in a 429 body, or None."""
     try:
         v = r.json().get("parameters", {}).get("retry_after")
         return float(v) if v is not None else None
@@ -357,15 +350,11 @@ def _retry_after(r: requests.Response) -> float | None:
 
 
 def send(text: str, chat_id: str, button_url: str | None = None) -> bool:
-    """Post to one chat id - a single municipality's channel, not "the"
-    channel; there is one per municipality here, so the caller names which.
+    """Post to one chat id (one municipality's channel).
 
-    One request, one recipient per call - see the module docstring for why
-    there is no bulk endpoint the way sms.py has one. A 429 is retried once,
-    after waiting the amount of time Telegram itself asks for, capped at
-    MAX_RETRY_WAIT: retrying past that would block the poll cycle for longer
-    than a channel post is worth, and ignoring `retry_after` risks a longer,
-    unannounced mute instead of a graceful wait.
+    One request per recipient; there is no bulk endpoint. A 429 is retried once,
+    after the wait Telegram asks for, capped at MAX_RETRY_WAIT: retrying past that
+    would block the poll cycle, and ignoring `retry_after` risks a longer mute.
 
     `button_url` becomes an inline "Open on map" button under the post. Telegram
     refuses some addresses (localhost, anything it cannot parse) with
@@ -421,11 +410,12 @@ def send(text: str, chat_id: str, button_url: str | None = None) -> bool:
 
 
 def send_alert_group(alerts: list[dict]) -> bool:
-    """Same fan-out as send_alert(), but for however many kinds fired for one
-    event in the same cycle - one message per municipality, not one per kind
-    (see merged_alert_text()). Each kind is filtered by telegram_kinds
-    independently before merging, same as send_alert() always filtered the
-    one kind it was given."""
+    """Post one merged message per matched municipality's channel.
+
+    Kinds are filtered by telegram_kinds before merging (see merged_alert_text()).
+    Each channel is independent: a missing channel or failed post never blocks
+    another. Returns True if any post succeeded.
+    """
     kinds = CFG.get("telegram_kinds") or []
     included = [a for a in alerts if not kinds or a["kind"] in kinds]
     if not included:
@@ -449,9 +439,6 @@ def send_alert_group(alerts: list[dict]) -> bool:
 
 
 def send_alert(alert: dict) -> bool:
-    """Post to every municipality the event's location matched - one for an
-    ordinary municipality, two for a fire inside Sarajevo or Istocno Sarajevo
-    (see events.build_events()). Each channel is independent: one missing
-    channel or one failed post never blocks another, the same "isolate
-    failures" rule the rest of this project follows for its alert channels."""
+    """Post a single alert to every municipality the event matched (two for a fire
+    inside Sarajevo or Istocno Sarajevo); see send_alert_group()."""
     return send_alert_group([alert])

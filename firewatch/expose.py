@@ -45,12 +45,13 @@ NGROK_CANDIDATES = [
 
 
 class ExposeError(RuntimeError):
-    pass
+    """Publishing through ngrok failed."""
 
 
 # --------------------------------------------------------------------- helpers
 
 def ngrok_binary() -> Path | None:
+    """Path to the ngrok executable (PATH first, then known install spots), or None."""
     found = shutil.which("ngrok")
     if found:
         return Path(found)
@@ -59,6 +60,7 @@ def ngrok_binary() -> Path | None:
 
 def _api(path: str, method: str = "GET", payload: dict | None = None,
          timeout: float = 10.0):
+    """Call the local ngrok agent API and return its decoded JSON body."""
     url = f"{AGENT_API}{path}"
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(
@@ -70,6 +72,7 @@ def _api(path: str, method: str = "GET", payload: dict | None = None,
 
 
 def agent_up() -> bool:
+    """True if the ngrok agent's local API answers (not proof it can create tunnels yet)."""
     try:
         _api("/tunnels", timeout=3)
         return True
@@ -78,6 +81,7 @@ def agent_up() -> bool:
 
 
 def tunnels() -> list[dict]:
+    """All tunnels on the agent, or an empty list if it is unreachable."""
     try:
         return _api("/tunnels").get("tunnels", [])
     except Exception:
@@ -85,10 +89,10 @@ def tunnels() -> list[dict]:
 
 
 def find_tunnel(name: str = TUNNEL_NAME) -> dict | None:
+    """The firewatch tunnel on the agent, or None."""
     for t in tunnels():
-        # A tunnel created as "firewatch" is reported as "firewatch" and, for the
-        # https variant, sometimes "firewatch (http)". "firewatch-2" and friends
-        # are ours too - see _create_tunnel on why the name has to move.
+        # Reported as "firewatch" or "firewatch (http)"; "firewatch-2" and so on
+        # are ours too - see _create_tunnel on why the name can move.
         n = str(t.get("name", "")).split(" ")[0]
         if n == name or n.startswith(name + "-"):
             return t
@@ -272,6 +276,7 @@ def ensure() -> str | None:
 
 
 def status() -> dict:
+    """Snapshot of agent, publishing and tunnel state for the CLI."""
     return {
         "agent_up": agent_up(),
         "auto_expose": bool(CFG.get("auto_expose")),

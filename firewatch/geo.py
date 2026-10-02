@@ -16,20 +16,15 @@ COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
 def boundary_rings() -> tuple[tuple[tuple[float, float], ...], ...]:
     """Every ring of the boundary, each as ((lon, lat), ...), closed.
 
-    Taking `coordinates[0]` and calling it "the outer ring" is right for exactly
-    one input shape, a single-part Polygon. For a MultiPolygon that index is a
-    whole *polygon*, and the unpack below raises ValueError - but it raises from
-    inside bbox_padded(), which every fetch path calls, so all three sources
-    report [FAIL], per-source isolation swallows it, and the cycle still exits 0
-    and renders a map that can never show a fire. A municipality is usually one
-    polygon and never hits this; anything with an enclave, an exclave or an
-    island is not. Measured against Bosnia and Herzegovina, OSM relation
-    2528142, which Nominatim returns as two parts.
+    The boundary may be a Polygon or a MultiPolygon (anything with an enclave,
+    exclave or island, e.g. OSM relation 2528142, which has two parts). Reading
+    only `coordinates[0]` handles just the single-polygon case; for a
+    MultiPolygon it would fail inside bbox_padded(), which every fetch path
+    calls, and per-source isolation would hide that behind an empty map.
 
-    Holes are flattened into the same list deliberately. The even-odd tests
-    below toggle containment on every crossing, so an inner ring switches it
-    back off exactly as it should, and the distance test wants every vertex
-    regardless of which ring it came from.
+    Holes are flattened into the same list deliberately: the even-odd tests
+    toggle containment on every crossing, so an inner ring switches it back off,
+    and the distance test wants every vertex regardless of ring.
     """
     fc = json.loads(BOUNDARY_GEOJSON.read_text())
     geom = fc["features"][0]["geometry"]
@@ -71,6 +66,7 @@ def point_in_boundary(lat: float, lon: float) -> bool:
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km between two lat/lon points."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dp = p2 - p1
     dl = math.radians(lon2 - lon1)
@@ -79,6 +75,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Initial bearing in degrees (0-360, clockwise from north) from point 1 to point 2."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dl = math.radians(lon2 - lon1)
     y = math.sin(dl) * math.cos(p2)
@@ -87,6 +84,7 @@ def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def compass(deg: float) -> str:
+    """16-point compass label for a bearing in degrees."""
     return COMPASS[int((deg + 11.25) % 360 // 22.5)]
 
 
@@ -98,6 +96,7 @@ def distance_to_boundary_km(lat: float, lon: float) -> float:
 
 @lru_cache(maxsize=1)
 def settlements() -> tuple[dict, ...]:
+    """Named places from SETTLEMENTS_JSON (cached)."""
     return tuple(json.loads(SETTLEMENTS_JSON.read_text()))
 
 
@@ -149,16 +148,11 @@ def centroid(points: list[tuple[float, float]]) -> tuple[float, float]:
 def forecast_point() -> tuple[float, float]:
     """(lat, lon) to run a single-point forecast against - e.g. fire danger.
 
-    Deliberately not TOWN_LAT/TOWN_LON: that names the town itself, which is not
-    necessarily the geometric middle of the municipality around it. This is the
-    vertex-mean of the boundary outline instead, derived from whatever
-    BOUNDARY_GEOJSON is currently configured - so a fork that points that file at
-    a different place's outline moves this point with it, with nothing else to
-    update. Vertex-mean rather than a true area centroid, same approximation
-    `centroid()` already documents as fine at this scale, and for the same reason:
-    a municipality boundary traced from OSM has fairly even vertex spacing, so the
-    error against a true area centroid is well within the tens-of-kilometres grid
-    a service like EFFIS runs at anyway.
+    The vertex-mean of the configured BOUNDARY_GEOJSON outline, which characterises
+    the whole area rather than a town inside it, and follows the file if it is
+    pointed at another outline. A vertex-mean rather than a true area centroid:
+    OSM boundaries have fairly even vertex spacing, so the error is well within
+    the tens-of-kilometres grid of a service like EFFIS.
     """
     return centroid([(y, x) for ring in boundary_rings() for x, y in ring])
 
@@ -185,9 +179,7 @@ def load_buffer() -> dict | None:
 
 
 def build_buffer(km: float | None = None):
-    """Regenerate BUFFER_GEOJSON - the band drawn around whatever boundary
-    BOUNDARY_GEOJSON currently names (Bosnia and Herzegovina's own outline
-    here, not one municipality's).
+    """Regenerate BUFFER_GEOJSON, the band drawn around the BOUNDARY_GEOJSON outline.
 
     Build-time only. shapely and pyproj are imported here and nowhere else, so the
     running app keeps its four dependencies; regenerating needs them installed.
@@ -220,15 +212,13 @@ def build_buffer(km: float | None = None):
     to_deg = Transformer.from_crs("EPSG:32633", "EPSG:4326", always_xy=True).transform
 
     poly_m = sh_transform(to_m, poly)
-    # quad_segs=12 approximates each round join with chords that cut ~13 m inside
-    # the true arc (6000*(1-cos(3.75deg))); that alone put a real detection outside
-    # the drawn band. 64 brings it to well under a metre and simplify() collapses
-    # the redundant points again, so the extra resolution is nearly free.
+    # quad_segs=12 would cut chords ~13 m inside the true arc at 6 km
+    # (6000*(1-cos(3.75deg))), enough to leave a real detection outside the drawn
+    # band. 64 brings that under a metre, and simplify() collapses the extra points.
     band_m = poly_m.buffer(km * 1000, quad_segs=64).difference(poly_m)
-    # Simplification pulls the outer edge *inward*, which can drop a detection that
-    # the classifier kept - at 25 m one of the 183 stored detections fell outside
-    # the drawn band. 8 m is invisible at any usable zoom and keeps the picture on
-    # the generous side of the filter, which is the direction that cannot mislead.
+    # Simplification pulls the outer edge *inward*, which can leave a detection the
+    # classifier kept outside the drawn band (seen at 25 m). 8 m is invisible at any
+    # usable zoom and keeps the band on the generous side of the filter.
     band = sh_transform(to_deg, band_m.simplify(8))
 
     out = {"type": "FeatureCollection", "features": [{
@@ -245,6 +235,7 @@ def _round_geom(geom, nd: int):
     """Trim coordinate precision. 5 decimals is ~1 m here - far finer than the
     geometry warrants, and it keeps the inlined copy small."""
     def walk(c):
+        """Round every coordinate in a nested coordinate list."""
         if isinstance(c, (list, tuple)):
             if c and isinstance(c[0], (int, float)):
                 return [round(float(v), nd) for v in c]

@@ -73,6 +73,7 @@ passed = failed = 0
 
 
 def check(name, got, want, tol):
+    """Tally a pass if `got` is within `tol` of the published value."""
     global passed, failed
     ok = abs(got - want) <= tol
     print(f"  {'PASS' if ok else 'FAIL'}  {name:22s} got={got:.3f} want={want} (tol {tol})")

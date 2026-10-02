@@ -93,19 +93,23 @@ class _Handler(SimpleHTTPRequestHandler):
     """
 
     def log_message(self, fmt, *args):        # noqa: A003 - base class name
+        """Send request logs to the debug log instead of stderr."""
         log.debug("%s %s", self.address_string(), fmt % args)
 
     def do_GET(self):
+        """Serve /health and /healthz, otherwise static files."""
         if self.path.split("?")[0].rstrip("/") in ("/health", "/healthz"):
             return self._health()
         return super().do_GET()
 
     def do_HEAD(self):
+        """HEAD counterpart of do_GET."""
         if self.path.split("?")[0].rstrip("/") in ("/health", "/healthz"):
             return self._health(body=False)
         return super().do_HEAD()
 
     def _health(self, body: bool = True):
+        """Write the health() result as uncached JSON."""
         status, payload = health()
         blob = json.dumps(payload, indent=2).encode()
         self.send_response(status)
@@ -120,16 +124,15 @@ class _Handler(SimpleHTTPRequestHandler):
         """Never index a directory.
 
         refresh_public() guarantees an index.html, so a listing can only appear if
-        something went wrong - and then it would enumerate the directory instead of
-        saying so. 404 is both safer and more honest.
+        something went wrong, and 404 is safer than enumerating the directory.
         """
         self.send_error(404, "Not found")
         return None
 
     def end_headers(self):
-        # The page re-reads fire-map-data.js every 60 s with a cache-busting query
-        # string, but a proxy that ignores the query would still pin it. Say it
-        # plainly instead.
+        """Add no-store on the data file and hardening headers on everything."""
+        # The page cache-busts fire-map-data.js with a query string, but a proxy
+        # that ignores the query would still pin it.
         if self.path.startswith("/fire-map-data.js"):
             self.send_header("Cache-Control", "no-store")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -158,6 +161,7 @@ def refresh_public() -> bool:
 
 
 def make_server(host: str | None = None, port: int | None = None) -> ThreadingHTTPServer:
+    """Build the static server over PUBLIC_DIR, defaulting to the configured host and port."""
     host = CFG["serve_host"] if host is None else host
     port = int(CFG["serve_port"] if port is None else port)
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)

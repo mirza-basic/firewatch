@@ -12,6 +12,7 @@ passed = failed = 0
 
 
 def check(name, got, want):
+    """Tally a pass if `got == want`."""
     global passed, failed
     ok = got == want
     passed += ok
@@ -20,6 +21,7 @@ def check(name, got, want):
 
 
 def ev(municipalities, kind="new"):
+    """Build a minimal alert record for the given municipality ids."""
     return {"kind": kind, "event": {
         "municipalities": municipalities, "max_frp": 12.0, "latest_frp": 12.0,
         "severity": "moderate", "n_det": 3, "sources": ["mtg"], "extent_km": 1.0,
@@ -52,6 +54,7 @@ calls = []
 
 
 def fake_send(text, chat_id, button_url=None):
+    """Record the chat id instead of posting; fails for one channel."""
     calls.append(chat_id)
     return chat_id != "-1001111111111"  # one deliberately "fails" to prove independence
 
@@ -93,6 +96,8 @@ bodies = []
 
 
 class R:
+    """Stand-in for a requests response."""
+
     def __init__(self, code, text=""):
         self.status_code, self.text = code, text
 
@@ -105,7 +110,7 @@ check("button label is the Bosnian one, with the flame", btn["text"], "\U0001F52
 check("button asks for the red preset", btn["style"], "danger")
 check("button carries the position, zoom 14, and no event id",
      btn["url"], "https://example.github.io/firewatch/?lat=44.0000&lon=18.0000&z=14")
-check("the link is no longer a line of the message text", "http" in b["text"], False)
+check("the link is not a line of the message text", "http" in b["text"], False)
 check("deep_link(with_event=True) still supports the event panel",
      telegram.deep_link("https://x.io/f", {"lat": 1.0, "lon": 2.0, "id": "ab12"}, True),
      "https://x.io/f/?lat=1.0000&lon=2.0000&z=14&e=ab12")

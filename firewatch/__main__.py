@@ -25,7 +25,7 @@
     python3 -m firewatch test-sms      send a sample alert SMS
     python3 -m firewatch set-sms-key   store the httpSMS API key
     python3 -m firewatch sms-add <number>     add an SMS recipient
-    python3 -m firewatch sms-remove <number>  remove one send a test notification
+    python3 -m firewatch sms-remove <number>  remove one
     python3 -m firewatch telegram-status  Telegram channel + settings
     python3 -m firewatch test-telegram    post a sample alert to the channel
     python3 -m firewatch set-telegram-key store the Telegram bot token
@@ -47,6 +47,7 @@ from .config import CFG, MAP_PATH, SNAPSHOT_PATH, cdse_credentials
 
 
 def _print_snapshot(snap: dict, rng: str | None = None) -> None:
+    """Print the events of a snapshot for one view range."""
     requested = rng or snap.get("default_range")
     rng = ev_mod.resolve_range(requested)
     if requested and requested not in ev_mod.RANGES and requested not in ev_mod.RANGE_ALIASES:
@@ -100,6 +101,7 @@ def _print_snapshot(snap: dict, rng: str | None = None) -> None:
 
 
 def cmd_poll(rng: str | None = None) -> int:
+    """Run one poll cycle and print the report."""
     poller.setup_logging()
     snap = poller.Poller().poll_now()
     _print_snapshot(snap, rng)
@@ -111,6 +113,7 @@ def cmd_poll(rng: str | None = None) -> int:
 
 
 def cmd_watch() -> int:
+    """Poll in a headless loop until interrupted; notifications only."""
     poller.setup_logging()
     _graceful_stop()
     p = poller.Poller()
@@ -126,11 +129,13 @@ def cmd_watch() -> int:
 
 
 def cmd_status(rng: str | None = None) -> int:
+    """Print the last published state without polling."""
     _print_snapshot(poller.load_snapshot(), rng)
     return 0
 
 
 def cmd_backfill(days: int = 30) -> int:
+    """Deep-fetch history for the last `days` days, then re-poll and print 30d."""
     poller.setup_logging()
     r = poller.backfill(days)
     print(f"backfill: fetched {r['fetched']}, {r['new']} new")
@@ -140,6 +145,7 @@ def cmd_backfill(days: int = 30) -> int:
 
 
 def cmd_map() -> int:
+    """Rebuild the map from the last snapshot and open it in a browser."""
     snap = poller.load_snapshot()
     path = mapgen.render(snap)
     print(f"wrote {path}")
@@ -148,6 +154,7 @@ def cmd_map() -> int:
 
 
 def cmd_expose() -> int:
+    """Publish the map through the ngrok agent and print its URL."""
     try:
         t = expose_mod.expose()
     except expose_mod.ExposeError as exc:
@@ -169,6 +176,7 @@ def cmd_expose() -> int:
 
 
 def cmd_unexpose() -> int:
+    """Stop publishing the map; other ngrok tunnels are untouched."""
     try:
         removed = expose_mod.unexpose()
     except expose_mod.ExposeError as exc:
@@ -179,6 +187,7 @@ def cmd_unexpose() -> int:
 
 
 def cmd_expose_status() -> int:
+    """Print the ngrok agent and publishing state."""
     st = expose_mod.status()
     print(f"\n  ngrok binary : {st['ngrok'] or 'not found'}")
     print(f"  agent running: {st['agent_up']}")
@@ -196,6 +205,7 @@ def cmd_expose_status() -> int:
 
 
 def cmd_quota() -> int:
+    """Print FIRMS transaction usage and which key source is in use."""
     from .config import firms_key
     key, source = firms_key()
     if not key:
@@ -315,9 +325,8 @@ def cmd_imagery(force: bool = False) -> int:
 
 
 def cmd_fire_danger(municipality_id: str | None = None, force: bool = False) -> int:
-    """Today's + short-term Canadian FWI - one municipality's full detail if
-    named, otherwise today's class for all 145 (one per municipality, not one
-    for the whole country - see firedanger.py's module docstring)."""
+    """Today's + short-term Canadian FWI: full detail for one municipality if
+    named, otherwise today's class for all of them (see firedanger.py)."""
     from . import firedanger, geo_bih
 
     if not CFG.get("fire_danger_enabled", True):
@@ -364,6 +373,7 @@ def cmd_fire_danger(municipality_id: str | None = None, force: bool = False) -> 
 
 
 def cmd_history(n: int = 40) -> int:
+    """Print the `n` most recent raw detections from the database."""
     con = store.connect()
     rows = con.execute(
         "SELECT ts, source, sensor, lat, lon, frp, confidence, inside"
@@ -382,6 +392,7 @@ def cmd_history(n: int = 40) -> int:
 
 
 def cmd_test_notify() -> int:
+    """Send a test desktop notification."""
     ok = notify.send("🔥 FireWatch test", "Notifications are working",
                      subtitle="Bosna i Hercegovina", sound=CFG["sound_update"])
     print(f"backend={notify.backend()} delivered={ok}")
@@ -389,6 +400,7 @@ def cmd_test_notify() -> int:
 
 
 def cmd_sms_status() -> int:
+    """Print the SMS backend, settings and worst-case alert length."""
     from .config import CFG
     ok, why = sms_mod.ready()
     print(f"\n  usable       : {ok}  ({why})")
@@ -449,20 +461,22 @@ def cmd_set_sms_key() -> int:
 def _env_overrides_recipients() -> bool:
     """True when FIREWATCH_SMS_TO is set, so editing config.json would do nothing.
 
-    Without this, `sms-add` writes the file, prints "added", and changes nothing that
-    the running service reads - the worst kind of success.
+    Without this check, `sms-add` would write the file, print "added", and change
+    nothing the running service reads.
     """
     import os
     return bool((os.environ.get(sms_mod.SMS_TO_ENV) or "").strip())
 
 
 def _save_recipients(nums: list[str]) -> None:
+    """Persist the SMS recipient list to config.json."""
     from .config import CFG
     CFG["sms_to"] = nums
     CFG.save()
 
 
 def cmd_sms_add(number: str | None) -> int:
+    """Add an SMS recipient to config.json."""
     if not number or not number.startswith("+"):
         print("  give a number in E.164 form, e.g. sms-add +38761234567")
         return 1
@@ -483,6 +497,7 @@ def cmd_sms_add(number: str | None) -> int:
 
 
 def cmd_sms_remove(number: str | None) -> int:
+    """Remove an SMS recipient from config.json."""
     if _env_overrides_recipients():
         print(f"  {sms_mod.SMS_TO_ENV} is set, so it decides the recipients and this"
               " would change nothing.")
@@ -531,6 +546,7 @@ def cmd_test_sms() -> int:
 
 
 def cmd_telegram_status() -> int:
+    """Print the Telegram bot and per-municipality channel state."""
     from .config import CFG
     ok, why = telegram_mod.ready()
     channels = telegram_mod._municipality_channels()
@@ -577,12 +593,11 @@ def cmd_test_telegram(municipality_id: str | None = None) -> int:
     """Post the test message to one municipality's channel, and print what a
     real alert would look like.
 
-    Takes a municipality id (e.g. `test-telegram zavidovici`) because this
-    deployment has one channel per municipality, not one fixed channel -
-    there is no single obvious target to default to. Only the test message
-    is posted. A test that reads "NOVI POZAR: ..." in the channel is
-    indistinguishable from the real thing, so the sample alert is shown here
-    for its formatting and goes no further - same reasoning as `test-sms`.
+    Takes a municipality id (e.g. `test-telegram zavidovici`) because there is one
+    channel per municipality and no obvious default. Only the test message is
+    posted; the sample alert is shown for its formatting and goes no further,
+    since one that reads "NOVI POZAR: ..." in the channel would be
+    indistinguishable from the real thing (same reasoning as `test-sms`).
     """
     poller.setup_logging()
     text = telegram_mod.test_text()
@@ -641,8 +656,8 @@ def cmd_buffer(km: float | None = None) -> int:
 def cmd_reclip(apply: bool = False) -> int:
     """Re-apply the spatial clip to stored history.
 
-    New detections are already filtered at fetch time, so this is only for history
-    that a previously wider nearby_buffer_km let in. Dry run unless --apply, and it
+    Fetching already filters new detections, so this is only for stored history
+    that a wider nearby_buffer_km let in. Dry run unless --apply, and it
     copies the database first: retention is 400 days, so what goes here is not
     coming back from the feeds.
     """
@@ -765,6 +780,7 @@ def cmd_serve(argv: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
+    """Dispatch a command-line invocation to its handler; returns the exit status."""
     cmd = (argv[0] if argv else "menubar").lower()
     if cmd in ("menubar", "app", "ui"):
         from .menubar import main as ui_main

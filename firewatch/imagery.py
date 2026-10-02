@@ -1,8 +1,7 @@
 """Sentinel-2 at 10 m, rendered here and published as a picture.
 
 Every other layer on the map is fetched by the reader's browser straight from a
-keyless service. This one cannot be, and the reason is worth stating because it
-looks like an over-complication until you hit it:
+keyless service. This one cannot be:
 
 Sentinel Hub's OGC endpoints take their credential as an *instance id in the URL
 path*. Any browser-side Sentinel-2 layer therefore writes that credential into
@@ -16,8 +15,7 @@ it with `L.imageOverlay`. Nothing about the credential reaches the page. This is
 also the only shape that works on GitHub Pages, where there is no server to
 proxy through.
 
-The image is requested in EPSG:3857 rather than 4326, which is the part that is
-easy to get wrong and hard to see: `L.imageOverlay` stretches its image linearly
+The image is requested in EPSG:3857 rather than 4326: `L.imageOverlay` stretches its image linearly
 between two *projected* corners, so an equirectangular image drifts vertically
 against the basemap - a few hundred metres over this municipality, enough to put
 a fire on the wrong side of a ridge. Ask for Mercator and the stretch is the
@@ -48,10 +46,9 @@ PROCESS = "https://sh.dataspace.copernicus.eu/api/v1/process"
 # 2500 gives ~13 m/px, which still resolves a burn scar of a few hectares.
 MAX_PX = 2500
 
-# Written beside fire-map.html in SUPPORT_DIR, *not* straight into PUBLIC_DIR.
-# PUBLIC_DIR existing is what `sync_public` reads as "the user asked for this to
-# be published", so creating it here would quietly start publishing the map to
-# anyone holding the ngrok URL - a side effect of enabling a picture.
+# Written beside fire-map.html in SUPPORT_DIR, *not* straight into PUBLIC_DIR:
+# PUBLIC_DIR existing is what `sync_public` reads as "publishing was requested",
+# so creating it here would start publishing the map as a side effect.
 IMAGE_NAME = "fire-s2.png"
 
 # B12/B11/B8A. The SWIR pair is what sees *through* smoke and what a burn scar is
@@ -71,6 +68,7 @@ _token: tuple[float, str] | None = None      # (expires_at, access_token)
 
 
 def _merc(lon: float, lat: float) -> tuple[float, float]:
+    """WGS84 lon/lat to EPSG:3857 metres."""
     R = 6378137.0
     return (math.radians(lon) * R,
             math.log(math.tan(math.pi / 4 + math.radians(lat) / 2)) * R)
@@ -79,9 +77,8 @@ def _merc(lon: float, lat: float) -> tuple[float, float]:
 def latest_scene(max_cloud: float | None = None) -> dict | None:
     """Newest Sentinel-2 L2A over the municipality under the cloud limit.
 
-    Keyless - the CDSE catalogue needs no credential, only the *pixels* do. That
-    matters: the "is there anything new?" question is asked every cycle and the
-    expensive one only when the answer changes.
+    Keyless: the CDSE catalogue needs no credential, only the *pixels* do, so
+    "is there anything new?" can be asked every cycle.
     """
     if max_cloud is None:
         max_cloud = float(CFG["imagery_s2_max_cloud"])
@@ -153,7 +150,7 @@ def token() -> str | None:
 
 
 def render(day: str, kind: str = "swir") -> dict | None:
-    """Render one scene to PNG in PUBLIC_DIR. Returns the map's overlay record."""
+    """Render one scene to PNG in SUPPORT_DIR. Returns the map's overlay record."""
     tok = token()
     if not tok:
         return None

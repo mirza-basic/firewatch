@@ -23,15 +23,14 @@ RANGES = {
     "3d": {"label": "Last 3 days", "short": "3 days", "hours": 72.0},
     "7d": {"label": "Last 7 days", "short": "7 days", "hours": 168.0},
     "30d": {"label": "Last month", "short": "Month", "hours": 720.0},
-    # The year view is a read over whatever history is stored; it costs no API
-    # traffic, but it is only as deep as the database. A fresh install shows the
-    # same thing here as in "Last month" until `backfill` has run.
+    # A read over stored history: no API traffic, but only as deep as the
+    # database (same as "Last month" until `backfill` has run).
     "1y": {"label": "Last year", "short": "Year", "hours": 8760.0},
 }
 DEFAULT_RANGE = "3d"
 
-# Older builds offered a local-calendar-day "today" range; map it forward so a
-# saved default_range does not become invalid.
+# Retired range names mapped to their replacements, so a saved default_range
+# stays valid.
 RANGE_ALIASES = {"today": "24h"}
 
 
@@ -81,6 +80,7 @@ def range_counts(evs: list[dict], now: datetime | None = None) -> dict:
 
 
 def severity(max_frp: float | None) -> str:
+    """Severity label for a peak FRP in MW ("unknown" when none was reported)."""
     if max_frp is None:
         return "unknown"
     for threshold, label in SEVERITY:
@@ -90,6 +90,7 @@ def severity(max_frp: float | None) -> str:
 
 
 def _event_id(uid: str) -> str:
+    """Stable 12-char event id derived from the cluster's earliest detection uid."""
     return hashlib.sha1(uid.encode()).hexdigest()[:12]
 
 
@@ -101,12 +102,14 @@ def cluster(dets: list[dict]) -> list[list[dict]]:
     parent = list(range(n))
 
     def find(i):
+        """Union-find root with path halving."""
         while parent[i] != i:
             parent[i] = parent[parent[i]]
             i = parent[i]
         return i
 
     def union(a, b):
+        """Merge the sets containing a and b."""
         ra, rb = find(a), find(b)
         if ra != rb:
             parent[rb] = ra
@@ -147,13 +150,11 @@ def build_events(dets: list[dict]) -> list[dict]:
         last_ts = parse_iso(group[-1]["ts"])
         age_min = (now - last_ts).total_seconds() / 60.0
 
-        # The detection that reached the database first. `first_seen` is stamped per
-        # row at insert, so this is arrival order, not acquisition order - and the
-        # two genuinely differ: MTG has taken credit for a fire VIIRS saw 21 min
-        # earlier, because MTG's ~25 min latency beat VIIRS's 2 h. Synthetic
-        # detections carry no first_seen, and a whole cluster ingested in one cycle
-        # (which backfill always produces) ties on it, so acquisition time breaks
-        # the tie and covers its absence.
+        # The detection that reached the database first. `first_seen` is stamped at
+        # insert, so this is arrival order, not acquisition order: MTG's ~25 min
+        # latency can beat VIIRS's 2 h for a fire VIIRS saw earlier. Detections
+        # without first_seen, or a cluster ingested in one cycle (backfill), tie
+        # on it, so acquisition time breaks the tie.
         credited = min(group, key=lambda d: (d.get("first_seen") or d["ts"], d["ts"]))
 
         # Spatial extent as the diagonal of the detection bounding box. The exact
@@ -184,10 +185,9 @@ def build_events(dets: list[dict]) -> list[dict]:
             "sum_frp": round(sum(frps), 2) if frps else None,
             "sources": sources,
             "sensors": sorted({d["sensor"] for d in group if d.get("sensor")}),
-            # Credit: which feed got this fire into the database first, and when it
-            # landed. Deliberately not the same as first_ts, which is the earliest
-            # *acquisition* and the detection the event id derives from - so credit
-            # and identity can name different sightings.
+            # Credit: which feed got this fire into the database first, and when.
+            # Not the same as first_ts (earliest *acquisition*, which the event id
+            # derives from), so credit and identity can name different sightings.
             "credit_source": credited["source"],
             "credit_sensor": credited.get("sensor"),
             "credit_saved_at": credited.get("first_seen"),
@@ -227,9 +227,8 @@ def diff(previous: dict[str, dict], current: list[dict]) -> list[dict]:
         old = previous.get(ev["id"])
 
         if old is None:
-            # Only alert on a fire that is actually burning now. Backfilling
-            # history, or a first run against a populated database, would
-            # otherwise fire a notification for every fire that ever happened.
+            # Only alert on a fire burning now; otherwise backfill or a first run
+            # against a populated database would alert for every past fire.
             if ev["status"] == "active":
                 alerts.append({"kind": "new", "event": ev,
                                "detail": f"{ev['n_det']} detection(s), "
@@ -265,10 +264,12 @@ def diff(previous: dict[str, dict], current: list[dict]) -> list[dict]:
 
 
 def _frp(v) -> str:
+    """Format an FRP value in MW for alert detail text."""
     return f"{v:.1f} MW" if v is not None else "FRP n/a"
 
 
 def summarise(events: list[dict]) -> dict:
+    """Headline counts and worst severity across active events."""
     active = [e for e in events if e["status"] == "active"]
     inside = [e for e in active if e["inside"]]
     return {

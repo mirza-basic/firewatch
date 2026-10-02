@@ -42,11 +42,9 @@ KEYCHAIN_SERVICE = "firewatch-httpsms"
 # a committed file would be published.
 SMS_TO_ENV = "FIREWATCH_SMS_TO"
 
-# Same reasoning as SMS_TO_ENV, for the municipality filter rather than the
-# numbers themselves: which municipality's fires reach one person's own phone
-# is personal information too (it says roughly where that person lives), so a
-# public repository's committed config.json is the wrong place for it, same as
-# the phone number itself.
+# Municipality filter from the environment. Same reasoning as SMS_TO_ENV: which
+# municipality's fires reach one person's phone says roughly where they live, so a
+# public repository's committed config.json is the wrong place for it.
 SMS_MUNICIPALITIES_ENV = "FIREWATCH_SMS_MUNICIPALITIES"
 
 # Characters that would force UCS-2 encoding, and their GSM-7 equivalents.
@@ -54,9 +52,8 @@ TRANSLIT = {
     "ć": "c", "Ć": "C", "č": "c", "Č": "C", "ž": "z", "Ž": "Z",
     "š": "s", "Š": "S", "đ": "dj", "Đ": "Dj", "ǆ": "dz",
     "→": "->", "·": "-", "—": "-", "–": "-", "°": "deg", "∝": "~",
-    # Typographic quotes reach us through OSM place names - one settlement is
-    # literally 'Ekološko izletište „Ontario”'. Unmapped they become "?", which
-    # reads like corruption in an alert.
+    # Typographic quotes arrive via OSM place names (e.g. 'Ekološko izletište
+    # „Ontario”'); unmapped they become "?", which reads like corruption.
     "„": '"', "”": '"', "“": '"', "‚": "'", "’": "'", "‘": "'", "…": "...",
     " ": " ", "🔥": "", "✅": "",
 }
@@ -112,7 +109,7 @@ def _live(key):
     Recipients change while the service is running - that is the whole point of
     `sms-add` - and CFG is loaded once at import, so a long-lived poller would keep
     texting the old list until someone restarted it. Only the SMS settings are read
-    this way: they are tiny, and only consulted when an alert is actually going out.
+    this way: they are tiny, and only consulted when an alert is going out.
     """
     from .config import CONFIG_FILE
     try:
@@ -138,8 +135,7 @@ def recipients() -> list[str]:
     is fixed for the life of the process, so where it is used the list stops being
     editable at runtime. `sms-add` says so rather than appearing to succeed.
 
-    Accepts a list, a single string, or a comma- or semicolon-separated string, so
-    older single-recipient configs keep working.
+    Accepts a list, a single string, or a comma- or semicolon-separated string.
     """
     env = (os.environ.get(SMS_TO_ENV) or "").strip()
     if env:
@@ -159,10 +155,8 @@ def sms_municipalities_source() -> str:
 
 
 def sms_municipalities() -> list[str]:
-    """Which municipality ids' fires reach the SMS recipient list - empty means
-    unrestricted, every deployment before this filter existed. Same env-wins-over-
-    config.json precedence as recipients(), for the same reason: a public
-    repository's committed config.json is the wrong place for it."""
+    """Which municipality ids' fires reach the SMS recipient list; empty means
+    unrestricted. Same env-wins-over-config.json precedence as recipients()."""
     env = (os.environ.get(SMS_MUNICIPALITIES_ENV) or "").strip()
     if env:
         raw = env
@@ -229,11 +223,10 @@ SMS_TEXT = {
         "test": "FIREWATCH TEST - nema požara, provjera dostave SMS-a",
     },
     "en": {
-        # Filled in, not left empty: a fork outside Bosnia sends these, and the
-        # bare-key fallback below produces "FIRE INTENSIFIED" and "MODERATE" -
-        # readable, but nobody chose the words. Kept short and upper-case for the
-        # same reason the Bosnian set is: the first line is what gets read on a
-        # lock screen, and every character competes with the coordinates.
+        # Written out rather than falling back to raw keys, which would read
+        # "FIRE INTENSIFIED". Short and upper-case like the Bosnian set: the first
+        # line is what gets read on a lock screen, and every character competes
+        # with the coordinates.
         "kind": {"new": "NEW FIRE", "reignited": "BURNING AGAIN",
                  "intensified": "INTENSIFYING", "grew": "SPREADING",
                  "extinguished": "OUT", "corroborated": "CONFIRMED"},
@@ -256,11 +249,13 @@ COMPASS_BS = {"N": "S", "NNE": "SSI", "NE": "SI", "ENE": "ISI", "E": "I",
 
 
 def _lang() -> tuple[str, dict]:
+    """(language code, wording table) for sms_language, falling back to English."""
     code = str(CFG.get("sms_language") or "bs").lower()
     return code, SMS_TEXT.get(code, SMS_TEXT["en"])
 
 
 def _dir(d: str, code: str) -> str:
+    """Compass bearing in the alert language."""
     return COMPASS_BS.get(d, d) if code == "bs" else d
 
 
@@ -285,8 +280,7 @@ def _place(ev: dict, code: str) -> str:
 
 
 # One GSM-7 segment. Past this a message costs two, and every alert carries weather
-# because an active fire is always enriched - so "usually one segment" would have
-# meant "always two" in practice.
+# because an active fire is always enriched.
 ONE_SEGMENT = 160
 
 
@@ -315,20 +309,16 @@ def _compose(ev, code, T, kind, sev, peak, latest, place, url) -> str:
 def merged_alert_text(alerts: list[dict]) -> str:
     """What changed, where, how hot, the conditions, and the map - in one segment.
 
-    One message for every kind that fired for the same event in the same cycle,
-    instead of one near-identical text per kind - reignited, intensified and
-    grew (corroborated is excluded from sms_kinds already) can genuinely all be
-    true of the same event at once, see events.diff() - and two or three
-    separate texts about the same fire cost real segments for no new
-    information beyond the first.
+    One message covers every kind that fired for the same event in the same cycle
+    (reignited, intensified and grew can all be true at once, see events.diff()),
+    rather than one near-identical text per kind.
 
-    Every field the operator asked for is here, so the fitting is done by degrading
-    the *place phrase*, which is the only part with slack: "99.9 km SSZ od Ekolosko
-    izletiste" carries far less than the settlement name alone. Real fires never
-    reach that - the longest measured is 155 characters - but a relocation to a
-    municipality with longer names would, and a silent second segment is exactly the
-    kind of thing nobody notices until the bill. A merged label spends part of that
-    same slack, so it degrades through the identical ladder rather than a separate one.
+    Fitting is done by degrading the *place phrase*, the only part with slack:
+    first the full "99.9 km SSZ od <name>", then the settlement name alone, then a
+    word-boundary trim of the name. The longest measured real alert is 155
+    characters; a silent second segment is the kind of thing nobody notices until
+    the bill. A merged kind label spends part of the same slack, so it uses the
+    same ladder.
     """
     ev = alerts[0]["event"]
     code, T = _lang()
@@ -358,7 +348,7 @@ def merged_alert_text(alerts: list[dict]) -> str:
 
 
 def alert_text(alert: dict) -> str:
-    """What changed, where, how hot, the conditions, and the map - in one segment."""
+    """A single alert as one message; see merged_alert_text()."""
     return merged_alert_text([alert])
 
 
@@ -366,12 +356,10 @@ def worst_case(code: str | None = None) -> dict:
     """The longest alert this deployment can produce, and what it costs.
 
     "An alert is four lines and one segment" is a measured claim, not a structural
-    one, and two things move it without anyone deciding to: a longer settlement name
-    arriving in data/settlements.json, and the length of the published URL - every
-    character of "https://owner.github.io/repository" is spent before a word of the
-    fire is. Headroom is currently two characters. Rather than leave that to be
-    discovered by a phone bill, this builds the worst alert the data allows and
-    reports it, and `sms-status` prints it.
+    one, and two things move it: a longer settlement name in the data, and the
+    length of the published URL (every character of it is spent before a word of
+    the fire is). Headroom is currently two characters. This builds the worst alert
+    the data allows and reports it; `sms-status` prints it.
 
     The event is synthetic on purpose: absurd values (1234.5 MW peak, 99.9 km,
     100% humidity, extreme risk) with the longest real place name, so the answer
@@ -405,16 +393,13 @@ def worst_case(code: str | None = None) -> dict:
 def test_text() -> str:
     """A test message that cannot be mistaken for a real alert.
 
-    The body is the real alert's, line for line and in the same language, so this
-    exercises the wording, the genitive, the bearing translation and the true
-    segment cost rather than an approximation. Only the leading TEST line differs,
-    and it has to: a test that reads like "NOVI POZAR: ..." on someone's phone at
-    3am is worse than no test at all, and the menu bar puts this one click away.
+    The body is the newest event's alert, line for line and in the same language,
+    so it exercises the wording, the genitive, the bearing translation and the true
+    segment cost. Only the leading TEST line differs, and it has to: a test that
+    reads like "NOVI POZAR: ..." on someone's phone at 3am is worse than none.
 
-    Headroom is thin. With the longest settlement name currently in data/ and
-    absurd numbers, the Bosnian version lands at 156 characters - four short of a
-    second segment. Relocating to a municipality with longer place names could tip
-    it over; the alert itself has far more room, because it carries no TEST line.
+    Headroom is thin: with the longest settlement name in the data and absurd
+    numbers the Bosnian version is 156 characters, four short of a second segment.
     """
     code, T = _lang()
     lines = [T["test"]]
@@ -424,11 +409,6 @@ def test_text() -> str:
         peak = f"{ev['max_frp']:.1f}" if ev.get("max_frp") is not None else "?"
         latest = f"{ev['latest_frp']:.1f}" if ev.get("latest_frp") is not None else "?"
         sev = T["sev"].get(ev.get("severity"), str(ev.get("severity", "?")).upper())
-        # The same body a real alert has, in the same order and the same language,
-        # so this exercises the wording, the genitive, the bearing translation and
-        # the true segment cost - not an approximation of them. Only the leading
-        # TEST line differs, and it has to: a test that reads like an alert on
-        # someone's phone at 3am is worse than no test at all.
         lines += [
             f"{T['sample']}: {_place(ev, code)}",
             f"{sev} {peak}/{latest}MW",
@@ -478,10 +458,7 @@ def send(text: str, to: list[str] | None = None) -> bool:
             "to": nums if bulk else nums[0]}
     # api.httpsms.com CNAMEs to ghs.googlehosted.com, which publishes an AAAA
     # record - GitHub Actions runners have no IPv6 route. A no-op unless
-    # FIREWATCH_FORCE_IPV4 is set. This was previously a gap: test-sms.yml has
-    # set that variable since it was written, believing it covered this call,
-    # but nothing in this module ever triggered the patch that makes it do
-    # anything - see config.force_ipv4().
+    # FIREWATCH_FORCE_IPV4 is set; see config.force_ipv4().
     force_ipv4()
     try:
         r = requests.post(BULK_URL if bulk else API_URL, json=body, timeout=45,
@@ -500,18 +477,19 @@ def send(text: str, to: list[str] | None = None) -> bool:
 
 
 def send_alert_group(alerts: list[dict]) -> bool:
-    """Same filtering as send_alert(), but for however many kinds fired for
-    one event in the same cycle - one text, not one per kind (see
-    merged_alert_text())."""
+    """Send one text for all kinds that fired for one event in a cycle.
+
+    Applies the sms_kinds filter and the sms_municipalities filter first; see
+    merged_alert_text().
+    """
     kinds = CFG.get("sms_kinds") or []
     included = [a for a in alerts if not kinds or a["kind"] in kinds]
     if not included:
         return False
     ev = included[0]["event"]
-    # Empty means unrestricted (every deployment before this one, and any
-    # single-municipality fork); non-empty means only these municipalities'
-    # fires reach the one SMS recipient list - unlike Telegram, which already
-    # routes per-municipality on its own and needs no equivalent filter.
+    # Empty means unrestricted; non-empty means only these municipalities' fires
+    # reach the one SMS recipient list. Telegram routes per-municipality on its
+    # own and needs no equivalent filter.
     only = sms_municipalities()
     if only and not set(ev.get("municipalities") or []) & set(only):
         return False
@@ -525,4 +503,5 @@ def send_alert_group(alerts: list[dict]) -> bool:
 
 
 def send_alert(alert: dict) -> bool:
+    """Send a single alert as its own text."""
     return send_alert_group([alert])

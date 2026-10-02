@@ -29,17 +29,16 @@ log = logging.getLogger("firewatch.menubar")
 
 IDLE_TITLE = "🌲"
 SERVICE_LABEL = "com.firewatch.bih"
-# Committed, not generated at runtime - same rationale as the geojson/
-# settlements build artifacts in data/bih/: a 44x44 PNG rasterized once from
-# docs/img/app-icon-mark.svg (the app-icon SVG with its wordmark dropped,
-# since text is illegible at menu-bar size). template=False because the
-# artwork is in colour; a template image would flatten it to the system's
-# monochrome menu-bar tint.
+# A committed build artifact: a 44x44 PNG rasterized from
+# docs/img/app-icon-mark.svg (the app icon without its wordmark, which is
+# illegible at menu-bar size). Used with template=False because the artwork is
+# in colour; a template image would be flattened to the monochrome menu-bar tint.
 ICON_PATH = Path(__file__).resolve().parent / "menubar-icon.png"
 SEV_MARK = {"low": "", "moderate": "!", "high": "!!", "severe": "!!!"}
 
 
 def _ago(minutes: float) -> str:
+    """Compact relative-age label such as "12m ago" or "3.5h ago"."""
     if minutes < 1:
         return "just now"
     if minutes < 60:
@@ -55,6 +54,7 @@ def _info(text: str) -> rumps.MenuItem:
 
 
 def _service_target() -> str:
+    """launchctl target for this user's FireWatch login agent."""
     return f"gui/{os.getuid()}/{SERVICE_LABEL}"
 
 
@@ -65,6 +65,8 @@ def service_loaded() -> bool:
 
 
 class FireWatchApp(rumps.App):
+    """The menu bar app: owns the Poller and rebuilds its menu from each snapshot."""
+
     def __init__(self):
         super().__init__("FireWatch", title=IDLE_TITLE, quit_button=None,
                           icon=str(ICON_PATH) if ICON_PATH.exists() else None,
@@ -78,6 +80,7 @@ class FireWatchApp(rumps.App):
 
     # ------------------------------------------------------------------- updates
     def _on_update(self, snap: dict) -> None:
+        """Poller callback: adopt the new snapshot and refresh the menu."""
         self.snapshot = snap
         self._refreshing = False
         try:
@@ -86,6 +89,7 @@ class FireWatchApp(rumps.App):
             log.exception("menu rebuild failed")
 
     def _rebuild(self) -> None:
+        """Recompute the title and the whole menu from the current snapshot."""
         snap = self.snapshot
         summary = snap.get("summary", {})
         n = summary.get("n_active", 0)
@@ -169,9 +173,8 @@ class FireWatchApp(rumps.App):
     def _test_sms_item(self) -> rumps.MenuItem:
         """Greyed out, with the reason in the title, when SMS cannot be sent.
 
-        `sms.ready()` already returns exactly why - no key, no sender, a number
-        that is not E.164 - so showing that beats a menu entry that looks live
-        and then silently does nothing.
+        `sms.ready()` returns why (no key, no sender, a non-E.164 number), which
+        beats an entry that looks live and silently does nothing.
         """
         ok, why = sms.ready()
         if not ok:
@@ -179,13 +182,9 @@ class FireWatchApp(rumps.App):
         return rumps.MenuItem("Send Test SMS…", callback=self.test_sms)
 
     def _test_telegram_item(self) -> rumps.MenuItem:
-        """Always unavailable here, unlike the single-channel deployment this
-        branch forked from: "post a test message" needs one obvious channel to
-        target, and this deployment has one per municipality instead of one
-        fixed channel - there is no single right answer for a menu bar button
-        with no municipality context to pick from. Testing a specific
-        municipality's channel is a CLI concern (naming which one), not a menu
-        bar one."""
+        """Always unavailable: there is one channel per municipality, and a menu
+        item has no municipality context to pick one. Testing a channel is a CLI
+        concern."""
         return _info("Post Test Telegram — pick a municipality via the CLI instead")
 
     def _range_item(self, snap: dict) -> rumps.MenuItem:
@@ -204,13 +203,13 @@ class FireWatchApp(rumps.App):
         return parent
 
     def _set_range(self, key, _sender=None):
+        """Select and persist a view range, then rebuild the menu and map."""
         self.range_key = key
         CFG["default_range"] = key
         CFG.save()
         self._rebuild()
-        # Rewrite the map so it opens on the same range the menu is showing.
-        # The snapshot on disk carries the range chosen at poll time, so it has
-        # to be updated here or the map would reopen on the previous selection.
+        # Re-render so the map opens on the range the menu shows; the snapshot
+        # carries the range chosen at poll time.
         try:
             self.snapshot["default_range"] = key
             mapgen.render(self.snapshot)
@@ -218,6 +217,7 @@ class FireWatchApp(rumps.App):
             log.exception("map re-render failed")
 
     def _fire_item(self, e: dict) -> rumps.MenuItem:
+        """Submenu for one fire event: its details and links out."""
         icon = "🔥" if e["status"] == "active" else "💤"
         frp = f"{e['latest_frp']:.0f} MW" if e.get("latest_frp") is not None else "—"
         parent = rumps.MenuItem(
@@ -253,17 +253,21 @@ class FireWatchApp(rumps.App):
 
     # ----------------------------------------------------------------- callbacks
     def _open_maps(self, e, _sender=None):
+        """Open the event in Google Maps."""
         webbrowser.open(notify.maps_url(e["lat"], e["lon"]))
 
     def _open_sat(self, e, _sender=None):
+        """Open the event in Google Maps satellite view."""
         webbrowser.open("https://www.google.com/maps/@?api=1&map_action=map"
                         f"&center={e['lat']},{e['lon']}&zoom=15&basemap=satellite")
 
     def _copy_coords(self, e, _sender=None):
+        """Copy the event's coordinates to the clipboard."""
         subprocess.run("pbcopy", input=f"{e['lat']}, {e['lon']}".encode())
         notify.send("FireWatch", f"{e['lat']}, {e['lon']}", subtitle="Copied")
 
     def open_map(self, _=None):
+        """Open the local HTML map, rendering it first if it does not exist."""
         if not Path(MAP_PATH).exists():
             mapgen.render(self.snapshot)
         webbrowser.open(Path(MAP_PATH).as_uri())
@@ -275,6 +279,7 @@ class FireWatchApp(rumps.App):
         which would otherwise freeze the menu bar for up to 20 seconds.
         """
         def work():
+            """Find or create the tunnel, then open it."""
             try:
                 url = (expose.find_tunnel() or {}).get("public_url")
                 if not url:
@@ -290,6 +295,7 @@ class FireWatchApp(rumps.App):
         threading.Thread(target=work, daemon=True).start()
 
     def copy_public(self, _=None):
+        """Copy the public map URL to the clipboard, if there is one."""
         url = self.snapshot.get("public_url")
         if not url:
             return
@@ -319,6 +325,7 @@ class FireWatchApp(rumps.App):
             os.execv(sys.executable, [sys.executable, "-m", "firewatch", "menubar"])
 
     def refresh(self, _=None):
+        """Force an immediate poll cycle on a background thread."""
         if self._refreshing:
             return
         self._refreshing = True
@@ -326,11 +333,13 @@ class FireWatchApp(rumps.App):
         threading.Thread(target=self.poller.poll_now, daemon=True).start()
 
     def toggle_notify(self, sender):
+        """Toggle and persist desktop notifications."""
         sender.state = 0 if sender.state else 1
         CFG["notifications_enabled"] = bool(sender.state)
         CFG.save()
 
     def test_notify(self, _=None):
+        """Send a sample desktop notification."""
         notify.send("🔥 FireWatch test", "Notifications are working",
                     subtitle="Bosna i Hercegovina", sound=CFG["sound_update"])
 
@@ -353,6 +362,7 @@ class FireWatchApp(rumps.App):
             return
 
         def work():
+            """Send the SMS and report the outcome as a notification."""
             try:
                 sent = sms.send(text)
             except Exception:
@@ -366,6 +376,7 @@ class FireWatchApp(rumps.App):
         threading.Thread(target=work, daemon=True).start()
 
     def show_quota(self, _=None):
+        """Show FIRMS transaction usage in an alert."""
         q = sources.firms_quota()
         rumps.alert("FIRMS transaction quota",
                     f"{q['current_transactions']} / {q['transaction_limit']} used "
@@ -373,16 +384,20 @@ class FireWatchApp(rumps.App):
                     else "Could not read quota")
 
     def open_folder(self, _=None):
+        """Reveal the data directory in Finder."""
         subprocess.run(["open", str(SUPPORT_DIR)])
 
     def open_log(self, _=None):
+        """Open the log file in the default text editor."""
         subprocess.run(["open", "-t", str(LOG_PATH)])
 
     def quit_app(self, _=None):
+        """Stop polling and quit."""
         self.poller.stop()
         rumps.quit_application()
 
 
 def main():
+    """Entry point: set up logging and run the menu bar app."""
     poller.setup_logging()
     FireWatchApp().run()

@@ -68,6 +68,7 @@ class Poller:
 
     # ------------------------------------------------------------------ control
     def start(self) -> None:
+        """Start the background polling thread (no-op if already running)."""
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
@@ -76,6 +77,7 @@ class Poller:
         self._thread.start()
 
     def stop(self) -> None:
+        """Ask the polling loop to exit after the current cycle."""
         self._stop.set()
 
     def poll_now(self, sources_to_poll=None) -> dict:
@@ -86,6 +88,7 @@ class Poller:
 
     # --------------------------------------------------------------------- loop
     def _loop(self) -> None:
+        """Run cycles until stopped; a failed cycle is logged, never fatal."""
         while not self._stop.is_set():
             try:
                 self.cycle()
@@ -96,6 +99,7 @@ class Poller:
             self._stop.wait(20)
 
     def _interval(self, name: str) -> float:
+        """Seconds until a source is next due (MTG polls faster while a fire is active)."""
         if name == "mtg":
             active = self.snapshot.get("summary", {}).get("n_active", 0)
             return CFG["interval_mtg_active"] if active else CFG["interval_mtg"]
@@ -103,6 +107,10 @@ class Poller:
 
     # -------------------------------------------------------------------- cycle
     def cycle(self) -> dict:
+        """Run one fetch -> store -> cluster -> alert -> publish pass.
+
+        Returns the new snapshot, or the previous one if no source was due.
+        """
         now = time.monotonic()
         fetched: list[dict] = []
         polled: list[str] = []
@@ -158,10 +166,9 @@ class Poller:
             # date changes - the look is free, the pixels are not.
             s2 = imagery.refresh(con)
 
-            # Same "cheap to check, rare to actually do work" shape: gated inside
-            # per municipality to at most twice a day each, so calling it every
-            # cycle costs nothing on the ~140 cycles that are not one of those
-            # two. dict, not one payload - see firedanger.update_all().
+            # Cheap to check, rare to do work: gated inside per municipality to at
+            # most twice a day each. Returns a dict keyed by municipality - see
+            # firedanger.update_all().
             try:
                 fire_danger = firedanger.update_all(con)
             except Exception:
@@ -171,13 +178,10 @@ class Poller:
             alerts = events.diff(previous, current)
             store.save_events(con, current)
 
-            # Cooldown stays per (event, kind), exactly as before grouping -
-            # reignited/corroborated/intensified/grew can genuinely all be
-            # true of the same event in the same cycle (see events.diff()),
-            # and sending one near-identical message per kind reads as spam
-            # rather than as separate news. Eligible alerts are grouped by
-            # event below so each channel sends at most one message per event
-            # per cycle, merging whichever kinds passed cooldown into it.
+            # Cooldown is per (event, kind). Several kinds can be true of one event
+            # in the same cycle (see events.diff()), and one near-identical message
+            # per kind reads as spam, so eligible alerts are grouped by event and
+            # each channel sends at most one merged message per event per cycle.
             eligible = [a for a in alerts if not store.was_notified(
                 con, a["event"]["id"], a["kind"], CFG["notify_cooldown_min"])]
             groups: dict[str, list[dict]] = {}
@@ -206,12 +210,11 @@ class Poller:
                 log.info("alerted %s: %s [notify=%s sms=%s telegram=%s]",
                          kinds_label, group[0]["event"]["place"],
                          notified, texted, posted)
-                # A kind only counts as delivered through a channel that would
-                # actually have included it - sms_kinds/telegram_kinds filter
-                # per kind even within one merged message, so marking every
-                # kind in the group as notified just because *something* sent
-                # would wrongly suppress a kind neither channel was
-                # configured to carry, the one time it later shows up alone.
+                # A kind counts as delivered only through a channel that would have
+                # included it: sms_kinds/telegram_kinds filter per kind within a
+                # merged message, and marking every kind notified because something
+                # sent would suppress a kind neither channel carries if it later
+                # shows up alone.
                 for a in group:
                     delivered = notified or (texted and a["kind"] in sms_kinds) \
                         or (posted and a["kind"] in telegram_kinds)
@@ -219,11 +222,9 @@ class Poller:
                         store.mark_notified(con, ev_id, a["kind"])
                         sent.append(a)
 
-            # Before the snapshot is written, not after: the menu bar and the map
-            # read the URL from it, and a tunnel that died since the last cycle
-            # would otherwise be advertised for another four minutes.
-            # A configured address short-circuits the ngrok work entirely: there is
-            # no agent to ask on a host, and asking costs a failed call per cycle.
+            # Resolved before the snapshot is written: the menu bar and map read the
+            # URL from it, so a dead tunnel must not be advertised for another cycle.
+            # A configured address skips ngrok entirely (no agent to ask on a host).
             public_url = config_public_url()
             if not public_url:
                 try:
@@ -251,18 +252,13 @@ class Poller:
                 "alerts_sent": [{"kind": a["kind"], "id": a["event"]["id"],
                                  "detail": a.get("detail", "")} for a in sent],
                 "notify_backend": notify.backend(),
-                # None until a scene has been rendered; the map omits the layer
-                # rather than drawing an empty rectangle, exactly as it does for
-                # a missing buffer band.
+                # None until a scene has been rendered; the map then omits the layer.
                 "imagery": s2,
-                # Keyed by municipality id, one entry per municipality that has
-                # actually computed at least once - empty when disabled, or
-                # before the first successful computation. A municipality
-                # missing from this dict gets no fire-danger reading in its
+                # Keyed by municipality id; only municipalities that have computed
+                # at least once appear, and a missing one gets no reading in its
                 # popup rather than a stale or fabricated one.
                 "fire_danger": fire_danger,
-                # None unless a public channel is actually configured - see
-                # _telegram_channel_url().
+                # See _telegram_channel_url().
                 "telegram_url": _telegram_channel_url(),
             }
             with self.lock:
@@ -299,23 +295,17 @@ class Poller:
                      removed, CFG["retention_days"])
 
     def get(self) -> dict:
+        """Return the current snapshot."""
         with self.lock:
             return self.snapshot
 
 
 def _telegram_channel_url() -> str | None:
-    """A public join link for *the* alert channel - always None here.
+    """Global public join link for the alert channel - always None.
 
-    Inherited from the single-channel deployment this branch forked from,
-    where one fixed public @handle meant one banner made sense. This
-    deployment has one channel per municipality instead, all private (invite
-    link, not a public handle, after the "too many public channels" account
-    cap - see the provisioning history), so there is no single link to
-    advertise. A per-municipality subscribe link is a real map feature to add
-    later (rendered from telegram.channel_for() against whichever
-    municipality a reader is looking at), not something this one global
-    banner slot can express - left returning None rather than a wrong or
-    misleading single link.
+    There is one private channel per municipality (invite link, not a public
+    handle), so no single link applies. Per-municipality subscribe links come
+    from telegram.channel_for() on the map side.
     """
     return None
 
@@ -323,9 +313,8 @@ def _telegram_channel_url() -> str | None:
 def backfill(days: int = 30) -> dict:
     """One-off deep fetch so the longer view ranges have history behind them.
 
-    The steady-state loop only pulls ~24 h per cycle, which is all it needs once
-    running - but a fresh install has an empty database, and a 7-day filter over
-    two days of data is misleading rather than useful.
+    The steady-state loop pulls ~24 h per cycle; a fresh install has an empty
+    database, and a 7-day filter over two days of data would mislead.
     """
     log.info("backfilling %d days from all sources", days)
     # Each WFS source is clamped to its own archive depth; asking MTG for a year
@@ -355,6 +344,7 @@ def backfill(days: int = 30) -> dict:
 
 
 def _empty_snapshot() -> dict:
+    """Snapshot with no events, used before the first cycle or when none is on disk."""
     return {"generated_at": iso(utcnow()), "events": [], "public_url": None,
             "summary": {"n_active": 0, "n_active_inside": 0, "n_total": 0,
                         "worst": 0.0, "severity": "none"},
