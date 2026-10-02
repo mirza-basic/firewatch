@@ -34,6 +34,7 @@ EARTH_R_KM = 6371.0088
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km (same formula as geo.haversine_km)."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dp = p2 - p1
     dl = math.radians(lon2 - lon1)
@@ -42,6 +43,8 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class Municipality:
+    """One municipality's boundary rings, bounding box and forecast point."""
+
     __slots__ = ("id", "short_name", "rings", "bbox", "forecast_point")
 
     def __init__(self, id_: str, short_name: str,
@@ -52,14 +55,12 @@ class Municipality:
         lons = [x for ring in rings for x, _ in ring]
         lats = [y for ring in rings for _, y in ring]
         self.bbox = (min(lons), min(lats), max(lons), max(lats))
-        # Vertex-mean, same approximation geo.forecast_point() uses for the
-        # single-boundary case (fine at this scale - see its docstring) - one
-        # point per municipality for firedanger.py, replacing the one point
-        # for the whole country that stood in before per-municipality FWI
-        # existed.
+        # Vertex-mean, the same approximation as geo.forecast_point(): the one
+        # point per municipality that firedanger.py computes its FWI at.
         self.forecast_point = (sum(lats) / len(lats), sum(lons) / len(lons))
 
     def bbox_contains(self, lat: float, lon: float) -> bool:
+        """True if the point lies inside this municipality's bounding box."""
         min_lon, min_lat, max_lon, max_lat = self.bbox
         return min_lon <= lon <= max_lon and min_lat <= lat <= max_lat
 
@@ -90,16 +91,19 @@ class Municipality:
         return _haversine_km(lat, lon, clamped_lat, clamped_lon)
 
     def distance_to_boundary_km(self, lat: float, lon: float) -> float:
+        """Distance in km to the nearest boundary vertex."""
         return min(_haversine_km(lat, lon, y, x) for ring in self.rings for x, y in ring)
 
 
 @lru_cache(maxsize=1)
 def by_id() -> dict[str, Municipality]:
+    """All municipalities keyed by id."""
     return {m.id: m for m in municipalities()}
 
 
 @lru_cache(maxsize=1)
 def municipalities() -> tuple[Municipality, ...]:
+    """Load every municipality's boundary from data/bih (cached)."""
     rows = json.loads(MUNI_FILE.read_text())
     out = []
     for r in rows:
@@ -128,12 +132,10 @@ def classify_point(lat: float, lon: float) -> list[str]:
     if matches:
         return matches
 
-    # Fallback path only: bbox_lower_bound_km is a true lower bound (see its
-    # docstring), so ranking by it and exact-checking just the closest 10
-    # cannot miss the real nearest municipality - but it does turn "check all
-    # 145 boundaries' every vertex" into "check 10 of them", which matters
-    # here specifically because this path runs once per unclassified
-    # detection, not once per poll cycle.
+    # Fallback path: bbox_lower_bound_km is a true lower bound, so ranking by it
+    # and exact-checking only the closest 10 cannot miss the nearest municipality,
+    # and avoids walking every vertex of all 145 boundaries for each unclassified
+    # detection.
     ranked = sorted(municipalities(), key=lambda m: m.bbox_lower_bound_km(lat, lon))
     nearest = min(ranked[:10], key=lambda m: m.distance_to_boundary_km(lat, lon))
     return [nearest.id]

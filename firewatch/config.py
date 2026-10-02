@@ -27,11 +27,13 @@ MACOS = sys.platform == "darwin"
 
 
 def _env_path(name: str) -> Path | None:
+    """Path from an environment variable, or None when unset."""
     v = os.environ.get(name)
     return Path(v).expanduser() if v else None
 
 
 def _data_dir() -> Path:
+    """Directory for the database, snapshot and log."""
     override = _env_path("FIREWATCH_DATA_DIR")
     if override:
         return override
@@ -41,6 +43,7 @@ def _data_dir() -> Path:
 
 
 def _config_dir() -> Path:
+    """Directory holding config.json."""
     override = _env_path("FIREWATCH_CONFIG_DIR")
     if override:
         return override
@@ -48,6 +51,7 @@ def _config_dir() -> Path:
 
 
 def _public_dir() -> Path:
+    """Directory served publicly: the map and its data file only."""
     override = _env_path("FIREWATCH_PUBLIC_DIR")
     if override:
         return override
@@ -79,29 +83,24 @@ MAP_PATH = SUPPORT_DIR / "fire-map.html"
 # of place for it too: every file here is rewritten from the snapshot each cycle.
 PUBLIC_DIR = _public_dir()
 
-# The clip and reference boundary is now the whole country, not one
-# municipality - Zavidovici is just data/bih/zavidovici.geojson, one of the
-# 145, and needs no special-casing now that all 145 (it included) are fetched
-# and clipped together. BOUNDARY_GEOJSON/SETTLEMENTS_JSON/BUFFER_GEOJSON keep
-# their names and their role (fetch-time clip, nearest-settlement naming, the
-# drawn "nearby" band) - only what they point at changed.
+# The clip and reference boundary is the whole country; every municipality is
+# fetched and clipped together. BOUNDARY_GEOJSON / SETTLEMENTS_JSON /
+# BUFFER_GEOJSON serve as fetch-time clip, nearest-settlement naming and the
+# drawn "nearby" band respectively.
 BOUNDARY_GEOJSON = DATA_DIR / "bih" / "country.geojson"
 # Merged and deduplicated from all 145 municipalities' own settlement fetches
-# (data/bih/<id>-settlements.json) - adjacent municipalities' 25 km-radius
-# Overpass queries overlap heavily, so the same real place was independently
-# fetched dozens of times; 59,545 raw rows collapsed to 13,240 unique ones.
+# (data/bih/<id>-settlements.json). Adjacent municipalities' 25 km-radius
+# Overpass queries overlap heavily: 59,545 raw rows collapse to 13,240 unique ones.
 SETTLEMENTS_JSON = DATA_DIR / "bih" / "settlements.json"
 # The "nearby" band drawn on the map: everything within nearby_buffer_km of the
-# outline. Like the two files above it is a build-time artifact - see
-# geo.build_buffer() - so the running app needs neither shapely nor pyproj.
-# Now means "just over the BiH border", the same concept as before applied to
-# the country outline instead of one municipality's.
+# outline (just over the BiH border). Like the two files above it is a
+# build-time artifact - see geo.build_buffer() - so the running app needs neither
+# shapely nor pyproj.
 BUFFER_GEOJSON = DATA_DIR / "bih" / "country-buffer.geojson"
 
-# No FIRMS key is committed to this repository, deliberately. One used to be, which
-# made a fresh clone work immediately at the cost of every clone sharing one key and
-# one 5000-per-10-minutes limit - and putting the key in git history for good. Supply
-# your own: `set-firms-key`, or FIRMS_MAP_KEY in the environment.
+# No FIRMS key is committed to this repository, deliberately: a shared key would mean
+# one 5000-per-10-minutes limit for every clone and a credential in git history.
+# Supply your own: `set-firms-key`, or FIRMS_MAP_KEY in the environment.
 FIRMS_KEYCHAIN_SERVICE = "firewatch-firms"
 FIRMS_SIGNUP_URL = "https://firms.modaps.eosdis.nasa.gov/api/map_key/"
 
@@ -153,13 +152,10 @@ DEFAULTS = {
     "cluster_radius_km": 3.5,
     "cluster_gap_hours": 8.0,
     # An event with no new detection for this long is treated as no longer burning.
-    # Five, not four, because four was tighter than Sentinel-3's own delivery: that
-    # feed lands 3-4 h after acquisition (S3A measured 4.13 h), so a fire only S3 had
-    # seen arrived already quiet and the `new` gate threw the alert away. Replaying
-    # all stored history at both values moves three events - every one Sentinel-3
-    # reported first - from a late `reignited` to a correct `new`, 2.4 to 3.7 h
-    # earlier, for one fewer SMS overall. Keep it under cluster_gap_hours (8) or an
-    # event reads active while its cluster can no longer absorb the next detection.
+    # Must exceed Sentinel-3's delivery latency (3-4 h after acquisition, S3A
+    # measured 4.13 h), or a fire only S3 saw arrives already quiet and the `new`
+    # gate drops the alert. Keep it under cluster_gap_hours (8) or an event reads
+    # active while its cluster can no longer absorb the next detection.
     "quiet_hours": 5.0,
     # Working window for clustering. This is the *view* horizon, not the fetch
     # horizon: each poll only fetches ~24 h of overlap because history already
@@ -196,12 +192,10 @@ DEFAULTS = {
     # SMS costs a segment every time a fire merely cools off.
     "sms_kinds": ["new", "reignited", "intensified", "grew"],
     # Empty means no restriction - every municipality's alerts reach the SMS
-    # recipient list, same as before this existed. Set to municipality ids (e.g.
-    # ["zavidovici"]) on a country-wide deployment where the SMS number is one
-    # person's own phone, not a broadcast list the way each municipality's own
-    # Telegram channel is - that person likely wants a text only for fires near
-    # them, not all 145 municipalities' worth. Telegram is unaffected either way,
-    # since it already routes per-municipality on its own.
+    # recipient list. Set to municipality ids (e.g. ["zavidovici"]) when the SMS
+    # number is one person's own phone rather than a broadcast list, so they only
+    # get texts for fires near them. Telegram is unaffected: it routes
+    # per-municipality on its own.
     # FIREWATCH_SMS_MUNICIPALITIES overrides this from the environment, same
     # precedence as FIREWATCH_SMS_TO and for the same reason: which municipality
     # this reaches is personal information (roughly where that person lives),
@@ -233,9 +227,8 @@ DEFAULTS = {
     # so this has to be generous.
     "http_timeout": 90,
     # Connect timeout, which is a different question: a reachable host answers a
-    # TCP handshake in well under a second. Applying 90 s to both meant a runner
-    # whose packets were being dropped stalled 90 s per dataset - six minutes to
-    # discover FIRMS was unreachable.
+    # TCP handshake in well under a second. Sharing the 90 s read timeout would
+    # stall a runner whose packets are dropped for 90 s per dataset.
     "connect_timeout": 10,
     "user_agent": "firewatch-bih/1.0 (+https://github.com/) contact: local",
     # Sentinel-2 at 10 m, rendered server-side once per new scene. Off by default:
@@ -276,18 +269,16 @@ DEFAULTS = {
     "telegram_language": "bs",
 }
 
-# BiH's own vertex-mean (see geo.forecast_point(), same approximation, same
-# reason), not any one town - there are 145 of those now, each already named
-# by geo.describe_location()/place_parts on every event, which needs no
-# single reference point at all. What's left needing *a* point rather than
-# *the* town's is the sun-elevation gate on the geostationary visible layers
-# (mapgen.py) - one longitude anywhere inside a country this size is close
-# enough for that; geo.from_town()/dist_town_km/dir_town, which did mean one
-# specific town, are gone along with Zavidovici's own special-cased config.
+# A single reference point for the whole country (approximately its vertex-mean),
+# not any one town. Used only by the sun-elevation gate on the geostationary
+# visible layers (mapgen.py), where one longitude anywhere inside a country this
+# size is close enough.
 TOWN_LAT, TOWN_LON = 44.1195382, 18.1876859
 
 
 class Config(dict):
+    """DEFAULTS overlaid with config.json overrides and the FIRMS_MAP_KEY env var."""
+
     def __init__(self):
         super().__init__(DEFAULTS)
         if CONFIG_FILE.exists():
@@ -308,13 +299,12 @@ class Config(dict):
         """Persist overrides only.
 
         Writing the whole dict would freeze every default at its current value,
-        so later changes to DEFAULTS could never reach an existing install - which
-        is exactly what happened when window_hours was raised for the month view.
+        so later changes to DEFAULTS could never reach an existing install.
         """
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        # Atomic: the recipient list is now re-read at send time, so a poller can be
-        # reading this file at the moment `sms-add` rewrites it. A partial read would
-        # be a JSON error, and an alert would go nowhere.
+        # Atomic: the recipient list is re-read at send time, so a poller can be
+        # reading this file while `sms-add` rewrites it. A partial read would be a
+        # JSON error, and an alert would go nowhere.
         tmp = CONFIG_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(self.overrides(), indent=2, ensure_ascii=False))
         os.replace(tmp, CONFIG_FILE)
@@ -329,8 +319,7 @@ def public_url() -> str | None:
     `expose.find_tunnel()` answers the same question by asking the local ngrok agent,
     which is right on a laptop and useless anywhere else: a host serves the map at an
     address of its own that ngrok knows nothing about. Without this, an SMS from a
-    hosted instance simply dropped its map link - the one line you most want when a
-    fire alert arrives.
+    hosted instance has no map link.
 
     Set it and it wins, which also means the poller stops asking ngrok at all.
     """
@@ -477,7 +466,7 @@ class RedactingFormatter(logging.Formatter):
     puts the whole query - key included - into its exception message, and
     `log.warning("firms %s: %s", ds, exc)` writes it to disk. Redacting centrally
     rather than at each call site covers the paths nobody anticipated, which is the
-    point: this leaked quietly for months.
+    point.
 
     A formatter and not a Filter, which is the obvious choice and the wrong one:
     filters run *before* formatting, so on the first handler `record.exc_text` is
@@ -502,14 +491,8 @@ def force_ipv4() -> None:
     CNAME) all publish AAAA records (checked with `dig AAAA`), while the
     EUMETSAT WFS and Open-Meteo are IPv4-only.
 
-    Shared here rather than living inside `sources.py`, which used to be its
-    only caller: `sms.send()` and `telegram.send()`/`_post()` need the exact
-    same fix, and a process-wide urllib3 patch belongs in one place, not
-    copied into every module that makes an outbound request. Before this
-    module existed, `test-sms.yml` had set `FIREWATCH_FORCE_IPV4` since it was
-    written on the belief that it covered the SMS send - but nothing in
-    `sms.py` ever called the function that made the variable do anything, so
-    it silently did nothing for that path.
+    Lives here because `sources`, `sms.send()` and `telegram.send()`/`_post()` all
+    need the same process-wide urllib3 patch.
 
     Opt-in, not automatic: a working dual-stack network resolves this
     correctly on its own, and hard-coding IPv4 would break an IPv6-only host.
@@ -530,6 +513,7 @@ def force_ipv4() -> None:
 
 
 def ensure_dirs():
+    """Create the data and config directories if missing."""
     SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 

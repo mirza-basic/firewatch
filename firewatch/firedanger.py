@@ -3,22 +3,20 @@ computed once (twice, around local noon) a day, independently for each of BiH's
 145 municipalities.
 
 This exists because EFFIS/GWIS - the free, official European fire-danger product -
-only reaches ~8-10 km resolution and, measured against this deployment's original
-single municipality, has a publication gap around "today" (querying its WMS for
-the current date returned an empty 200 response on two separate days, while
-yesterday and the forecast days on either side had real data). Both problems
-disappear by computing the same public, standard algorithm ourselves, anchored at
-each municipality's own centroid, from a weather feed with no such gap - one point
-per municipality rather than one for the whole country, which is what keeps this
-at roughly EFFIS's own per-area resolution instead of averaging over an area far
-too large for one number to mean anything.
+only reaches ~8-10 km resolution and has a publication gap around "today"
+(querying its WMS for the current date returned an empty 200 response on two
+separate days, while yesterday and the forecast days on either side had real
+data). Computing the same public, standard algorithm ourselves avoids both,
+anchored at each municipality's own forecast point from a weather feed with no
+such gap - one point per municipality, so one number never averages over an area
+too large for it to mean anything.
 
 The six formulas below (fine_fuel_moisture_code, duff_moisture_code, drought_code,
 initial_spread_index, buildup_index, fire_weather_index) are a line-for-line port
 of the official Natural Resources Canada reference implementation
 (github.com/cffdrs/cffdrs_r and its Python sibling cffdrs/cffdrs_py), not a
 reconstruction from memory - the constants are exactly theirs. `tests_fwi.py`
-replays their own published 47-day validation dataset (Van Wagner & Pickett 1985)
+replays their own published 48-day validation dataset (Van Wagner & Pickett 1985)
 through this module and checks every day's FFMC/DMC/DC/ISI/BUI/FWI against their
 published output, so a transcription mistake anywhere fails a test rather than
 silently mis-rating a real fire day.
@@ -32,11 +30,8 @@ References:
 
 Day length adjustment tables (Le for DMC, Lf for DC) are latitude-banded, not
 Canada-specific - the ">=30N" band all of Bosnia and Herzegovina falls in is also
-what EFFIS itself applies across Mediterranean and Central Europe, since that
-latitude range is close enough to southern Canada's for the same tables to hold.
-Keeping every band (not just the one this country's municipalities need) is what
-lets this module work unmodified if a municipality's own forecast point (or a
-fork's, at another region entirely) ever falls at a different latitude.
+what EFFIS itself applies across Mediterranean and Central Europe. Every band is
+kept so the module works unmodified at any latitude.
 """
 from __future__ import annotations
 
@@ -66,21 +61,16 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 # real weather through them rather than trusting them directly. See _fetch_daily.
 FFMC0, DMC0, DC0 = 85.0, 6.0, 15.0
 
-# Open-Meteo's own *advertised* cap on `past_days` is 92; asking for 93 and
-# dropping the first date gives every *usable* date a full 24h of hours behind
-# it for the rain sum, without losing any of the 92 - in principle.
+# Open-Meteo's advertised cap on `past_days` is 92; asking for 93 and dropping the
+# first date gives every usable date a full 24h of hours behind it for the rain sum.
 #
-# Measured 2026-09-10: the response's hourly series does span the full 93 days,
-# but the earliest ~28 of them come back with temp/rh/wind all `null` - real
-# data only reached back 65 days, not 92. `_fetch_daily` already drops any date
-# with a null reading (originally written for a same-day hour Open-Meteo hasn't
-# filled in yet, which turned out to catch this too), so a shorter real window
-# degrades gracefully rather than computing on missing data - but do not read
-# SPINUP_DAYS as a guarantee of how far back the replay actually reaches on any
-# given day. 65 days is still within the few-months window the fire-science
-# literature treats as enough for the Drought Code's memory of a wrong starting
-# value to be washed out by real rain events; there is no guard against a much
-# shorter run of real data, because none has been observed yet.
+# Measured 2026-09-10: the hourly series spans the full 93 days, but the earliest
+# ~28 come back with temp/rh/wind all `null`, so real data reached back only 65
+# days. `_fetch_daily` drops any date with a null reading, so a shorter real window
+# degrades gracefully - but SPINUP_DAYS is not a guarantee of how far back the
+# replay reaches. 65 days is still within the few-months window the literature
+# treats as enough for the Drought Code to wash out a wrong starting value; there
+# is no guard against a much shorter run of real data.
 SPINUP_DAYS = 93
 
 FFMC_COEFFICIENT = 250.0 * 59.5 / 101.0
@@ -105,6 +95,7 @@ FL_EQUATORIAL = 1.4                                                          # -
 
 def fine_fuel_moisture_code(ffmc_yda: float, temp: float, rh: float,
                             ws: float, prec: float) -> float:
+    """Fine Fuel Moisture Code (FFMC): today's value from yesterday's and noon weather."""
     wmo = FFMC_COEFFICIENT * (101 - ffmc_yda) / (59.5 + ffmc_yda)
     ra = (prec - 0.5) if prec > 0.5 else prec
     if prec > 0.5:
@@ -147,6 +138,7 @@ def _ell(lat: float, mon: int) -> float:
 
 def duff_moisture_code(dmc_yda: float, temp: float, rh: float, prec: float,
                        lat: float, mon: int) -> float:
+    """Duff Moisture Code (DMC), advanced one day."""
     temp = max(temp, -1.1)
     rk = 1.894 * (temp + 1.1) * (100 - rh) * _ell(lat, mon) * 1e-04
     if prec <= 1.5:
@@ -180,6 +172,7 @@ def _pe_base(lat: float, temp: float, mon: int) -> float:
 
 def drought_code(dc_yda: float, temp: float, rh: float, prec: float,
                  lat: float, mon: int) -> float:
+    """Drought Code (DC), advanced one day."""
     temp = max(temp, -2.8)
     pe = max(_pe_base(lat, temp, mon), 0.0)
     rw = 0.83 * prec - 1.27
@@ -190,6 +183,7 @@ def drought_code(dc_yda: float, temp: float, rh: float, prec: float,
 
 
 def initial_spread_index(ffmc: float, ws: float) -> float:
+    """Initial Spread Index (ISI) from FFMC and wind speed."""
     fm = FFMC_COEFFICIENT * (101 - ffmc) / (59.5 + ffmc)
     f_w = math.exp(0.05039 * ws)
     f_f = 91.9 * math.exp(-0.1386 * fm) * (1 + (fm ** 5.31) / 49_300_000)
@@ -197,6 +191,7 @@ def initial_spread_index(ffmc: float, ws: float) -> float:
 
 
 def buildup_index(dmc: float, dc: float) -> float:
+    """Buildup Index (BUI) from DMC and DC."""
     if dmc == 0 and dc == 0:
         return 0.0
     bui1 = 0.8 * dc * dmc / (dmc + 0.4 * dc)
@@ -207,6 +202,7 @@ def buildup_index(dmc: float, dc: float) -> float:
 
 
 def fire_weather_index(isi: float, bui: float) -> float:
+    """Fire Weather Index (FWI) from ISI and BUI."""
     if bui > 80:
         bb = 0.1 * isi * (1000 / (25 + 108.64 / math.exp(0.023 * bui)))
     else:
@@ -229,9 +225,8 @@ def step(prev: dict, temp: float, rh: float, ws: float, prec: float,
 
 # --------------------------------------------------------------------- danger class
 # Thresholds and colours read directly off EFFIS's own published legend
-# (mf010.fwi, GetLegendGraphic) - so a class computed here lines up with what the
-# same day would show on the official map, which is the whole point of using the
-# same standard algorithm.
+# (mf010.fwi, GetLegendGraphic), so a class computed here lines up with what the
+# same day would show on the official map.
 CLASSES = (
     (11.2, "low", "#9cffc0"),
     (21.3, "moderate", "#cde24e"),
@@ -255,12 +250,11 @@ def classify(fwi: float) -> tuple[str, str]:
 def _fetch_daily(lat: float, lon: float, forecast_days: int) -> dict[str, dict]:
     """Noon temp/RH/wind and 24h-to-noon rain, per local date.
 
-    One call, one keyless host, covers both the deep replay and the routine daily
-    update: `past_days` *asks* to reach back to Open-Meteo's own 92-day cap and
-    `forecast_days` reaches forward, so a cold start and a normal day use the same
-    request shape. What actually comes back can reach less far than asked - see
-    SPINUP_DAYS - which is why every date here is dropped, not zero-filled, when
-    its noon reading is null.
+    One call to one keyless host covers both the deep replay and the routine daily
+    update: `past_days` asks to reach back to Open-Meteo's 92-day cap and
+    `forecast_days` reaches forward. What comes back can reach less far than asked
+    (see SPINUP_DAYS), so a date is dropped, not zero-filled, when its noon
+    reading is null.
     """
     r = requests.get(
         OPEN_METEO_URL,
@@ -286,59 +280,46 @@ def _fetch_daily(lat: float, lon: float, forecast_days: int) -> dict[str, dict]:
         if i < 23:
             continue
         if temp[i] is None or rh[i] is None or ws[i] is None:
-            continue          # an hour Open-Meteo hasn't filled in yet
+            continue          # hour not filled in (yet, or outside the real data window)
         rain24 = sum(v for v in prec[i - 23:i + 1] if v is not None)
         out[date] = {"temp": temp[i], "rh": rh[i], "ws": ws[i], "prec": rain24}
     return out
 
 
 # ------------------------------------------------------------------------ update
-# One gate and one payload per municipality, not one pair for the whole
-# deployment - each of the 145 recomputes (or skips) independently, so a fetch
-# failure for one does not touch the other 144, and a fork with only some
-# municipalities set up loses nothing for the rest.
+# One gate and one payload per municipality: each of the 145 recomputes (or skips)
+# independently, so a fetch failure for one does not touch the others.
 
-# Politeness towards update_one()'s own single-municipality path - not load-
-# bearing for update_all() any more, which paces itself through _MAX_WORKERS
-# and the 429 retry below instead. Only charged per real request (see
-# update_one()'s finally below), not per municipality checked.
+# Courtesy pause after each real request in update_one(); only charged when a
+# request actually went out, not per municipality checked.
 _FETCH_DELAY_S = 0.3
 
-# update_all()'s cold-start case - nothing cached yet, so all 145 are due at
-# once - measured taking several minutes fully sequential (145 requests at
-# roughly a second-plus each, worse the moment even one hits Open-Meteo's own
-# occasional slow response - a real ~30 s read timeout was measured on two of
-# 145 during the first run against a freshly reset database), long enough that
-# an external caller watching the run can mistake it for hung and cancel it -
-# which happened for real once. Bounded concurrency for the fetches (not the
-# database writes, which stay sequential in the calling thread - SQLite's WAL
-# mode tolerates concurrent readers fine but only really wants one writer)
-# turns that multi-minute wall-clock cost into worker count-many requests in
-# flight at once.
+# Cold start (nothing cached, all 145 due at once) takes several minutes fully
+# sequential - long enough that a watching caller can mistake it for hung. The
+# fetches therefore run in a bounded thread pool; database writes stay sequential
+# in the calling thread, since SQLite's WAL mode wants a single writer.
 #
-# Open-Meteo *does* enforce a real limit despite advertising none for this
-# endpoint - measured directly, not documented: a 429 whose body names it
-# outright, `{"reason":"Minutely API request limit exceeded. Please try again
-# in one minute.","error":true}`. It is a rolling per-minute cap, not a
-# concurrency cap - two back-to-back full runs of 145 seconds apart hit it far
-# harder than one run alone (145/145 succeeded once from a quiet state; the
-# very next run, moments later, only 68/145 did) - so a lower worker count
-# alone does not fully avoid it, only slows how fast the budget is spent.
-# _fetch_batch()'s 429-specific retry in update_all() is what actually
-# recovers from this rather than silently losing whichever municipalities
-# happened to lose the race.
+# Open-Meteo enforces a rolling per-minute cap despite advertising none for this
+# endpoint (measured: a 429 with body `{"reason":"Minutely API request limit
+# exceeded. Please try again in one minute.","error":true}`). Back-to-back full
+# runs hit it hard (145/145 from a quiet state, then 68/145 moments later), so a
+# lower worker count only slows how fast the budget is spent; the 429 retry in
+# update_all() is what recovers the municipalities that lose the race.
 _MAX_WORKERS = 4
 
 
 def _gate_key(municipality_id: str) -> str:
+    """meta key holding the date/noon gate for one municipality."""
     return f"fwi_gate:{municipality_id}"
 
 
 def _payload_key(municipality_id: str) -> str:
+    """meta key holding the last computed payload for one municipality."""
     return f"fwi_payload:{municipality_id}"
 
 
 def _load_json_meta(con, key: str):
+    """A JSON value from meta, or None when absent or unparseable."""
     raw = store.get_meta(con, key)
     if not raw:
         return None
@@ -353,25 +334,20 @@ def update_one(con, municipality_id: str, lat: float, lon: float,
     """Recompute today's fire danger (and the short forecast) for one
     municipality, if due.
 
-    `force` bypasses the once/twice-a-day gate - only the CLI's `fire-danger
-    --force` uses it, for checking the module against a live fetch on demand.
+    `force` bypasses the once/twice-a-day gate (used by the CLI's `fire-danger
+    --force`).
 
-    Runs at most twice a day per municipality - once for whichever cycle
-    first runs after local midnight (today's entry is then built from
-    forecast noon values), and once more for the first cycle after local noon
-    (today's entry is rebuilt from the now-actual noon observation, per
-    Open-Meteo's own `past_days` window). Every other cycle returns the
-    cached payload with no network call at all, the same shape as
-    imagery.refresh()'s scene-date gate.
+    Runs at most twice a day per municipality: for the first cycle after local
+    midnight (today's entry built from forecast noon values) and the first cycle
+    after local noon (rebuilt from the actual noon observation). Every other cycle
+    returns the cached payload with no network call, like imagery.refresh()'s
+    scene-date gate.
 
-    Deliberately stateless across days: rather than persisting yesterday's codes
-    and bridging forward (which needs separate cold-start and gap-repair paths),
-    every run replays the *entire* fetched window from the standard startup
-    values. That window *asks* to reach SPINUP_DAYS back, and how far it actually
-    reaches varies with what Open-Meteo has filled in (measured as low as 65 real
-    days back on 2026-09-10) - either way it is real weather, not a persisted
-    guess, so a day the poller was not running for needs no special case: there
-    is no stored state for it to have gone stale.
+    Stateless across days: rather than persisting yesterday's codes and bridging
+    forward (which needs cold-start and gap-repair paths), every run replays the
+    entire fetched window from the standard startup values. How far back that
+    window really reaches varies (see SPINUP_DAYS), but it is always real weather,
+    so a day the poller missed needs no special case.
     """
     now = datetime.now(ZoneInfo(TIMEZONE))
     today = now.date().isoformat()
@@ -390,11 +366,8 @@ def update_one(con, municipality_id: str, lat: float, lon: float,
         log.warning("fire danger fetch failed for %s: %s", municipality_id, exc)
         return cached
     finally:
-        # Politeness towards a free, keyless API being asked up to 145 times
-        # in a row (from update_all()), not a documented requirement of it -
-        # Open-Meteo publishes no rate limit for this endpoint. Only charged
-        # when a request actually went out, so a routine cycle - where the
-        # gate above skips all 145 - costs nothing here.
+        # Courtesy towards a free, keyless API; only reached when a request
+        # actually went out, so gated cycles cost nothing here.
         time.sleep(_FETCH_DELAY_S)
 
     payload = _compute_payload(daily, lat, lon, today, municipality_id)
@@ -407,10 +380,9 @@ def update_one(con, municipality_id: str, lat: float, lon: float,
 
 def _compute_payload(daily: dict[str, dict], lat: float, lon: float, today: str,
                       municipality_id: str) -> dict | None:
-    """The pure-CPU half of update_one() - given an already-fetched window,
-    replay the FWI System through it and shape the payload. No I/O, no shared
-    state, so update_all() can run this in the same thread that owns the
-    database connection while _fetch_daily() runs concurrently elsewhere.
+    """The pure-CPU half of update_one(): replay the FWI System through an
+    already-fetched window and shape the payload. No I/O or shared state, so
+    update_all() runs it in the thread that owns the database connection.
     """
     dates = sorted(daily)
     if today not in dates:
@@ -439,21 +411,14 @@ def _compute_payload(daily: dict[str, dict], lat: float, lon: float, today: str,
 
 
 def update_all(con, force: bool = False) -> dict[str, dict]:
-    """update_one() for every one of BiH's 145 municipalities - but fetching
-    concurrently (bounded, see _MAX_WORKERS) rather than one at a time.
+    """update_one() for every municipality, fetching concurrently.
 
-    Most cycles nothing is due at all (see update_one()'s gate) and this
-    costs nothing. When something is due - routinely a handful, at most all
-    145 at once on a freshly reset database with nothing cached yet, or on the
-    twice-daily moment every gate opens together - the network fetches run in
-    a bounded thread pool (_fetch_batch()); only the compute-and-persist step
-    (pure CPU, plus the one shared SQLite connection) happens back in this
-    thread, one municipality at a time, since SQLite's WAL mode wants a single
-    writer. Municipalities that hit Open-Meteo's own per-minute rate limit get
-    one coordinated retry after waiting it out (see _MAX_WORKERS's own
-    comment); any other fetch failure is logged and skipped, same as any
-    other per-source failure in this project - the other 144 are unaffected
-    either way.
+    Most cycles nothing is due (see update_one()'s gate) and this costs nothing.
+    When some are due, the fetches run in a bounded thread pool (_fetch_batch())
+    while compute-and-persist stays in this thread, one municipality at a time.
+    Municipalities that hit Open-Meteo's per-minute limit get one coordinated retry
+    after waiting it out (see _MAX_WORKERS); any other fetch failure is logged and
+    skipped without affecting the rest. Returns payloads keyed by municipality id.
     """
     out: dict[str, dict] = {}
     if not CFG.get("fire_danger_enabled", True):
@@ -464,8 +429,7 @@ def update_all(con, force: bool = False) -> dict[str, dict]:
     noon_passed = now.hour >= 12
     forecast_days = int(CFG["fire_danger_forecast_days"])
 
-    # Cheap, sequential, no network: sort the gated (skip) from the due
-    # (fetch), same test update_one() itself applies.
+    # Split gated (skip) from due (fetch) with the same test update_one() applies.
     due: list[tuple[str, float, float]] = []
     for m in geo_bih.municipalities():
         lat, lon = m.forecast_point
@@ -483,16 +447,9 @@ def update_all(con, force: bool = False) -> dict[str, dict]:
 
     results = _fetch_batch(due, forecast_days)
 
-    # Open-Meteo's free tier enforces a real per-minute request cap, measured
-    # directly: the response body is not a generic 429, it names the window -
-    # {"reason":"Minutely API request limit exceeded. Please try again in one
-    # minute.","error":true}. A cold-start burst (all 145 due at once, nothing
-    # cached yet) or the twice-daily moment all 145 gates open together can
-    # both plausibly exceed it even at a modest worker count, so rate-limited
-    # municipalities get one coordinated retry after waiting the window out,
-    # rather than being dropped for the day - a single shared wait, not each
-    # of them sleeping and retrying independently and re-triggering the same
-    # limit as a second stampede.
+    # Rate-limited municipalities (see _MAX_WORKERS) get one retry after a single
+    # shared wait, not each sleeping and retrying independently, which would
+    # re-trigger the same limit as a second stampede.
     rate_limited = [mid for mid, (status, _) in results.items() if status == "429"]
     if rate_limited:
         log.warning("fire danger: %d/%d municipalities hit Open-Meteo's per-minute "
@@ -528,10 +485,9 @@ def update_all(con, force: bool = False) -> dict[str, dict]:
 def _fetch_batch(items: list[tuple[str, float, float]],
                   forecast_days: int) -> dict[str, tuple[str, object]]:
     """Fetch a batch concurrently (bounded, see _MAX_WORKERS). Each result is
-    ("ok", daily_dict), ("429", None) for Open-Meteo's own rate limit
-    specifically, or ("error", exception) for anything else - kept distinct
-    from a generic failure because 429 is the one outcome update_all() retries
-    rather than gives up on for the cycle.
+    ("ok", daily_dict), ("429", None) for Open-Meteo's rate limit, or
+    ("error", exception) for anything else; 429 is kept distinct because it is the
+    one outcome update_all() retries.
     """
     out: dict[str, tuple[str, object]] = {}
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:

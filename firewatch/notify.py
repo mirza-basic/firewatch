@@ -1,11 +1,12 @@
-"""macOS notification delivery.
+"""Desktop notification delivery.
 
-Two paths, preferred first:
+Backends, preferred first:
   terminal-notifier  supports click-to-open, so the notification itself becomes a
                      link straight to Google Maps. Install with `brew install
                      terminal-notifier`.
-  osascript          always present. Displays reliably but a click does nothing,
-                     so the menu bar and map stay the way to reach the links.
+  notify-send        Linux desktops (libnotify).
+  osascript          always present on macOS. Displays reliably but a click does
+                     nothing, so the menu bar and map stay the way to reach the links.
 """
 from __future__ import annotations
 
@@ -19,9 +20,8 @@ from .config import CFG
 log = logging.getLogger("firewatch.notify")
 
 _TN = shutil.which("terminal-notifier")
-# Linux desktops ship notify-send (libnotify). On a headless server none of the
-# three exist, and backend() says so rather than naming one that is not installed -
-# a poll cycle then simply reports the alert to the log and carries on.
+# On a headless server none of the three exist; backend() then says "none" and a
+# poll cycle just logs the alert and carries on.
 _NS = None if sys.platform == "darwin" else shutil.which("notify-send")
 _OSA = shutil.which("osascript")
 
@@ -37,6 +37,7 @@ TITLES = {
 
 
 def _applescript_str(s: str) -> str:
+    """Quote and escape a string as an AppleScript literal."""
     return '"%s"' % s.replace("\\", "\\\\").replace('"', '\\"')
 
 
@@ -74,6 +75,7 @@ def send(title: str, message: str, subtitle: str = "", sound: str | None = None,
 
 
 def _run(cmd: list[str]) -> bool:
+    """Run a notifier command; True on a clean exit, False (logged) otherwise."""
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=20)
         if r.returncode != 0:
@@ -85,15 +87,15 @@ def _run(cmd: list[str]) -> bool:
 
 
 def maps_url(lat: float, lon: float) -> str:
+    """Google Maps link for a coordinate."""
     return f"https://www.google.com/maps?q={lat},{lon}"
 
 
 def merged_alert_text(alerts: list[dict]) -> tuple[str, str, str]:
-    """(title, subtitle, message) for however many kinds fired for the same
-    event in the same cycle, instead of one notification per kind - reignited,
-    corroborated, intensified and grew can genuinely all be true of the same
-    event at once (see events.diff()), and two or three popups about the same
-    fire in one cycle is worse than one that says all of it."""
+    """(title, subtitle, message) for every alert kind fired for one event in a cycle.
+
+    Several kinds can be true of the same event at once (see events.diff()), and
+    one popup that says all of it beats several about the same fire."""
     ev = alerts[0]["event"]
     kinds = [a["kind"] for a in alerts]
     icon = ICONS.get(kinds[0], "🔥") if len(kinds) == 1 else "🔥"
@@ -117,8 +119,7 @@ def alert_text(alert: dict) -> tuple[str, str, str]:
 
 
 def notify_alert_group(alerts: list[dict]) -> bool:
-    """Same as notify_alert(), but for however many kinds fired for one event
-    in the same cycle - one popup, not one per kind."""
+    """Deliver one popup covering every alert kind fired for one event in a cycle."""
     ev = alerts[0]["event"]
     kinds = [a["kind"] for a in alerts]
     title, subtitle, message = merged_alert_text(alerts)
@@ -131,10 +132,12 @@ def notify_alert_group(alerts: list[dict]) -> bool:
 
 
 def notify_alert(alert: dict) -> bool:
+    """Deliver a notification for a single alert record."""
     return notify_alert_group([alert])
 
 
 def backend() -> str:
+    """Name of the active notification backend, or "none"."""
     if _TN:
         return "terminal-notifier"
     if _NS:

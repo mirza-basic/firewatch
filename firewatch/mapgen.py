@@ -9,8 +9,8 @@ A file:// page cannot XHR a sibling JSON file under Chrome/Safari CORS rules, bu
 *can* pull in a sibling script via a <script src> tag. So instead of reloading, the
 page periodically appends a cache-busted script tag and re-renders from the assigned
 object. That keeps the map view, the selected range, the selected fire and the
-timeline position exactly where the reader left them - a full reload threw all of
-that away every minute. If script injection ever fails, it falls back to reloading.
+timeline position exactly where the reader left them, which a full reload would
+discard. If script injection fails, it falls back to reloading.
 """
 from __future__ import annotations
 
@@ -23,33 +23,24 @@ from . import geo, imagery
 from .config import (BOUNDARY_GEOJSON, MAP_PATH, PUBLIC_DIR, TOWN_LAT, TOWN_LON,
                      firebase_config)
 
-# All 145 BiH municipality boundaries, drawn as one extra toggleable reference
-# layer (see bih_municipalities_geojson()) - independent of BOUNDARY, which
-# stays the one this deployment actually clips its fetch to today. Nothing
-# here changes what a poll fetches or how detections are clipped; it only
-# makes the country-wide grid visible ahead of the fetch itself becoming
-# country-wide.
+# All 145 BiH municipality boundaries, drawn as one toggleable reference layer
+# (see bih_municipalities_geojson()). Display only: it does not affect what a
+# poll fetches or how detections are clipped.
 BIH_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "bih"
 BIH_MUNI_FILE = BIH_DATA_DIR / "municipalities.json"
 
-# The loading screen's satellite/planet/HUD scene - one copy, in its own
-# file rather than duplicated inline in TEMPLATE below, so there is exactly
-# one place to edit it. See that file's own header comment for the design
-# history (why preserveAspectRatio is "slice", why the satellite fades
-# instead of flies, why the planet sways).
+# The loading screen's satellite/planet/HUD scene lives in its own file, so
+# there is one copy to edit; the file's header comment explains its design.
 SPLASH_SVG_FILE = Path(__file__).resolve().parent.parent / "docs" / "img" / "splash-screen.svg"
 
 
 def _splash_svg() -> str:
-    """The scene's own <svg>...</svg>, stripped of the XML prolog and the
-    standalone-file header comment above it - both are for someone opening
-    the file directly, not for a copy spliced into an HTML page that
-    already has its own doctype and its own explanation of what this is.
-    Finds the real opening tag by its xmlns attribute specifically, not by
-    a bare "<svg" - that header comment is free-text English describing
-    this same file and is entirely capable of containing the literal
-    substring "<svg>...</svg>" itself, which a bare search would find
-    first since it comes earlier in the file."""
+    """The scene's own <svg>...</svg>, without the XML prolog and the
+    standalone-file header comment, for splicing into the page.
+
+    The opening tag is found by its xmlns attribute, not a bare "<svg": the
+    header comment is free text that can itself contain "<svg>...</svg>" and
+    comes earlier in the file."""
     text = SPLASH_SVG_FILE.read_text(encoding="utf-8")
     start = text.index('<svg xmlns=')
     return text[start:].strip()
@@ -95,8 +86,8 @@ TEMPLATE = r"""<!doctype html>
   .seg button.on{background:var(--accent);color:#fff;font-weight:600}
   .seg button b{font-weight:700;font-variant-numeric:tabular-nums}
   .seg button.on b{color:#fff}
-  /* The count sits under the range label, not beside it: five buttons share
-     one row, so side by side it forced a wrap or clipped the number. */
+  /* The count sits under the range label: five buttons share one row, so
+     side by side it would wrap or clip the number. */
   #hrange button b{display:block;font-size:10.5px;line-height:1.2;margin-top:1px}
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;font-size:11.5px;color:var(--dim)}
@@ -177,13 +168,10 @@ TEMPLATE = r"""<!doctype html>
   .fwi-row{display:flex;justify-content:space-between;gap:14px}
   .fwi-row+.fwi-row{margin-top:1px}
   .fwi-codes,.fwi-note{opacity:.65;margin-top:6px;font-size:10.5px;line-height:1.5}
-  /* This municipality's own subscribe link - see muniPopupHtml(). Replaces the
-     single global banner this page used to have in the header (removed - a
-     private-channel-per-municipality deployment has no one link to advertise
-     there, see poller._telegram_channel_url()'s own docstring). Smaller than
-     that banner was (the popup's own maxWidth is 260px), same accent-filled
-     treatment so it still reads as the one clickable action in the popup
-     that is not the close button. */
+  /* This municipality's own subscribe link - see muniPopupHtml(). There is no
+     single global banner: each municipality has its own channel (see
+     poller._telegram_channel_url()). Accent-filled so it reads as the one
+     clickable action in the popup besides close. */
   .muni-tg{display:flex;align-items:center;justify-content:center;gap:6px;
     background:var(--accent);color:#fff;text-decoration:none;font-weight:600;
     font-size:11.5px;border-radius:7px;padding:7px 8px;margin-top:8px;
@@ -197,22 +185,16 @@ TEMPLATE = r"""<!doctype html>
   .imgnote s{color:#f0a35e;text-decoration:none}
   .leaflet-bottom.leaflet-right,
   .leaflet-bottom.leaflet-left{margin-bottom:94px}
-  /* Leaflet's own popup pane is z-index 700 - comfortably below this page's own
-     fixed UI (langsw at 1250, the mobile drawer at 1300), so a fire/detection
-     popup near the top of the visible map could in principle end up under one
-     of them. Guaranteed on top of all of it instead, since a popup a reader
-     just opened should never be the thing something else covers. Municipality
-     info no longer uses this pane at all - see #muniinfo below. */
+  /* Leaflet's popup pane defaults to z-index 700, below this page's fixed UI
+     (langsw at 1250, the mobile drawer at 1300). Raised above all of it so a
+     popup the reader just opened is never covered. Municipality info does not
+     use this pane - see #muniinfo below. */
   .leaflet-popup-pane{z-index:1400}
-  /* One shared fixed, centered panel for municipality info, fire events and
-     raw detections alike - none of them use a Leaflet popup anchored to the
-     click point any more. An anchored popup near a corner used to overlap
-     the layer control, the measure tool or the eye toggle, and the previous
-     fix (hiding those while a popup was open) made them invisible *and*
-     unusable rather than just temporarily out of the way - centered with
-     real padding on every side, nothing else needs to move or hide to make
-     room for it. Positioned like #langsw (centered over the map area,
-     accounting for the sidebar on desktop), not over the whole page. */
+  /* One shared fixed, centred panel for municipality info and fire events,
+     instead of a Leaflet popup anchored to the click point (which can overlap
+     the layer control, measure tool or eye toggle). Centred with padding on
+     every side, so nothing else has to move or hide. Positioned like #langsw:
+     centred over the map area, offset for the sidebar on desktop. */
   #muniinfo{position:fixed;top:50%;left:calc(50vw + 185px);transform:translate(-50%,-50%);
     z-index:1260;display:none;max-width:280px;width:calc(100% - 48px);
     max-height:70vh;overflow-y:auto;background:rgba(21,26,33,.97);
@@ -224,31 +206,22 @@ TEMPLATE = r"""<!doctype html>
     border:0;background:none;color:var(--dim);font-size:19px;line-height:1;cursor:pointer;
     border-radius:5px}
   #muniinfo .miclose:hover,#muniinfo .miclose:focus-visible{background:var(--panel2);color:var(--fg)}
-  /* First-paint cover. Sits above everything (including the popup pane at
-     1400) because it must hide the map, sidebar and controls all assembling
-     at once, not just one of them. Removed after the initial inlined DATA
-     is drawn (see the applyStaticLabels()/recompute() call near the bottom
-     of the script) - never waits on a network fetch, since fire-map.html
-     always ships with a snapshot already inlined for first paint. */
+  /* First-paint cover. Above everything (including the popup pane at 1400)
+     because it hides the map, sidebar and controls assembling at once.
+     Removed after the inlined DATA is drawn (see the applyStaticLabels()/
+     recompute() call near the end of the script); it never waits on the
+     network, since the page ships with a snapshot inlined. */
   #loading{position:fixed;inset:0;z-index:2000;
     background:radial-gradient(ellipse at 50% 42%,#0d1626 0%,#080b14 55%,var(--bg) 80%);
     transition:opacity .6s ease,visibility 0s linear .6s}
   #loading.hide{opacity:0;visibility:hidden;pointer-events:none}
   .ldwrap{position:absolute;inset:0;color:var(--fg)}
-  /* The scene is a single self-contained SVG (planet horizon, burning
-     treeline, orbiting satellite, scanning HUD) with its own <style> block
-     of keyframes, filling the whole screen behind everything else with no
-     letterbox bars (see preserveAspectRatio="slice" in the HTML) - a
-     square viewBox forced a choice between cropping content on a wide
-     window (slice) or leaving bars down the sides (meet), and the bars
-     turned out not to be free: an animated layer (the satellite) compositing
-     right at the seam between the SVG's own rendered area and the page's
-     CSS background behind it was measurably more expensive than compositing
-     it over more of the same surface, and that seam sat exactly where the
-     flight path starts. The viewBox is 1200x800 now instead of 800x800 -
-     close enough to a real window's aspect ratio that "slice" needs far
-     less vertical scale-up to cover the width, so there is much less crop
-     left to cause the original problem. */
+  /* The scene is one self-contained SVG (planet horizon, treeline, satellite,
+     scanning HUD) with its own keyframes, filling the screen with no letterbox
+     bars (preserveAspectRatio="slice"). Bars are not free: an animated layer
+     compositing at the seam between the SVG and the page background measured
+     more expensive. The 1200x800 viewBox is close to a real window's aspect
+     ratio, so slice crops little. */
   .ldscene{position:absolute;inset:0;overflow:hidden}
   .ldscene svg{display:block;width:100%;height:100%}
   .ldsub{position:absolute;right:16px;bottom:38px;color:var(--dim);
@@ -339,27 +312,19 @@ TEMPLATE = r"""<!doctype html>
     border:1px solid var(--line);background:rgba(21,26,33,.94);
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     transition:opacity .15s}
-  /* Leaflet's popup pane lives inside .leaflet-map-pane, which always carries a
-     CSS transform for panning - that transform makes .leaflet-map-pane the
-     containing block for everything positioned inside it, so no z-index on
-     .leaflet-popup-pane (however high) can ever paint above ANY sibling of
-     .leaflet-map-pane that has its own explicit z-index (Leaflet's own corner
-     containers, #timebar, #langsw...). This used to be worked around by
-     hiding every one of those buttons while any popup was open - but the two
-     things left still using a real anchored popup at all (a single raw
-     detection, the measure tool) are both small, deliberately out of the
-     reader's way to begin with, and hiding every button on the map to guard
-     against the rare case one of them happens to sit where a popup lands is
-     a worse trade than just letting that rare overlap happen. Municipality
-     info and fire events both moved off Leaflet popups entirely for this
-     same reason - see #muniinfo below - and no longer need working around. */
+  /* Leaflet's popup pane lives inside .leaflet-map-pane, whose pan transform
+     makes it the containing block, so no z-index on .leaflet-popup-pane can
+     paint above a sibling of .leaflet-map-pane with its own z-index (Leaflet's
+     corner containers, #timebar, #langsw...). Only a single raw detection and
+     the measure tool still use an anchored popup; both are small and out of
+     the way, so the rare overlap is accepted. Municipality info and fire
+     events use #muniinfo instead. */
   #langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11.5px;
     font-weight:600;letter-spacing:.03em;padding:5px 11px;border-radius:7px;cursor:pointer}
   #langsw button:hover{color:var(--fg)}
   #langsw button.on{background:var(--accent);color:#fff}
-  /* Scales from the ring's own centre, so it always starts at the marker's edge
-     and expands past it. The old version animated an absolute r (8 -> 26 px),
-     which sat wholly underneath any marker larger than that. */
+  /* Scales from the ring's own centre, so it starts at the marker's edge and
+     expands past it whatever the marker's size. */
   .pulse{transform-box:fill-box;transform-origin:center;
          animation:pulse 1.8s ease-out infinite}
   @keyframes pulse{0%{transform:scale(1);opacity:1}100%{transform:scale(2.1);opacity:0}}
@@ -368,9 +333,9 @@ TEMPLATE = r"""<!doctype html>
   #drawer-close{display:none}
   #backdrop{display:none}
 
-  /* Phone/tablet: the panel becomes an off-canvas drawer so the map gets the whole
-     screen. Stacking it wasted half the display, and min-height:auto on a flex item
-     floored the panel at its content height - which is what left the map 61px tall. */
+  /* Phone/tablet: the panel becomes an off-canvas drawer so the map gets the
+     whole screen. min-height:0 stops a flex item being floored at its content
+     height. */
   @media (max-width:880px){
     #side{position:fixed;top:0;left:0;height:100%;height:100dvh;width:min(86vw,340px);
       flex:0 0 auto;min-height:0;z-index:1200;transform:translateX(-102%);
@@ -404,15 +369,14 @@ TEMPLATE = r"""<!doctype html>
     #timebar{left:11px;right:11px;padding:8px 11px;gap:8px;flex-wrap:wrap;
       bottom:calc(11px + env(safe-area-inset-bottom, 0px))}
     #tlabel{min-width:0;font-size:11px;flex:1 1 auto}
-    /* the ruler onto its own row, full width - beside the buttons it was too
-       narrow to scrub, and the bar overflowed */
+    /* the ruler gets its own full-width row; beside the buttons it is too
+       narrow to scrub */
     #tlwrap{order:9;flex:1 1 100%;margin-top:3px}
     #list{padding:8px}
     .mpanel{width:min(52vw,190px);padding:8px 9px}
-    /* The legend used to be hidden here because it sat on top of the timeline bar.
-       Instead, lift the whole bottom-right control stack clear of the bar and make
-       the legend collapse to a single "Key" button, so it is reachable without
-       permanently covering a phone-sized map. */
+    /* Lift the bottom control stack clear of the timeline bar; the legend
+       collapses to a single "Key" button so it never permanently covers a
+       phone-sized map. */
     .leaflet-bottom.leaflet-right,
     .leaflet-bottom.leaflet-left{
       margin-bottom:calc(124px + env(safe-area-inset-bottom, 0px))}
@@ -424,13 +388,9 @@ TEMPLATE = r"""<!doctype html>
 <div id="loading" role="status" aria-live="polite">
   <div class="ldwrap">
     <div class="ldscene" aria-hidden="true">
-      <!-- The scene (planet horizon, satellite, HUD) lives in its own
-           file, docs/img/splash-screen.svg, loaded and inlined here by
-           render() below - not duplicated inline, so there is exactly one
-           copy of this markup to edit. That file's own header comment
-           carries the design history (why preserveAspectRatio, why the
-           satellite fades instead of flies, why the planet sways); this
-           placeholder is just where render() splices it in. -->
+      <!-- The scene (planet horizon, satellite, HUD) lives in
+           docs/img/splash-screen.svg and is spliced in here by render();
+           that file's header comment documents its design. -->
       __SPLASH_SVG__
     </div>
     <div class="ldsub">Loading map&hellip;</div>
@@ -500,10 +460,9 @@ if(FW_FIREBASE && /^https?:$/.test(location.protocol)){
 }
 </script>
 <script>
-// Captured before anything else runs, so the loading screen's minimum
-// display time (see LOAD_MIN_MS below) is measured from first paint, not
-// from whenever the initial render happens to finish - a fast machine on a
-// warm cache would otherwise flash the animation for a few milliseconds.
+// Captured before anything else runs, so the loading screen's minimum display
+// time (LOAD_MIN_MS) is measured from first paint; otherwise a fast machine
+// would flash the animation for a few milliseconds.
 const LOAD_START = Date.now();
 
 let DATA = __DATA__;
@@ -511,9 +470,8 @@ const DATA_URL = "__DATA_JS__";
 const BOUNDARY = __BOUNDARY__;
 const BUFFER = __BUFFER__;
 const BIH_MUNICIPALITIES = __BIH_MUNICIPALITIES__;
-// Substituted from config rather than written out here: the sun test below is
-// the only consumer, but a town that quietly disagreed with config.TOWN_LAT
-// would be a needle in a haystack.
+// Substituted from config so the sun test below cannot disagree with it about
+// where the town is.
 const TOWN_LAT = __TOWN_LAT__, TOWN_LON = __TOWN_LON__;
 const SRC = {mtg:{c:"#4cc9f0",n:"Meteosat MTG (10 min)"},
              firms:{c:"#ffd166",n:"VIIRS/MODIS (NRT)"},
@@ -663,6 +621,7 @@ try {
   if(saved && I18N[saved]) LANG = saved;
 } catch(e) { /* file:// and private windows can block storage; stay with the default */ }
 
+// Index into a counted string's [one, few, many] array for n in the current language.
 function plural(n){
   if(LANG !== "bs") return n === 1 ? 0 : 1;
   const a = Math.abs(n) % 100, b = a % 10;
@@ -670,6 +629,8 @@ function plural(n){
   if(b >= 2 && b <= 4 && !(a >= 12 && a <= 14)) return 1;
   return 2;
 }
+// Translate a key, falling back to English, picking the plural form by vars.n and
+// substituting {name} placeholders from vars.
 function t(key, vars){
   let v = (I18N[LANG] || I18N.en)[key];
   if(v === undefined) v = I18N.en[key];
@@ -686,6 +647,7 @@ function genitive(name){
   if(LANG !== "bs" || !name) return name;
   return /a$/.test(name) ? name.slice(0, -1) + "e" : name;
 }
+// Human-readable location of an event: "N km <dir> of <settlement>".
 function placeOf(e){
   const p = e.place_parts;
   if(!p || !p.name) return e.place;                 // older snapshot: use the server text
@@ -712,6 +674,7 @@ const cutoffOf = r => Date.parse(DATA.range_cutoffs[r]);
 
 let EVENTS = [], dets = [], tMin = 0, tMax = 0;
 
+// Rebuild EVENTS, dets and the time span from DATA for the selected range.
 function recompute(){
   const c = cutoffOf(RANGE);
   EVENTS = (DATA.events||[])
@@ -741,50 +704,41 @@ const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
   {maxZoom:17,attribution:"&copy; OpenTopoMap (CC-BY-SA)"});
 sat.addTo(map);          // satellite is the default: terrain and fuel are visible
 
-// "No basemap": an empty group, which Leaflet is happy to treat as a base layer
-// and which draws nothing at all. Selecting it leaves #map's own near-black
-// background, and that is the point - with no cartography competing, the fire
-// layers are all that is left. It reads especially well under
-// rgb_firetemperature, whose screen blend over near-black is close to the layer
-// untouched, so the hotspots come through at full strength.
+// "No basemap": an empty group that Leaflet treats as a base layer and that draws
+// nothing, leaving #map's near-black background so the fire layers stand alone.
+// It reads especially well under rgb_firetemperature, whose screen blend over
+// near-black leaves the hotspots at full strength.
 //
 // A base layer rather than a checkbox because Leaflet's base layers are a radio
 // group: one is always chosen, so there is no way to untick your way to nothing.
 const blank = L.layerGroup();
 
 // ------------------------------------------------------------------ imagery
-// All three basemaps above are archival - Esri World Imagery is months to
-// years old - so not one of them can show a fire that is burning now. These
-// can, and the split between the two providers is not about quality but about
-// what a small fire actually looks like from orbit.
+// All three basemaps above are archival (Esri World Imagery is months to years
+// old) and cannot show a fire burning now. These can; the split between the two
+// providers is about what a small fire looks like from orbit.
 //
 // Meteosat is ~1.7 x 1.3 km per pixel here: Bosnia and Herzegovina sits at a
-// ~54 degree viewing zenith from 0E, which inflates FCI's 1 km nadir figure
-// by 1/cos - roughly the same figure across the whole country, which is not
-// wide enough for the zenith angle to vary much from one end to the other.
-// That cannot resolve a few-hectare fire - but it lands every 10 minutes,
-// which is the only cadence that shows a plume while the fire still burns.
-// GIBS polar imagery is 250 m and did show a plume for the 2026-09-05 event
-// at 44.354/18.225, yet it arrives 4-5 h late and once per satellite per day.
-// So the fast layer is the coarse one, which is the opposite of the intuition.
+// ~54 degree viewing zenith from 0E, which inflates FCI's 1 km nadir figure by
+// 1/cos, about the same across the whole country. That cannot resolve a
+// few-hectare fire, but it lands every 10 minutes, the only cadence that shows a
+// plume while the fire still burns. GIBS polar imagery is 250 m and can show a
+// plume, but arrives 4-5 h late and once per satellite per day. So the fast
+// layer is the coarse one.
 //
-// Every field in IMAGERY was measured against the live services on
-// 2026-09-06, because the advertised metadata is wrong in both directions:
+// Every field in IMAGERY was measured against the live services, because the
+// advertised metadata is wrong in both directions:
 //
 //   - Capabilities advertise an unbroken PT10M series from `from`, but
 //     rgb_truecolour and vis06_hrfi have a reproducible daily hole running
-//     00:00Z to 01:50Z, first frame at 02:00Z, confirmed on two separate
-//     days. That is `dayFrom`, in minutes into the UTC day. Ask inside the
-//     hole and the answer is a ServiceException carrying HTTP 200, which
-//     Leaflet renders as nothing whatsoever - a blank map, no error anywhere.
-//     Note this is a publication boundary and *not* darkness: those layers
-//     answer perfectly well at 20:00Z and 22:00Z, when the sun here is 27-38
-//     degrees below the horizon. A daylight test would be the obvious guess
-//     and it would be wrong in both directions.
-//   - The capabilities `default` value is conservative to the point of being
-//     misleading: it read 14:00Z at 14:30 wall clock, yet 15:30Z answered at
-//     15:37. So "latest" is never derived from it. Omitting `time` returns the
-//     newest frame the server has, byte-identical to time=current.
+//     00:00Z to 01:50Z, first frame at 02:00Z. That is `dayFrom`, in minutes
+//     into the UTC day. Asking inside the hole returns a ServiceException with
+//     HTTP 200, which Leaflet renders as nothing - a blank map, no error.
+//     This is a publication boundary and *not* darkness: those layers answer
+//     at 20:00Z and 22:00Z, with the sun 27-38 degrees below the horizon.
+//   - The capabilities `default` value lags (it read 14:00Z at 14:30 wall clock,
+//     yet 15:30Z answered at 15:37), so "latest" is never derived from it.
+//     Omitting `time` returns the newest frame, byte-identical to time=current.
 const EUM_WMS = "https://view.eumetsat.int/geoserver/wms";
 const GIBS_WMTS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best";
 const IMG_OPACITY = .85;
@@ -879,6 +833,7 @@ IMAGERY.forEach(im => {
 // an entry added directly would survive exactly until the reader pressed BS.
 // A new scene lands every 2-3 days, so rebuilding then costs nothing.
 let s2Layer = null, s2Rec = null;
+// Add, replace or drop the Sentinel-2 overlay when the snapshot's scene changes.
 function s2Sync(){
   const d = DATA.imagery || null;
   if(!d && !s2Rec) return;
@@ -904,7 +859,7 @@ function s2Sync(){
 // basemap and thinks the layer failed to load - while vis06_hrfi returns an
 // opaque black rectangle. Two different flavours of the same nothing.
 //
-// Measured against the imagery on 2026-09-05: at +7.5 deg the frame reads 31/255
+// Measured against the imagery: at +7.5 deg the frame reads 31/255
 // mean, at +2.2 deg it is 1.0, and below the horizon it is blank. So the cutoff
 // sits at +3, a little above the horizon rather than on it.
 //
@@ -912,6 +867,7 @@ function s2Sync(){
 // *daily composites* built from a daytime overpass, so they are perfectly
 // readable at midnight - flagging them would be wrong.
 const SUN_MIN_DEG = 3;
+// Solar elevation in degrees at the town for a UTC millisecond timestamp.
 function sunElev(ms){
   const rad = Math.PI/180, n = ms/86400000 + 2440587.5 - 2451545.0;
   const L = (280.460 + 0.9856474*n) % 360;
@@ -926,6 +882,7 @@ function sunElev(ms){
                    Math.cos(phi)*Math.cos(dec)*Math.cos(ha)) / rad;
 }
 
+// UTC helpers: minutes into the day, YYYY-MM-DD, and rounding down to a 10-minute slot.
 const utcMin = ms => {const d = new Date(ms); return d.getUTCHours()*60 + d.getUTCMinutes();};
 const utcDay = ms => new Date(ms).toISOString().slice(0,10);
 const tenMin = ms => Math.floor(ms/600000)*600000;
@@ -936,11 +893,11 @@ const tenMin = ms => Math.floor(ms/600000)*600000;
 // timestamp even one slot into the future is a ServiceException.
 const LIVE_EDGE_MS = 30*60000;
 
+// Whether imagery layer `im` has a usable frame at `ms`: {ok, live} or {ok:false, why}.
 function imgAvail(im, ms){
-  // "Live" only decides *which* frame we ask for - it must not short-circuit the
-  // checks. Getting that wrong hides the failure precisely where it matters
-  // most: the default view is the live edge, so a layer that is useless right
-  // now is the one the reader meets first.
+  // "Live" only decides *which* frame we ask for; it must not short-circuit the
+  // checks, because the default view is the live edge and a layer that is useless
+  // right now is the one the reader meets first.
   const live = Date.now() - ms < LIVE_EDGE_MS;
   const at = live ? Date.now() : ms;
   if(!live){
@@ -953,10 +910,10 @@ function imgAvail(im, ms){
   return {ok:true, live:live};
 }
 
-// What the reader is actually looking at. Without this the imagery is a
-// mystery layer: the slider can read 12:03 while the frame is 12:00, "live" is
-// whatever the server happened to have, and a gap in the archive looks exactly
-// like a clear sky. It is also the only place a silent hole gets explained.
+// Note showing what imagery frame the reader is actually looking at: the slider
+// can read 12:03 while the frame is 12:00, "live" is whatever the server has, and
+// an archive gap otherwise looks exactly like a clear sky. It is also the only
+// place a silent hole gets explained.
 let imgEl = null;
 const imgCtl = L.control({position:"bottomleft"});
 imgCtl.onAdd = () => {
@@ -1012,6 +969,7 @@ function syncOne(im, ms){
   return {head:t(im.k), detail:day + (a.live ? " \u00b7 " + t("imToday") : "")};
 }
 
+// Point every active imagery layer at the frame for `ms` and refresh the note.
 function syncImagery(ms){
   const rows = imgActive().map(im => syncOne(im, ms));
   if(s2Layer && map.hasLayer(s2Layer))
@@ -1049,54 +1007,46 @@ map.on("overlayremove", e => {
 
 // The "nearby" band - everything within nearby_buffer_km of the outline, which is
 // exactly what the spatial clip keeps and flags `inside=0`. Pre-built into
-// BUFFER_GEOJSON (config.py) rather than offset in the browser: offsetting a
-// many-thousand-point ring correctly is real work, and the answer only changes
-// when the config does. Drawn before the boundary so the outline stays the
-// stronger line.
+// BUFFER_GEOJSON (config.py) rather than offset in the browser, since the answer
+// only changes when the config does. Drawn before the boundary so the outline
+// stays the stronger line.
 // The artifact wins over DATA.buffer_km: the band on screen *is* the artifact, so
-// if the snapshot was written before a buffer change the label must follow the
-// geometry, not the stale config value that came with the data.
+// its label must follow the geometry, not a config value baked into older data.
 const bufKm = () => (BUFFER && BUFFER.features[0].properties.buffer_km)
   || DATA.buffer_km || 6;
-// interactive:false for the same reason as bLayer below: no popup/tooltip of
-// its own, so it should never be what a click hits instead of a municipality
-// shape.
+// interactive:false for the same reason as bLayer below: it has no popup of its
+// own and must not intercept a click meant for a municipality shape.
 const bandLayer = BUFFER ? L.geoJSON(BUFFER,{interactive:false,style:{color:"#7cc4ff",
   weight:1.1,opacity:.55,dashArray:"3,5",fillColor:"#7cc4ff",fillOpacity:.05}}).addTo(map) : null;
-// Canvas, not the default SVG renderer: 145 boundaries is ~330k vertices
-// combined, and SVG means one DOM path per feature - fine for the single
-// municipality BOUNDARY already draws, not for two orders of magnitude more.
-// Lighter weight and fill than BOUNDARY's own outline for the same reason
-// bandLayer is faint: 145 of these at full strength would be visual noise,
-// and Sarajevo/Istocno Sarajevo's deliberately overlapping shapes would
-// otherwise read as a rendering bug rather than the real, documented overlap.
-// A function, not a fixed string, so re-opening a popup after applyData() has
-// swapped in a fresh DATA object shows this cycle's fire-danger reading, not
-// whatever was current when the popup was first bound - the boundaries
-// themselves never change, but fwiDetail()'s source does, every cycle.
+// Info-panel HTML for a municipality. A function, not a fixed string, so
+// re-opening it after applyData() swaps in a fresh DATA shows the current
+// fire-danger reading: the boundaries never change but fwiDetail()'s source does.
 function muniPopupHtml(f){
   const tg = f.properties.telegram_invite
     ? `<a class="muni-tg" href="${f.properties.telegram_invite}" target="_blank" rel="noopener">\u{1F514} ${t("telegramSub")}</a>`
     : "";
   return `<b>${f.properties.name}</b>${fwiDetail(f.properties.id)}${tg}`;
 }
-// One shared, fixed, centered panel (see its own CSS comment for why it is
-// not a Leaflet popup) rather than one popup per feature - a municipality, a
-// fire event and a raw detection all render their own HTML into the same
-// element, since only one of them is ever shown at a time anyway.
+// One shared, fixed, centred panel (see its CSS comment for why it is not a
+// Leaflet popup); a municipality or a fire event renders its HTML into the same
+// element, since only one is shown at a time.
 const muniInfoEl = document.getElementById("muniinfo");
 const muniInfoBody = document.getElementById("muniinfo-body");
 L.DomEvent.disableClickPropagation(muniInfoEl);
 L.DomEvent.disableScrollPropagation(muniInfoEl);
 muniInfoEl.querySelector(".miclose").addEventListener("click", () => closeInfoPanel());
+// Show `html` in the shared info panel.
 function openInfoPanel(html){
   muniInfoBody.innerHTML = html;
   muniInfoEl.classList.add("show");
 }
+// Hide the info panel, recording the dismissal so the same click is not also used
+// as a measure-tool vertex (see lastDismissAt).
 function closeInfoPanel(){
   if(muniInfoEl.classList.contains("show")) lastDismissAt = Date.now();
   muniInfoEl.classList.remove("show");
 }
+// Open the info panel for municipality feature `f` and report the open.
 function openMuniInfo(f){
   fwTrack("municipality_open", {municipality_id: f.properties.id, municipality: f.properties.name});
   openInfoPanel(muniPopupHtml(f));
@@ -1108,50 +1058,38 @@ muniInfoEl.addEventListener("click", ev => {
   const a = ev.target.closest && ev.target.closest("a.muni-tg");
   if(a) fwTrack("telegram_subscribe_click", {link: a.href});
 });
-// A click on a municipality/event/detection is debounced rather than opened
-// immediately, so the first of the two clicks that make up a double-click
-// (Leaflet's own zoom-in gesture) never gets the chance to open it - without
-// this, double-clicking to zoom also flashed the info panel open on the
-// way, which double-clicking to zoom was never asking for. The map's own
-// "dblclick" fires after both constituent clicks, in time to cancel
-// whichever one of the three is pending - they share one timer because only
-// one panel can ever be open, so only one open can ever be pending too.
+// A click on a municipality or event is debounced rather than opened immediately,
+// so the clicks that make up a double-click (Leaflet's zoom-in gesture) do not
+// flash the panel open. The map's "dblclick" fires after both clicks, in time to
+// cancel the pending open; one shared timer suffices because only one panel can
+// be open, so only one open can be pending.
 let infoClickTimer = null;
 map.on("dblclick", () => {
   if(infoClickTimer){ clearTimeout(infoClickTimer); infoClickTimer = null; }
 });
-// A click that dismisses something open should only do that - not also
-// register as this same click's normal map action (concretely: dropping a
-// measurement point while the reader was just trying to close a popup, see
-// the measure tool's own click handler further down).
+// A click that dismisses something open should only do that, not also act as
+// that click's normal map action (e.g. dropping a measurement point while the
+// reader is closing a popup; see the measure tool's click handler below).
 //
-// First cut of this tracked a plain "was something open" boolean, read by
-// a handler registered before the ones that close things and reset by the
-// measure tool's handler after. It broke the measure tool outright after
-// the first popup: Leaflet's own built-in closePopupOnClick runs as part of
-// the map's internal click handling, registered when the map itself was
-// constructed - long before any handler this page adds - so by the time
-// this page's handlers ran, a popup that the click was *closing* had
-// already been closed and looked exactly like "nothing was open" to begin
-// with. A boolean keyed to handler-registration order can't win that race
-// reliably in either direction.
-//
-// A timestamp sidesteps the ordering question entirely: every handler for
-// one click fires synchronously in the same tick, so it does not matter
-// whether the code that closes something runs before or after the code
-// that checks lastDismissAt below - both see the same "just now". Recorded
-// only on an actual close *transition* (never merely because something
-// happens to be open), so it also can never get stuck true the way the
-// boolean did.
+// This is a timestamp, not an "is something open" boolean: Leaflet's built-in
+// closePopupOnClick runs before any handler this page registers, so a popup the
+// click is closing is already closed by the time our handlers run and looks like
+// "nothing was open". Every handler for one click fires in the same tick, so a
+// timestamp is independent of handler order. It is recorded only on an actual
+// close transition, so it cannot get stuck.
 let lastDismissAt = 0;
 map.on("popupclose", () => { lastDismissAt = Date.now(); });
-// Any other map click (a fire marker, open water, the boundary itself)
-// closes it - the same "click elsewhere to dismiss" convention as
-// closeExpandablePanels(). A layer click bubbles to the map by default, so
-// clicking a *different* feature closes the current panel synchronously
-// before that feature's own debounced open runs, which is what makes
-// switching between two panels feel instant rather than stacking them.
+// Any other map click (a fire marker, open water, the boundary itself) closes
+// the panel - the same "click elsewhere to dismiss" convention as
+// closeExpandablePanels(). A layer click bubbles to the map, so clicking a
+// different feature closes the current panel before that feature's debounced
+// open runs, which makes switching panels instant rather than stacking them.
 map.on("click", closeInfoPanel);
+// Municipality reference layer. Canvas, not the default SVG renderer: 145
+// boundaries are ~330k vertices, and SVG means one DOM path per feature. Lighter
+// weight and fill than BOUNDARY's outline so 145 of them are not visual noise,
+// and so Sarajevo/Istocno Sarajevo's deliberately overlapping shapes do not read
+// as a rendering bug.
 const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
     && BIH_MUNICIPALITIES.features.length)
   ? L.geoJSON(BIH_MUNICIPALITIES,{renderer:L.canvas({padding:0.5}),
@@ -1167,9 +1105,8 @@ const muniLayer = (BIH_MUNICIPALITIES && BIH_MUNICIPALITIES.features
   : null;
 // A separate object each time: L.control.layers keeps a reference, so reusing one
 // across rebuilds would carry the old language's key with it. Both halves of the
-// control are built by a function for that reason - the base list used to be
-// written out at each of the two call sites, which is one edit away from a base
-// layer that disappears the moment the reader switches language.
+// control are built by a function so every rebuild (e.g. a language switch) gets
+// the same full base-layer list.
 const bases = () => ({[t("lSat")]:sat, [t("lMap")]:osm,
                       [t("lTopo")]:topo, [t("lNone")]:blank});
 // Imagery first, then the band: the control lists them in insertion order and
@@ -1201,19 +1138,16 @@ function makeLayersCtl(){
   return c;
 }
 
-// Brighter and slightly heavier than it needed to be on the pale street map -
-// a mid-blue hairline disappears against dark forest imagery.
-// interactive:false is load-bearing, not decorative: this is one shape
-// covering the whole country's fill area, added after (so stacked above)
-// muniLayer's 145 smaller ones - without this, every click anywhere in Bosnia
-// hits this layer's own (popup-less) hit area first and never reaches the
-// municipality shape underneath it.
+// Brighter and heavier than strictly needed on the pale street map: a mid-blue
+// hairline disappears against dark forest imagery.
+// interactive:false is load-bearing: this shape covers the whole country and is
+// stacked above muniLayer's 145 smaller ones, so without it every click hits this
+// popup-less layer first and never reaches the municipality underneath.
 const bLayer = L.geoJSON(BOUNDARY,{interactive:false,style:{color:"#7cc4ff",weight:2.4,
   opacity:.95,fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
-// animate:false is load-bearing for deep links: the constructor's setView has already
-// loaded the map, so an animated fit leaves a zoom animation in flight, and when it
-// finishes it overwrites whatever deepLink() set in the meantime (centre snaps back
-// to the country view). It is also a pointless animation on first paint.
+// animate:false is load-bearing for deep links: an animated fit leaves a zoom
+// animation in flight that, when it finishes, overwrites whatever deepLink() set
+// in the meantime (the centre snaps back to the country view).
 map.fitBounds(bLayer.getBounds(),{padding:[24,24],animate:false});
 
 // Jump straight to what is burning - at municipality zoom a single fire is a
@@ -1239,6 +1173,7 @@ zoomBtn.addTo(map);
 // scroll-y panel stacked on the first), and clicking the map collapses whichever
 // is open, the same "click elsewhere to dismiss" convention as a popup.
 const expandablePanels = [];
+// Open or close one panel and keep its toggle's aria-expanded in step.
 function setPanelOpen(ctl, open){
   const d = ctl._el;
   if(!d) return;
@@ -1246,9 +1181,11 @@ function setPanelOpen(ctl, open){
   const btn = d.querySelector(".legend-toggle");
   if(btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
 }
+// Collapse every corner panel.
 function closeExpandablePanels(){
   expandablePanels.forEach(ctl => setPanelOpen(ctl, false));
 }
+// Toggle one panel, closing any other first.
 function togglePanel(ctl){
   const wasOpen = ctl._el && ctl._el.classList.contains("open");
   expandablePanels.forEach(other => { if(other !== ctl) setPanelOpen(other, false); });
@@ -1288,25 +1225,20 @@ expandablePanels.push(legend);
 let layersCtl = makeLayersCtl();
 
 // ---- fire danger -------------------------------------------------------------
-// One weather-derived index per municipality now, not one for the whole
-// country - see firedanger.py's module docstring - so there is no longer one
-// single reading a corner badge could show. Each municipality's own today
-// class/FWI is shown in its popup instead (muniPopupHtml(), on the
-// municipality overlay built above) - see fwiDetail() below for the shared
-// formatting both that popup and the CLI's `fire-danger <id>` conceptually
-// mirror.
+// One weather-derived index per municipality (see firedanger.py's module
+// docstring), so there is no single reading a corner badge could show. Each
+// municipality's own class/FWI appears in its info panel via muniPopupHtml(),
+// formatted by fwiDetail() below.
 const FWI_CLASS_I18N = {low:"fwLow", moderate:"fwModerate", high:"fwHigh",
   very_high:"fwVeryHigh", extreme:"fwExtreme", very_extreme:"fwVeryExtreme"};
-// Clicking the map itself collapses whichever panel is open (the legend, or a
-// municipality popup Leaflet already handles this way) - the same "click
-// elsewhere to dismiss" convention throughout this page.
+// Clicking the map collapses whichever corner panel is open.
 map.on("click", closeExpandablePanels);
 
+// Fire-danger HTML (today plus forecast days) for municipality id `mid`, or "".
 function fwiDetail(mid){
   const fd = (DATA.fire_danger || {})[mid];
-  // Nothing computed yet for this one (feature disabled, this municipality's
-  // channel/data not set up yet, or the first cycle hasn't run) - omit the
-  // section entirely rather than show a placeholder or a fabricated reading.
+  // Nothing computed yet (feature disabled or first cycle not run): omit the
+  // section rather than show a placeholder or a fabricated reading.
   if(!fd || !fd.today) return "";
   const today = fd.today;
   const clsLabel = e => t(FWI_CLASS_I18N[e.class] || "fwLow");
@@ -1334,25 +1266,23 @@ const trail    = L.layerGroup().addTo(map);
 let selected = null;
 
 // Hide every fire graphic, so the imagery underneath can be read. The markers
-// are drawn to be impossible to miss - a pulsing ring, a footprint circle and a
-// halo per event - which is right until you have put a 250 m satellite frame
-// under them and want to look at the smoke.
+// (pulsing ring, footprint circle, halo) are built to be impossible to miss,
+// which gets in the way when looking at smoke in a satellite frame.
 //
-// It removes the three *groups* from the map rather than clearing them or
-// hiding a pane. drawEvents() and drawDets() rebuild their contents from
-// scratch every refresh and on every zoom; clearing would last until the next
-// tick, and a detached group keeps accepting children that simply are not
-// shown, so the state survives without any of the draw paths knowing about it.
-// The sidebar list deliberately stays - hiding the map graphics should not cost
-// you the answer to "what is burning".
+// It detaches the three *groups* from the map rather than clearing them or
+// hiding a pane. drawEvents() and drawDets() rebuild their contents on every
+// refresh and zoom; clearing would last until the next tick, whereas a detached
+// group keeps accepting children that are simply not shown, so no draw path
+// needs to know about it. The sidebar list stays, so "what is burning" is still
+// answered.
 //
-// Deliberately *not* remembered, unlike the language choice. Hiding the markers
-// is a momentary "let me look under them", not a preference, and this is a fire
-// monitor: a reload or a cycle that brings a new fire must not deliver it
-// invisibly. So the state resets to visible on load and whenever fresh data
+// Deliberately *not* remembered, unlike the language choice: it is a momentary
+// "let me look under them", and a reload or a cycle that brings a new fire must
+// not deliver it invisibly. It resets to visible on load and whenever fresh data
 // lands - see applyData.
 let markersOn = true;
 
+// Attach or detach the fire marker groups according to markersOn.
 function applyMarkers(){
   [evLayer, detLayer, trail].forEach(g => {
     if(markersOn) { if(!map.hasLayer(g)) g.addTo(map); }
@@ -1378,6 +1308,7 @@ const EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
   '<path d="M6.4 6.5A17.6 17.6 0 0 0 1.6 12S5.3 19 12 19a9.9 9.9 0 0 0 4.2-.9"/>' +
   '<path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>';
 
+// The eye button that toggles markersOn; eyeEl is set when the control is added.
 let eyeEl = null;
 const eyeBtn = L.control({position:"topleft"});
 eyeBtn.onAdd = () => {
@@ -1403,34 +1334,35 @@ const MONTHS = {
 const _sarajevo = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Sarajevo",
   year:"numeric",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",
   hour12:false});
+// Date/time parts of `ts` in Sarajevo local time, keyed by Intl part type.
 function tlParts(ts){
   const p = {};
   for(const part of _sarajevo.formatToParts(new Date(ts))) p[part.type] = part.value;
   return p;
 }
 const monName = mm => (MONTHS[LANG] || MONTHS.en)[parseInt(mm, 10) - 1];
-// Every stamp used to be "14 Mar, 09:12", which was fine while nothing on the page
-// was older than a month. With a year range it is genuinely ambiguous, so the year
-// is spelled out wherever it is not the current one - present-day stamps, which are
-// most of them, stay short.
+// With a one-year range a bare "14 Mar, 09:12" is ambiguous, so the year is spelled
+// out wherever it is not the current one; present-day stamps stay short.
 const CUR_YEAR = tlParts(Date.now()).year;
 // `sep` carries the full stop Bosnian puts after a year in a date, which would
 // read as a typo on a bare ruler tick.
 const yearBit = (p, sep = "") => p.year === CUR_YEAR ? "" : ` ${p.year}${sep}`;
+// Short local timestamp; carries the year only when it is not the current one.
 function fmtLocal(ts){
   const p = tlParts(ts);
   const mon = monName(p.month);
   return LANG === "bs" ? `${p.day}. ${mon}${yearBit(p, ".")} ${p.hour}:${p.minute}`
                        : `${p.day} ${mon}${yearBit(p)}, ${p.hour}:${p.minute}`;
 }
-// The timeline readout always carries the year, whatever it is: it is the one label
-// that answers "where am I", and it should not need a convention to read.
+// Full local timestamp for the timeline readout; always carries the year, since it
+// is the one label that answers "where am I".
 function fmtStamp(ts){
   const p = tlParts(ts);
   const mon = monName(p.month);
   return LANG === "bs" ? `${p.day}. ${mon} ${p.year}. ${p.hour}:${p.minute}`
                        : `${p.day} ${mon} ${p.year}, ${p.hour}:${p.minute}`;
 }
+// Format an age in minutes as "just now" / "N min ago" / "N h ago" / "N d ago".
 const ago = m => m<1 ? t("justNow")
   : m<60 ? t("agoMin",{n:Math.round(m)})
   : m<1440 ? t("agoH",{n:(m/60).toFixed(1)})
@@ -1443,6 +1375,7 @@ const detR = () => {
 };
 
 const R_EARTH_M = 6371008.8;
+// Great-circle distance in metres between two lat/lon points.
 function haversineM(la1,lo1,la2,lo2){
   const p1=la1*Math.PI/180, p2=la2*Math.PI/180;
   const dp=p2-p1, dl=(lo2-lo1)*Math.PI/180;
@@ -1466,12 +1399,12 @@ function evRadiusM(e){
   return Math.max(footprintM(e), (detR()+3)*mpp);
 }
 
-// Markers are rebuilt on every refresh, which would otherwise leave a stale
-// event's info panel open with no marker behind it. Track the open one's id
-// so applyData() can refresh the panel with the event's new data afterwards,
-// or close it if the event no longer exists.
+// Markers are rebuilt on every refresh, which would leave a stale event panel open
+// with no marker behind it. The open one's id is tracked so applyData() can
+// refresh the panel with the event's new data, or close it if the event is gone.
 let infoOpenId = null;
 
+// Redraw the per-event footprint circles (and the pulse ring on active ones).
 function drawEvents(){
   evLayer.clearLayers();
   const openOf = e => () => {
@@ -1508,9 +1441,8 @@ function drawEvents(){
 
 // Which feed got this fire into the database first, which satellite, and when it
 // landed. Arrival, not acquisition: the feed that saw it earliest is often not the
-// one that reported it earliest. Falls back to the series head for a snapshot
-// written before these fields existed, so an older cached fire-map-data.js still
-// renders - without a saved time, which that snapshot cannot know.
+// one that reported it earliest. Falls back to the series head when the credit_*
+// fields are absent (an older cached fire-map-data.js), without a saved time.
 function credit(e){
   const s = e.credit_source || (e.series && e.series[0] && e.series[0].source);
   if(!s) return "";
@@ -1524,6 +1456,7 @@ function credit(e){
     SRC[s]?.n||s}</b>${sensor}${saved}<br>`;
 }
 
+// Info-panel HTML for one fire event.
 function popupHtml(e){
   const w = e.weather;
   return `<b>${t("sev_"+e.severity).toUpperCase()}</b> &middot; ${t("st_"+e.status)}<br>
@@ -1538,30 +1471,29 @@ function popupHtml(e){
      &middot; <a href="https://www.openstreetmap.org/?mlat=${e.lat}&mlon=${e.lon}#map=14/${e.lat}/${e.lon}" target="_blank">OSM</a>`;
 }
 
+// Draw detections up to time `upto`, plus the selected event's trail and the
+// timeline label.
 function drawDets(upto){
-  // Every path that changes the moment on screen already funnels through here
-  // - the timeline scroller, the keyboard, playback, a range change, the
-  // 60 s refresh - so this is the one place the imagery clock has to be wound.
+  // Every path that changes the moment on screen funnels through here (timeline
+  // scroller, keyboard, playback, range change, the 60 s refresh), so this is
+  // the one place the imagery clock has to be advanced.
   syncImagery(upto);
   detLayer.clearLayers(); trail.clearLayers();
   const shown = dets.filter(d=>d.t<=upto);
   shown.forEach(d=>{
     const age = (upto-d.t)/3600000;
-    // Age still fades a detection, but the old floor of .16 made anything over a
-    // day old effectively invisible - with an outline it just read as an empty
-    // ring. Keep the recency gradient, raise the floor so nothing disappears.
+    // Age fades a detection, but with a floor so an old one never disappears
+    // (a near-invisible fill with an outline reads as an empty ring).
     const op = Math.max(.55,1-age/40);
-    // Each detection gets a white border with a dark outer edge. The stroke used
-    // to be the same colour as the fill, so a dot had no outline at all and the
-    // cyan/amber/magenta washed into green forest and tan farmland. Two thin
-    // rings keep all three source colours readable on street and satellite.
+    // Each detection gets a white border with a dark outer edge; the two thin
+    // rings keep the cyan/amber/magenta source colours readable on street and
+    // satellite basemaps.
     const dc = SRC[d.source]?.c || "#fff";
     const dr = detR();
     L.circleMarker([d.lat,d.lon],{radius:dr,color:"#0b0f14",
       weight:3.4,opacity:op*.8,fill:false,interactive:false}).addTo(detLayer);
-    // Unlike a fire event, a single detection is a point-in-time reading, not
-    // an ongoing thing worth a centred dialog - anchored to where it was
-    // actually clicked stays closer to a normal map tooltip.
+    // A single detection is a point-in-time reading, not worth a centred panel,
+    // so it keeps an ordinary popup anchored where it was clicked.
     L.circleMarker([d.lat,d.lon],{radius:dr,color:"#ffffff",
       weight:2,opacity:op*.95,fillOpacity:op*.95,fillColor:dc})
       .bindPopup(`${SRC[d.source]?.n||d.source}<br>${fmtLocal(d.t)}<br>FRP ${d.frp==null?"n/a":d.frp+" MW"}`)
@@ -1571,13 +1503,13 @@ function drawDets(upto){
     const pts = shown.filter(d=>d.ev===selected).map(d=>[d.lat,d.lon]);
     if(pts.length>1) L.polyline(pts,{color:"#ff6b35",weight:1.4,opacity:.5,dashArray:"3,4"}).addTo(trail);
   }
-  // The clock alone says where you are on the timeline; a step index on top of it
-  // was noise. It still shows with no detections, which is the point of spanning
-  // the whole range.
+  // The clock alone says where you are on the timeline. It still shows with no
+  // detections, since the timeline spans the whole range.
   document.getElementById("tlabel").textContent =
     fmtStamp(upto) + (dets.length ? ` · ${shown.length}/${dets.length}` : "");
 }
 
+// Inline SVG sparkline of an event's FRP series, or "" with fewer than two points.
 function sparkline(e){
   const pts = e.series.filter(s=>s.frp!=null);
   if(pts.length<2) return "";
@@ -1595,6 +1527,7 @@ function sparkline(e){
   </svg>`;
 }
 
+// Render the sidebar list of event cards for the current range.
 function renderList(){
   const el = document.getElementById("list");
   if(!EVENTS.length){
@@ -1635,6 +1568,7 @@ function renderList(){
   });
 }
 
+// Select (or deselect, if already selected) an event; optionally fly to it.
 function select(id,fly){
   selected = selected===id?null:id;
   document.querySelectorAll(".ev").forEach(d=>d.classList.toggle("sel",d.dataset.id===selected));
@@ -1643,6 +1577,7 @@ function select(id,fly){
   drawDets(sliderTime());
 }
 
+// Render the range buttons and wire them to switch range and redraw everything.
 function renderRange(){
   const el = document.getElementById("hrange");
   el.innerHTML = Object.keys(DATA.ranges||{}).map(k=>{
@@ -1662,6 +1597,7 @@ requestAnimationFrame(() => { rebuildSlider(); drawDets(sliderTime()); });
   });
 }
 
+// Update the sidebar header: status dot and title, update time, chips, footer.
 function renderHeader(){
   const act = EVENTS.filter(e=>e.status==="active").length;
   const worstFrp = EVENTS.filter(e=>e.status==="active")
@@ -1682,10 +1618,9 @@ function renderHeader(){
     ...Object.entries(DATA.source_status||{}).map(([k,v])=>
       `<span class="chip" title="${(v.detail||"").replace(/"/g,"")}">${k} <b style="color:${v.ok?"#3fb950":"#e63946"}">${v.ok?t("ok"):t("fail")}</b></span>`)
   ].join("");
-  // The documentation is published beside the map, at <site>/docs/, by the same
-  // Pages deploy that publishes this page - so it is only linked when this instance
-  // has a public address. The local file:// map has no sibling docs directory and
-  // would only offer a dead link.
+  // The documentation is published at <site>/docs/ by the same Pages deploy, so it
+  // is linked only when this instance has a public address; a local file:// map
+  // has no sibling docs directory.
   const docsLink = DATA.public_url
     ? ` &nbsp;|&nbsp; <a href="docs/" class="foot-link">${t("docs")}</a>` : "";
   document.getElementById("foot").innerHTML =
@@ -1709,6 +1644,7 @@ const backdropEl = document.getElementById("backdrop");
 const drawerBtn = document.getElementById("drawer-btn");
 const isMobile = () => matchMedia("(max-width:880px)").matches;
 
+// Open or close the mobile off-canvas drawer.
 function setDrawer(open){
   sideEl.classList.toggle("open", open);
   backdropEl.classList.toggle("on", open);
@@ -1742,6 +1678,7 @@ let autoUnit = true;     // until the reader picks one explicitly
 const unitMs = () => UNITS[unitIx].ms;
 const unitBtn = document.getElementById("unit");
 
+// Number of slider steps across the current range at the current unit.
 function stepCount(){
   return Math.max(1, Math.ceil((tMax - tMin) / unitMs()));
 }
@@ -1754,12 +1691,11 @@ function pickUnit(span){
   }
   return UNITS.length - 1;
 }
-// Every unit stays selectable on every range. An earlier version bumped the unit
-// whenever it produced "too many" steps, which quietly removed minutes from all
-// but the 24h range - the default range is 3 days, so cycling never reached them.
-// A month in minutes is 43200 steps: coarse to drag, but exact, and the reader
-// asked for it. Only a genuinely pathological count is corrected.
+// Every unit stays selectable on every range: a month in minutes is 43200 steps,
+// coarse to drag but exact, and the reader asked for it. Only a pathological
+// count is corrected.
 const MAX_STEPS = 200000;
+// Coarsen the unit until the step count is at most MAX_STEPS.
 function clampUnit(){
   while(unitIx < UNITS.length - 1 && stepCount() > MAX_STEPS) unitIx++;
 }
@@ -1776,14 +1712,14 @@ const spansYears = () => tlParts(tMin).year !== tlParts(tMax).year;
 const xOf = ms => ((ms - tMin) / unitMs()) * pxUnit();
 const msOf = x => tMin + (x / pxUnit()) * unitMs();
 
-// Names kept from the slider version so every call site stays valid.
+// The moment under the centre playhead, clamped to the range.
 function sliderTime(){
   return Math.min(tMax, Math.max(tMin, msOf(scrollEl.scrollLeft)));
 }
-// Scroll events arrive asynchronously, so a flag set-then-cleared around the
-// assignment is already false by the time the event fires - which made the
-// handler treat playback's own scrolling as a reader interruption and stop it
-// after the first tick. Remember the position we set instead and compare.
+// Scroll events arrive asynchronously, so a flag set and cleared around the
+// assignment is already false when the event fires, and playback's own scrolling
+// would look like a reader interruption. Remember the position we set instead and
+// compare.
 let progAt = -1;
 function setScroll(x){
   progAt = x;
@@ -1791,12 +1727,14 @@ function setScroll(x){
 }
 const isOurScroll = () => Math.abs(scrollEl.scrollLeft - progAt) < 2;
 
+// Scroll the timeline so `ms` sits under the playhead.
 function setSliderTime(ms){
   const x = Math.min(trackPx(), Math.max(0, xOf(Math.min(Math.max(ms, tMin), tMax))));
   setScroll(x);
   paintTicks();
   syncAria();
 }
+// Re-lay-out the timeline track for the current range/unit, keeping the moment shown.
 function rebuildSlider(){
   const prev = sliderTime();
   const half = wrapW() / 2;
@@ -1838,6 +1776,7 @@ function paintTicks(){
   }
   ticksEl.innerHTML = out.join("");
 }
+// Ruler label for a tick: the clock time, or the date at midnight / on day+ units.
 function tickLabel(ms){
   const u = UNITS[unitIx].key;
   const p = tlParts(ms);
@@ -1847,6 +1786,7 @@ function tickLabel(ms){
   return `${p.day} ${monName(p.month)}${yearBit(p)}`;
 }
 
+// Keep the scroller's ARIA slider values in step with its position.
 function syncAria(){
   scrollEl.setAttribute("aria-valuemin", "0");
   scrollEl.setAttribute("aria-valuemax", String(stepCount()));
@@ -1886,11 +1826,9 @@ scrollEl.addEventListener("keydown", e => {
 map.on("zoomend", () => { drawEvents(); drawDets(sliderTime()); });
 addEventListener("resize", () => rebuildSlider());
 let timer=null;
-// Playback speed is a rate over timeline *steps*, not a fixed duration per pass.
-// A fixed duration made every unit take the same five seconds, so switching to
-// minutes bought detail and lost nothing else - the animation just skipped
-// faster. Rate-based, the unit button also chooses pace: minutes crawl, days
-// sweep. The tick interval stays fixed so motion stays smooth regardless.
+// Playback speed is a rate over timeline *steps*, not a fixed duration per pass,
+// so the unit button also chooses pace: minutes crawl, days sweep. The tick
+// interval stays fixed so motion stays smooth regardless.
 const SPEEDS = [{label:"0.5\u00d7", mult:0.5},
                 {label:"1\u00d7",   mult:1},
                 {label:"2\u00d7",   mult:2},
@@ -1898,9 +1836,8 @@ const SPEEDS = [{label:"0.5\u00d7", mult:0.5},
 const STEPS_PER_SEC = 4;                           // at 1x
 // Both ends need a guard: a 3-day range in day steps is 3 steps and would be a
 // blink, and 30 days in minute steps is 43200 and would run for three hours.
-// The ceiling is deliberately generous - minute steps are the deliberate choice
-// to watch a fire develop, and a tight cap turned every range into the same
-// two-and-a-half-minute skim. 4x is the escape hatch, not a lower ceiling.
+// The ceiling is generous because minute steps are a deliberate choice to watch a
+// fire develop; 4x is the escape hatch, not a lower ceiling.
 const MIN_PASS_MS = 10000, MAX_PASS_MS = 600000;
 const TICK_MS = 60;
 let speedIx = 1;                                   // 1x by default
@@ -1914,12 +1851,14 @@ const playBtn = document.getElementById("play");
 const speedBtn = document.getElementById("speed");
 speedBtn.textContent = SPEEDS[speedIx].label;
 
+// Stop playback and reset the play button.
 function stopPlay(){
   if(timer){ clearInterval(timer); timer = null; }
   playBtn.innerHTML = "&#9654;";
   playBtn.title = t("animate");
 }
 
+// Start playback from the start of the range, or from the current position.
 function startPlay(fromHere){
   if(timer){ clearInterval(timer); timer = null; }
   playBtn.innerHTML = "&#10074;&#10074;";
@@ -1973,6 +1912,7 @@ const M_PANE = "measure", M_COL = "#7cffb2";
 const mLayer = L.layerGroup().addTo(map);
 
 const COMPASS16 = Object.keys(COMPASS_BS);      // already in compass order
+// Initial great-circle bearing in degrees from a to b.
 function bearingDeg(a, b){
   const r = Math.PI/180, p1 = a.lat*r, p2 = b.lat*r, dl = (b.lng - a.lng)*r;
   const y = Math.sin(dl)*Math.cos(p2);
@@ -1993,12 +1933,14 @@ function geoAreaM2(pts){
   return Math.abs(sum * R_EARTH_M * R_EARTH_M / 2);
 }
 const segM = (a,b) => haversineM(a.lat, a.lng, b.lat, b.lng);
+// Length in metres of a path, closing back to the start for polygons.
 function pathM(pts, closed){
   let m = 0;
   for(let i=1; i<pts.length; i++) m += segM(pts[i-1], pts[i]);
   if(closed && pts.length > 2) m += segM(pts[pts.length-1], pts[0]);
   return m;
 }
+// Locale-formatted number with d decimals.
 function num(n, d){
   try {
     return n.toLocaleString(LANG === "bs" ? "bs-BA" : "en-GB",
@@ -2024,10 +1966,12 @@ let draft = null;         // the measurement being drawn
 const mShapes = [];       // finished ones, in the order they were drawn
 const needPts = () => mMode === "area" ? 3 : 2;
 
+// Perimeter/length and area for a measurement.
 function shapeStats(mode, pts){
   const closed = mode === "area";
   return {len: pathM(pts, closed), area: closed ? geoAreaM2(pts) : 0};
 }
+// HTML summary (size, plus bearing for a two-point line) shown on a measurement.
 function shapeSummary(mode, pts){
   const s = shapeStats(mode, pts);
   if(mode === "area")
@@ -2046,6 +1990,7 @@ function shapeSummary(mode, pts){
 const mVert = (p, r) => L.circleMarker(p, {pane:M_PANE, radius:r, color:"#0b0f14",
   weight:1.4, fillColor:M_COL, fillOpacity:1, interactive:false});
 
+// Draw a finished measurement (shape, vertices, segment labels, summary, remove popup).
 function renderShape(sh){
   const closed = sh.mode === "area";
   const shape = closed
@@ -2076,6 +2021,7 @@ function renderShape(sh){
   sh.layers.forEach(l => { if(l !== shape) mLayer.addLayer(l); });
 }
 
+// Delete one finished measurement and its layers.
 function removeShape(sh){
   map.closePopup();
   (sh.layers || []).forEach(l => mLayer.removeLayer(l));
@@ -2094,6 +2040,7 @@ function relabelShapes(){
   });
 }
 
+// Start a fresh in-progress measurement for the current mode.
 function newDraft(){
   const closed = mMode === "area";
   draft = {pts:[], verts:[], live:null};
@@ -2107,12 +2054,14 @@ function newDraft(){
   mLayer.addLayer(draft.line);
   mLayer.addLayer(draft.rubber);
 }
+// Discard the in-progress measurement's layers.
 function clearDraft(){
   if(!draft) return;
   [draft.line, draft.rubber, draft.live].concat(draft.verts)
     .forEach(l => { if(l) mLayer.removeLayer(l); });
   draft = null;
 }
+// Redraw the in-progress measurement from its points.
 function drawDraft(){
   if(!draft) return;
   draft.line.setLatLngs(draft.pts);
@@ -2123,6 +2072,7 @@ function drawDraft(){
   mPanelUpdate();
 }
 
+// Add a vertex to the draft, ignoring a near-duplicate click.
 function addPoint(ll){
   if(!draft) return;
   const n = draft.pts.length;
@@ -2135,11 +2085,13 @@ function addPoint(ll){
   draft.pts.push(ll);
   drawDraft();
 }
+// Drop the draft's last vertex.
 function undoPoint(){
   if(!draft || !draft.pts.length) return;
   draft.pts.pop();
   drawDraft();
 }
+// Commit the draft as a finished measurement and arm a new one.
 function finishDraft(){
   if(!draft || draft.pts.length < needPts()) return;
   const sh = {mode:mMode, pts:draft.pts.slice(), layers:[]};
@@ -2150,6 +2102,7 @@ function finishDraft(){
   mPanelUpdate(); mRefresh();
 }
 
+// Update the rubber band (and live label) as the pointer moves while measuring.
 function onMeasureMove(e){
   if(!draft || !draft.pts.length) return;
   const closed = mMode === "area", last = draft.pts[draft.pts.length-1];
@@ -2183,6 +2136,7 @@ mPanelCtl.onAdd = () => {
   mPanelCtl._el = d;
   return d;
 };
+// Refresh the measure panel's readout, hint and button states.
 function mPanelUpdate(){
   const el = mPanelCtl._el;
   if(!el || !mMode) return;
@@ -2220,6 +2174,7 @@ mCtl.onAdd = () => {
   mLabels(); mRefresh();
   return d;
 };
+// Set the measure buttons' tooltips in the current language.
 function mLabels(){
   const d = mCtl._d;
   if(!d) return;
@@ -2227,6 +2182,7 @@ function mLabels(){
   d.querySelector(".m-area").title = t("m_area");
   d.querySelector(".m-clear").title = t("m_clear");
 }
+// Reflect the active mode and presence of finished shapes on the measure buttons.
 function mRefresh(){
   const d = mCtl._d;
   if(!d) return;
@@ -2235,6 +2191,7 @@ function mRefresh(){
   d.querySelector(".m-clear").style.display = mShapes.length ? "" : "none";
 }
 
+// Arm the measure tool in `mode`, or disarm it if that mode is already active.
 function enterMeasure(mode){
   if(mMode === mode){ exitMeasure(); return; }
   clearDraft();
@@ -2246,6 +2203,7 @@ function enterMeasure(mode){
   setDrawer(false);                  // on a phone the drawer covers the map
   mPanelUpdate(); mRefresh();
 }
+// Disarm the measure tool and discard any draft.
 function exitMeasure(){
   clearDraft();
   mMode = null;
@@ -2257,11 +2215,9 @@ function exitMeasure(){
 mCtl.addTo(map);
 
 map.on("click", e => {
-  // See lastDismissAt's own comment further up: a click that just closed a
-  // popup (however that happened, and regardless of whether this handler
-  // runs before or after the one that did the closing) reads as "now",
-  // which is well within this 50ms window - so it drops no point. Any
-  // click even a little later is a deliberate new point again.
+  // See lastDismissAt above: a click that just closed a popup reads as "now",
+  // inside this 50 ms window, so it drops no point. A later click is a
+  // deliberate new point.
   if(mMode && Date.now() - lastDismissAt > 50) addPoint(e.latlng);
 });
 map.on("dblclick", () => { if(mMode) finishDraft(); });
@@ -2276,6 +2232,7 @@ document.addEventListener("keydown", e => {
 // ---- language switching ----------------------------------------------------
 // The legend and the layer control build their labels in onAdd, so they are
 // removed and re-added rather than patched in place.
+// Apply the current language to the static labels and tooltips.
 function applyStaticLabels(){
   document.documentElement.lang = LANG;
   document.getElementById("drawer-label").textContent = t("drawerFires");
@@ -2291,6 +2248,7 @@ function applyStaticLabels(){
   mLabels(); mPanelUpdate();
 }
 
+// Remove and re-add the controls so their labels pick up the current language.
 function rebuildControls(){
   legend.remove(); legend.addTo(map);
   const wasOpen = layersCtl._el.classList.contains("open");
@@ -2307,6 +2265,7 @@ function rebuildControls(){
   relabelShapes();
 }
 
+// Full re-render from DATA (used after a language switch).
 function renderAll(){
   applyStaticLabels();
   s2Sync();
@@ -2314,6 +2273,7 @@ function renderAll(){
   drawDets(sliderTime());
 }
 
+// Switch language, remember the choice, and rebuild everything that shows text.
 function setLang(l){
   if(!I18N[l] || l === LANG) return;
   LANG = l;
@@ -2348,49 +2308,45 @@ setSliderTime(tMax); drawDets(sliderTime());
   }
   fwTrack("deeplink_open", {event_found: !!ev});
 })();
-// The initial DATA is always inlined into this page for first paint (see the
-// module docstring), so the cover never waits on a network request - it hides
-// the instant this first synchronous render above has actually run, which is
-// the true "data is on the map" moment. requestAnimationFrame lets that
-// render's own paint land before the fade starts, rather than racing it.
+// The initial DATA is inlined for first paint (see the module docstring), so the
+// loading cover never waits on the network. It hides once the first synchronous
+// render above has run and the minimum display time has passed.
 const LOAD_MIN_MS = 3000;
 setTimeout(() => {
   const ld = document.getElementById("loading");
   if(!ld) return;
   ld.classList.add("hide");
-  // visibility:hidden alone does not stop CSS animations - the scene's
-  // ambient loops (fire flicker, rising smoke, the HUD's spinning ring) are
-  // "infinite" by design and would otherwise keep computing every frame
-  // forever on an invisible element, competing with the real map for CPU.
-  // display:none is what actually stops them; it waits for the .6s fade so
-  // the transition itself is still visible.
+  // visibility:hidden alone does not stop CSS animations: the scene's infinite
+  // loops (fire flicker, smoke, the HUD ring) would keep computing every frame
+  // on an invisible element. display:none stops them; it waits for the .6s fade
+  // so the transition is still visible.
   setTimeout(() => { ld.style.display = "none"; }, 600);
 }, Math.max(0, LOAD_MIN_MS - (Date.now() - LOAD_START)));
 // ---- live refresh without losing the reader's place ------------------------
 // A file:// page cannot fetch() a sibling JSON file, but it can load one as a
 // script. The poller rewrites fire-map-data.js each cycle; we pull it in with a
 // cache-busted <script> tag and re-render from it. Map centre, zoom, selected
-// range, selected fire and slider position are all left untouched - which is the
-// whole point, since location.reload() discarded every one of them.
+// range, selected fire and slider position are all left untouched, which a
+// location.reload() would discard.
 //
 // This is how often the page re-checks, not how often the data changes: the hosted
 // copy is polled by an external scheduler every ~15 minutes. Checking every minute
-// anyway is nearly free - one script tag against a static file - and means a fresh
-// publish shows up within a minute of landing rather than up to a cycle late. The
-// page states none of this any more; the "updated {t}" line in the header is the
-// honest answer to "how fresh is this", so raising the interval would only make
-// that read worse.
+// is nearly free (one script tag against a static file) and shows a fresh publish
+// within a minute of landing. The header's "updated {t}" line is the honest answer
+// to "how fresh is this".
 const REFRESH_MS = window.__fwRefreshMs || 60000;
 let refreshFails = 0;
 
+// Adopt a freshly loaded snapshot and redraw without moving the reader's view.
+// Returns false when it carries nothing new.
 function applyData(d){
   if(!d || !d.generated_at) return false;
   if(d.generated_at === DATA.generated_at) return false;   // nothing new
   const at = sliderTime();                                 // remember the moment shown
   DATA = d;
-  // Past the generated_at guard above, so this is genuinely new data - never a
-  // quiet cycle. Markers come back on: whatever the reader was looking at
-  // underneath, a fire that has just changed outranks it.
+  // Past the generated_at guard, so this is genuinely new data, never a quiet
+  // cycle. Markers come back on: a fire that has just changed outranks whatever
+  // the reader was looking at underneath.
   if(!markersOn){ markersOn = true; applyMarkers(); }
   // A new scene can arrive with any refresh. s2Sync rebuilds the layer control
   // when it does, which is safe here only because it never touches the view -
@@ -2403,11 +2359,9 @@ function applyData(d){
   setSliderTime(at);
   drawDets(sliderTime());
   if(wasOpen && markersOn){
-    // Refreshed with the event's own new data (FRP, status, age...), not
-    // just reopened as-is - the whole point of surviving a refresh is that
-    // a fire actively changing is exactly the one a reader is watching.
-    // Gone entirely (the event no longer exists in this range) closes it
-    // instead of leaving stale info on screen with nothing behind it.
+    // Refresh the panel with the event's new data (FRP, status, age...); a fire
+    // that is changing is the one a reader is watching. If the event no longer
+    // exists in this range, close the panel rather than leave stale info.
     const ev = EVENTS.find(x=>x.id===wasOpen);
     if(ev) openInfoPanel(popupHtml(ev)); else { infoOpenId = null; closeInfoPanel(); }
   }
@@ -2417,6 +2371,8 @@ function applyData(d){
   return true;
 }
 
+// Load the sibling data script via a cache-busted <script> tag, apply it, and
+// reschedule; falls back to a reload after repeated failures.
 function refresh(){
   // Never redraw mid-animation; just try again on the next tick.
   if(timer){ setTimeout(refresh, 2000); return; }
@@ -2430,8 +2386,8 @@ function refresh(){
   };
   s.onerror = () => {
     s.remove();
-    // If the sibling script cannot be loaded at all, fall back to the old
-    // behaviour rather than silently going stale.
+    // If the sibling script cannot be loaded at all, reload rather than
+    // silently going stale.
     if(++refreshFails >= 3){ location.reload(); return; }
     setTimeout(refresh, REFRESH_MS);
   };
@@ -2472,9 +2428,9 @@ def sync_public(html_path: Path | None = None) -> bool:
     if not PUBLIC_DIR.is_dir():
         return False
     src = Path(html_path or MAP_PATH)
-    # The Sentinel-2 render rides along. Leaving it out is a nasty failure mode:
-    # the local file:// map would look perfect while the published one - the URL
-    # in every SMS - showed an empty layer, because only this list is copied.
+    # The Sentinel-2 render rides along: only this list is copied, so leaving it
+    # out would leave the published map (the URL in every SMS) with an empty
+    # layer while the local file:// map looks perfect.
     for f in (src, data_path_for(src), src.parent / imagery.IMAGE_NAME):
         if f.exists():
             shutil.copy2(f, PUBLIC_DIR / f.name)
@@ -2487,16 +2443,16 @@ def sync_public(html_path: Path | None = None) -> bool:
 
 def bih_municipalities_geojson() -> dict:
     """All 145 BiH municipality boundaries as one FeatureCollection, each
-    feature tagged with the id/name the map needs for its tooltip - {} if the
-    data isn't there (a checkout without data/bih/, or before the fetch
-    finished), so the layer is simply omitted rather than the page failing to
-    render at all, same as a missing buffer band.
+    feature tagged with the id/name the map needs for its tooltip.
 
-    `telegram_invite` rides along too - an invite link is meant to be public
-    (that is its whole purpose), unlike the Sentinel Hub instance id landmine
-    elsewhere in this module, so embedding it in the page Pages publishes is
-    fine. `None` for a municipality not yet provisioned; muniPopupHtml() omits
-    the subscribe link rather than showing one that 404s.
+    Returns {} when the data is missing (a checkout without data/bih/), so the
+    layer is omitted rather than the page failing to render, like a missing
+    buffer band.
+
+    `telegram_invite` rides along: an invite link is meant to be public, unlike
+    the Sentinel Hub instance id, so embedding it in the published page is fine.
+    It is None for a municipality not yet provisioned; muniPopupHtml() then omits
+    the subscribe link rather than show one that 404s.
     """
     try:
         rows = json.loads(BIH_MUNI_FILE.read_text())
@@ -2518,6 +2474,8 @@ def bih_municipalities_geojson() -> dict:
 
 
 def render(snapshot: dict, path: Path | None = None) -> Path:
+    """Render the snapshot into the map page, write its data file, and mirror to
+    PUBLIC_DIR when that exists. Returns the page path."""
     out = Path(path or MAP_PATH)
     boundary = json.loads(BOUNDARY_GEOJSON.read_text())
     # None when the artifact is missing or was built for a different buffer

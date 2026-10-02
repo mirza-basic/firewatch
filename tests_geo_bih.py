@@ -12,6 +12,7 @@ passed = failed = 0
 
 
 def check(name, got, want):
+    """Tally a pass if `got == want`."""
     global passed, failed
     ok = got == want
     passed += ok

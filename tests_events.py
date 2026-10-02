@@ -9,16 +9,19 @@ from firewatch.store import iso, utcnow
 now = utcnow()
 
 def det(uid, minutes_ago, lat=44.31, lon=18.29, frp=8.0, src="mtg"):
+    """Build one synthetic detection `minutes_ago` before now."""
     return {"uid": uid, "source": src, "sensor": "X", "lat": lat, "lon": lon,
             "ts": iso(now - timedelta(minutes=minutes_ago)), "frp": frp,
             "confidence": 80, "daynight": None, "inside": 1}
 
 def ev(dets):
+    """Cluster detections and return the first event, or None."""
     e = events.build_events(dets)
     return e[0] if e else None
 
 passed = failed = 0
 def check(name, alerts, want):
+    """Tally a pass if every wanted alert kind is present in `alerts`."""
     global passed, failed
     kinds = sorted({a["kind"] for a in alerts})
     ok = set(want).issubset(set(kinds))
@@ -86,6 +89,7 @@ con.execute("DELETE FROM notified WHERE event_id='cooldown-test'"); con.commit()
 
 # 11. range filtering: an event lands in exactly the ranges it should
 def in_ranges(minutes_ago):
+    """Return the range keys an event of that age falls into."""
     e = ev([det("r%d" % minutes_ago, minutes_ago)])
     return [k for k in events.RANGES if events.filter_events([e], k)]
 
@@ -112,14 +116,14 @@ ok = order == ["24h", "3d", "7d", "30d", "1y"] and all(
 print(f"  {'PASS' if ok else 'FAIL'}  {'range order + labels':34s} {order}")
 passed += ok; failed += not ok
 
-# 12b. every range is a rolling window - no calendar-day special case left
+# 12b. every range is a rolling window of positive hours
 ok = all(isinstance(v["hours"], (int, float)) and v["hours"] > 0
          for v in events.RANGES.values())
 print(f"  {'PASS' if ok else 'FAIL'}  {'all ranges are rolling':34s} "
       f"{[v['hours'] for v in events.RANGES.values()]}")
 passed += ok; failed += not ok
 
-# 12c. the retired "today" key still resolves rather than breaking a saved config
+# 12c. the legacy "today" key resolves rather than breaking a saved config
 ok = (events.resolve_range("today") == "24h"
       and events.resolve_range("nonsense") == events.DEFAULT_RANGE
       and events.resolve_range(None) == events.DEFAULT_RANGE)

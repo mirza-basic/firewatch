@@ -43,15 +43,14 @@ S3_LAYERS = ["copernicus:sentinel3a_slstr_level2_frp",
 
 
 class SourceError(RuntimeError):
-    pass
+    """A feed could not be fetched or its response was unusable."""
 
 
 class NoCredentials(SourceError):
     """A source needs a key that has not been supplied.
 
-    Distinct from SourceError so the poller can report "not configured" rather than
-    "failed" - a missing key is a setup step, not an outage, and the two want very
-    different words in the status line.
+    Distinct from SourceError so the poller reports "not configured" rather than
+    "failed": a missing key is a setup step, not an outage.
     """
 
 
@@ -61,6 +60,7 @@ def _timeout() -> tuple[float, float]:
 
 
 def _session() -> requests.Session:
+    """requests session with the configured User-Agent (and IPv4-only if forced)."""
     force_ipv4()
     s = requests.Session()
     s.headers.update({"User-Agent": CFG["user_agent"]})
@@ -92,6 +92,7 @@ ARCHIVE_DAYS = {"mtg": 40, "s3": 400}
 
 def _wfs_features(session: requests.Session, layer: str, since: datetime,
                   pad_km: float, until: datetime | None = None) -> list[dict]:
+    """One WFS GetFeature over the padded bbox, retried on transient gateway errors."""
     w, s, e, n = geo.bbox_padded(pad_km)
     cql = (f"time AFTER {iso(since)}"
            f" AND Lat BETWEEN {s:.4f} AND {n:.4f}"
@@ -103,8 +104,7 @@ def _wfs_features(session: requests.Session, layer: str, since: datetime,
         "typeNames": layer, "outputFormat": "application/json",
         "count": "3000", "CQL_FILTER": cql,
     }
-    # The EUMETView gateway throws intermittent 502/503s; a couple of quick
-    # retries turn a lost cycle into a small delay.
+    # The EUMETView gateway throws intermittent 502/503s; quick retries absorb them.
     last = ""
     for attempt in range(3):
         try:
@@ -140,7 +140,7 @@ def _wfs_features_chunked(session: requests.Session, layer: str,
         try:
             feats.extend(_wfs_features(session, layer, start, pad_km, until=end))
         except SourceError as exc:
-            # One bad chunk should not lose the whole backfill.
+            # One bad chunk must not lose the whole window.
             log.warning("%s chunk %s..%s: %s", layer, iso(start), iso(end), exc)
         remaining -= chunk
     return feats
@@ -241,9 +241,8 @@ def fetch_firms(days: int = 1, start_date: str | None = None,
     session = _session()
     key, key_source = firms_key()
     if not key:
-        # Not an error: Meteosat and Sentinel-3 need no credentials and carry the
-        # cycle on their own. Raising here would mark the source failed and bury the
-        # one thing the operator needs to read.
+        # A setup step, not an error: Meteosat and Sentinel-3 need no credentials
+        # and carry the cycle on their own.
         raise NoCredentials(
             "no FIRMS key - VIIRS/MODIS skipped. Get one free at "
             f"{FIRMS_SIGNUP_URL} then run `set-firms-key`")
@@ -257,10 +256,9 @@ def fetch_firms(days: int = 1, start_date: str | None = None,
         try:
             r = session.get(url, timeout=_timeout())
         except (requests.ConnectTimeout, requests.ConnectionError) as exc:
-            # The host is unreachable from here, not this dataset. Trying the other
-            # three costs one connect timeout each and cannot succeed - FIRMS from a
-            # CI runner is intermittently blocked, and a cycle that spends six
-            # minutes proving it is a cycle that has not published a map.
+            # The host is unreachable, not this dataset: the remaining datasets
+            # would each cost a connect timeout and cannot succeed (FIRMS is
+            # intermittently blocked from CI runners).
             log.warning("firms %s: cannot reach the host, skipping the rest of this"
                         " cycle: %s", ds, exc)
             break
@@ -304,6 +302,7 @@ def fetch_firms(days: int = 1, start_date: str | None = None,
 
 
 def _firms_ts(date_s: str | None, time_s: str | None):
+    """UTC datetime from FIRMS acq_date and unpadded HHMM acq_time, or None if unparseable."""
     if not date_s:
         return None
     try:
@@ -323,6 +322,7 @@ def _firms_conf(v):
 
 
 def _f(v):
+    """float(v), or None for missing, empty or non-numeric values."""
     try:
         return None if v is None or v == "" else float(v)
     except (TypeError, ValueError):

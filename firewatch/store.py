@@ -55,29 +55,31 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 
 
 def utcnow() -> datetime:
+    """Current time as a timezone-aware UTC datetime."""
     return datetime.now(timezone.utc)
 
 
 def iso(dt: datetime) -> str:
+    """Format a datetime as second-precision ISO 8601 UTC with a Z suffix."""
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def parse_iso(s: str) -> datetime:
+    """Parse an ISO 8601 string; a naive result is taken as UTC."""
     s = s.strip().replace("Z", "+00:00")
     dt = datetime.fromisoformat(s)
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-# Detection uids used to carry the full FIRMS dataset name, suffix and all, so
-# VIIRS_SNPP_NRT and VIIRS_SNPP_SP - the same instrument, the same overpass,
-# processed twice - stored one pixel as two detections. That only became reachable
-# when `backfill` started fetching the SP archive for history, and it would have
-# double-counted every FIRMS detection in the overlap. Stored rows have to be
-# collapsed too, or the old ones never match the new uids.
+# Version of the detection uid scheme. FIRMS uids omit the dataset suffix, since
+# VIIRS_SNPP_NRT and VIIRS_SNPP_SP are one instrument and overpass processed twice
+# and must not store a pixel as two detections. _migrate() rewrites stored rows
+# built under an older scheme so they match.
 UID_SCHEME = 2
 
 
 def _migrate(con: sqlite3.Connection) -> None:
+    """Collapse legacy FIRMS _NRT/_SP uids to the current scheme (once per database)."""
     row = con.execute("SELECT v FROM meta WHERE k='uid_scheme'").fetchone()
     if row and int(row["v"]) >= UID_SCHEME:
         return
@@ -87,8 +89,7 @@ def _migrate(con: sqlite3.Connection) -> None:
             "   SET uid = replace(uid, ?, ''), sensor = replace(sensor, ?, '')"
             " WHERE source = 'firms' AND instr(uid, ?) > 0",
             (suffix, suffix, suffix))
-    # Whatever OR IGNORE skipped is a row whose collapsed uid is already taken:
-    # the duplicate this migration exists to remove.
+    # Rows OR IGNORE skipped have a collapsed uid that is already taken: duplicates.
     con.execute("DELETE FROM detections WHERE source = 'firms'"
                 " AND (instr(uid, '_NRT') > 0 OR instr(uid, '_SP') > 0)")
     con.execute("INSERT INTO meta(k, v) VALUES('uid_scheme', ?)"
@@ -97,6 +98,7 @@ def _migrate(con: sqlite3.Connection) -> None:
 
 
 def connect() -> sqlite3.Connection:
+    """Open the database (WAL mode), creating the schema and migrating as needed."""
     ensure_dirs()
     con = sqlite3.connect(DB_PATH, timeout=30)
     con.row_factory = sqlite3.Row
@@ -131,6 +133,7 @@ def upsert_detections(con: sqlite3.Connection, dets: list[dict]) -> list[dict]:
 
 
 def recent_detections(con: sqlite3.Connection, hours: float) -> list[dict]:
+    """All stored detections from the last `hours`, oldest first."""
     cutoff = iso(utcnow() - timedelta(hours=hours))
     rows = con.execute(
         "SELECT * FROM detections WHERE ts >= ? ORDER BY ts", (cutoff,)
@@ -139,6 +142,7 @@ def recent_detections(con: sqlite3.Connection, hours: float) -> list[dict]:
 
 
 def load_events(con: sqlite3.Connection) -> dict[str, dict]:
+    """Previously saved events by id, decoded from their JSON payloads."""
     rows = con.execute("SELECT id, payload FROM events").fetchall()
     out = {}
     for r in rows:
@@ -150,6 +154,7 @@ def load_events(con: sqlite3.Connection) -> dict[str, dict]:
 
 
 def save_events(con: sqlite3.Connection, events: list[dict]) -> None:
+    """Upsert the current events and delete any stored event no longer present."""
     now = iso(utcnow())
     keep = {e["id"] for e in events}
     for e in events:
@@ -185,6 +190,7 @@ def save_events(con: sqlite3.Connection, events: list[dict]) -> None:
 
 def was_notified(con: sqlite3.Connection, event_id: str, kind: str,
                  cooldown_min: float) -> bool:
+    """True if (event, kind) was notified within the cooldown window."""
     row = con.execute(
         "SELECT at FROM notified WHERE event_id=? AND kind=?", (event_id, kind)
     ).fetchone()
@@ -195,6 +201,7 @@ def was_notified(con: sqlite3.Connection, event_id: str, kind: str,
 
 
 def mark_notified(con: sqlite3.Connection, event_id: str, kind: str) -> None:
+    """Record that (event, kind) was just delivered."""
     con.execute(
         "INSERT INTO notified (event_id,kind,at) VALUES (?,?,?)"
         " ON CONFLICT(event_id,kind) DO UPDATE SET at=excluded.at",
@@ -204,11 +211,13 @@ def mark_notified(con: sqlite3.Connection, event_id: str, kind: str) -> None:
 
 
 def get_meta(con: sqlite3.Connection, key: str, default=None):
+    """Read a value from the meta key/value table."""
     row = con.execute("SELECT v FROM meta WHERE k=?", (key,)).fetchone()
     return row["v"] if row else default
 
 
 def set_meta(con: sqlite3.Connection, key: str, value) -> None:
+    """Write a value (stored as text) to the meta key/value table."""
     con.execute(
         "INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
         (key, str(value)),
@@ -217,6 +226,7 @@ def set_meta(con: sqlite3.Connection, key: str, value) -> None:
 
 
 def prune(con: sqlite3.Connection, keep_days: int = 30) -> int:
+    """Delete detections and notification records older than `keep_days`; returns detections removed."""
     cutoff = iso(utcnow() - timedelta(days=keep_days))
     n = con.execute("DELETE FROM detections WHERE ts < ?", (cutoff,)).rowcount
     con.execute("DELETE FROM notified WHERE at < ?", (cutoff,))
@@ -227,10 +237,10 @@ def prune(con: sqlite3.Connection, keep_days: int = 30) -> int:
 def out_of_scope(con: sqlite3.Connection) -> list[dict]:
     """Stored detections the current spatial clip would no longer accept.
 
-    Re-derived from the geometry rather than trusting the stored `inside` flag, so
-    this stays correct if the boundary file is ever regenerated too. Lowering
-    nearby_buffer_km does not retroactively touch history - the clip only runs at
-    fetch time - so this is what finds what the old, wider setting let in.
+    Re-derived from the geometry rather than the stored `inside` flag, so it stays
+    correct if the boundary data changes. The clip only runs at fetch time, so
+    lowering nearby_buffer_km does not touch history; this finds what a wider
+    setting let in.
     """
     from . import geo
     from .config import CFG
@@ -264,6 +274,7 @@ def delete_detections(con: sqlite3.Connection, uids: list[str]) -> int:
 
 
 def stats(con: sqlite3.Connection) -> dict:
+    """Detection count with oldest and newest observation timestamps."""
     row = con.execute(
         "SELECT COUNT(*) n, MIN(ts) mn, MAX(ts) mx FROM detections"
     ).fetchone()
