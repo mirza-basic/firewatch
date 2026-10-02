@@ -535,3 +535,30 @@ def ensure_dirs():
 
 
 CFG = Config()
+
+
+FIREBASE_CONFIG_ENV = "FIREWATCH_FIREBASE_CONFIG"
+
+
+def firebase_config() -> dict | None:
+    """The Firebase web config the map reports usage to, or None for no analytics.
+
+    A JSON object (apiKey, projectId, appId, measurementId...) in the environment.
+    None of it is secret - it ships to every reader's browser - but there is no
+    built-in default for the same reason `telegram_channel` has none: a fork that
+    forgot to set its own would send its readers' traffic into this deployment's
+    property. Unset means the generated page contains no analytics code at all.
+    """
+    raw = (os.environ.get(FIREBASE_CONFIG_ENV) or "").strip()
+    if not raw:
+        return None
+    try:
+        cfg = json.loads(raw)
+    except ValueError:
+        cfg = None
+    if not isinstance(cfg, dict) or not cfg.get("measurementId") or not cfg.get("apiKey"):
+        logging.getLogger("firewatch.config").warning(
+            "%s is not a Firebase web config with apiKey and measurementId - "
+            "analytics off", FIREBASE_CONFIG_ENV)
+        return None
+    return cfg
