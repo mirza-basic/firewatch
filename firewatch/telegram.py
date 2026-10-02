@@ -47,6 +47,7 @@ import os
 import time
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -143,6 +144,7 @@ TELEGRAM_TEXT = {
         "outside": "IZVAN BIH", "wind": "Vjetar", "rh": "vlaga ",
         "risk_word": "rizik", "sample": "Primjer",
         "test": "FIREWATCH TEST - nema požara, provjera Telegram kanala",
+        "open_map": "Otvori na mapi",
     },
     "en": {
         "kind": {"new": "NEW FIRE", "reignited": "BURNING AGAIN",
@@ -156,6 +158,7 @@ TELEGRAM_TEXT = {
         "outside": "OUTSIDE Bosnia and Herzegovina", "wind": "Wind", "rh": "RH ",
         "risk_word": "risk", "sample": "Sample",
         "test": "FIREWATCH TEST - no fire, checking the Telegram channel",
+        "open_map": "Open on map",
     },
 }
 
@@ -199,8 +202,9 @@ def _place(ev: dict, code: str) -> str:
     return f"{p['km']} km {_dir(p.get('dir', ''), code)} od {gen}"
 
 
-def _compose(ev, code, T, kind, sev, peak, latest, place, url, emoji) -> str:
-    """The message body. Nothing here degrades - see the module docstring."""
+def _compose(ev, code, T, kind, sev, peak, latest, place, emoji) -> str:
+    """The message body. Nothing here degrades - see the module docstring. The map is
+    not a line of it: it is an inline button under the post (see `send()`)."""
     lines = [
         f"{emoji} {kind}: {place}",
         f"{sev} · {peak} MW {T['peak']} / {latest} MW {T['now']}",
@@ -218,8 +222,6 @@ def _compose(ev, code, T, kind, sev, peak, latest, place, url, emoji) -> str:
         lines.append(f"{T['wind']} {w.get('speed', 0):.0f}km/h "
                      f"{_dir(w.get('from', '?'), code)} {T['rh']}{w.get('humidity','?')}%"
                      + (f" · {T['risk_word']} {risk}" if ev.get("risk") else ""))
-    if url:
-        lines.append(url)
     return "\n".join(lines)
 
 
@@ -243,7 +245,33 @@ def merged_alert_text(alerts: list[dict]) -> str:
     # kind alongside it means something is still actively worth the fire emoji.
     emoji = KIND_EMOJI.get(kind_keys[0], DEFAULT_EMOJI) if len(kind_keys) == 1 else DEFAULT_EMOJI
     return _compose(ev, code, T, kind, sev, peak, latest, _place(ev, code),
-                     map_url() or "", emoji)
+                    emoji)
+
+
+def deep_link(url: str | None, ev: dict, with_event: bool = False) -> str:
+    """The map address with this fire's position in the query string, so opening it
+    from Telegram lands already zoomed on the fire instead of at country scale.
+
+    GitHub Pages ignores query strings, so this costs nothing server-side - the page's
+    own script reads them (see `deepLink()` in mapgen). `with_event` adds `e=<id>`,
+    which makes the map also open that event's panel; alerts leave it off (the reader
+    sees the fire on the map and opens what they want), but the map still supports it.
+    The slash before `?` is explicit: `/firewatch?x` makes Pages redirect to
+    `/firewatch/` and is one more hop for nothing. SMS deliberately does not use any of
+    this - its 160-character budget has two characters of headroom.
+    """
+    if not url:
+        return ""
+    q = f"lat={ev['lat']:.4f}&lon={ev['lon']:.4f}&z=14"
+    if with_event and ev.get("id"):
+        q += f"&e={quote(str(ev['id']), safe='')}"
+    return f"{url.rstrip('/')}/?{q}"
+
+
+def button_url(alerts: list[dict]) -> str | None:
+    """Where the post's "Open on map" button points: the deep link for the alert's
+    event, or None when there is no public map address to link to."""
+    return deep_link(map_url(), alerts[0]["event"]) or None
 
 
 def alert_text(alert: dict) -> str:
@@ -266,10 +294,14 @@ def test_text() -> str:
             f"{sev} {peak}/{latest}MW",
             f"{ev['lat']:.3f},{ev['lon']:.3f}",
         ]
-    url = map_url()
-    if url:
-        lines.append(url)
     return "\n".join(lines)
+
+
+def test_button_url() -> str | None:
+    """The button the test post carries - same shape as a real alert's, aimed at the
+    newest event in the snapshot (or the bare map when there is none)."""
+    evs = _latest_events()
+    return (deep_link(map_url(), evs[0]) if evs else map_url()) or None
 
 
 def _latest_events() -> list[dict]:
@@ -305,7 +337,7 @@ def _retry_after(r: requests.Response) -> float | None:
         return None
 
 
-def send(text: str, chat_id: str) -> bool:
+def send(text: str, chat_id: str, button_url: str | None = None) -> bool:
     """Post to one chat id - a single municipality's channel, not "the"
     channel; there is one per municipality here, so the caller names which.
 
@@ -315,15 +347,29 @@ def send(text: str, chat_id: str) -> bool:
     MAX_RETRY_WAIT: retrying past that would block the poll cycle for longer
     than a channel post is worth, and ignoring `retry_after` risks a longer,
     unannounced mute instead of a graceful wait.
+
+    `button_url` becomes an inline "Open on map" button under the post. Telegram
+    refuses some addresses (localhost, anything it cannot parse) with
+    BUTTON_URL_INVALID; the post is then re-sent without the button, because an alert
+    that arrives without its map link beats one that does not arrive.
     """
     if not CFG.get("telegram_enabled") or not bot_token():
         log.warning("telegram not sent to %s: bot not configured", chat_id)
         return False
     url = API_BASE.format(token=bot_token())
     body = {"chat_id": chat_id, "text": text}
+    if button_url:
+        body["reply_markup"] = {"inline_keyboard": [[
+            {"text": _lang()[1]["open_map"], "url": button_url}]]}
     r = _post(url, body)
     if r is None:
         return False
+    if r.status_code == 400 and "reply_markup" in body and "BUTTON_URL_INVALID" in r.text:
+        log.warning("telegram refused the map button (%s) - sending without it", button_url)
+        body.pop("reply_markup")
+        r = _post(url, body)
+        if r is None:
+            return False
     if r.status_code == 429:
         wait = _retry_after(r)
         if wait is None or wait > MAX_RETRY_WAIT:
@@ -357,6 +403,7 @@ def send_alert_group(alerts: list[dict]) -> bool:
     if not municipality_ids:
         return False
     text = merged_alert_text(included)
+    link = button_url(included)
     kinds_label = "+".join(a["kind"] for a in included)
     any_sent = False
     for mid in municipality_ids:
@@ -364,7 +411,7 @@ def send_alert_group(alerts: list[dict]) -> bool:
         if not chat_id:
             log.info("telegram: no channel configured for municipality %s", mid)
             continue
-        if send(text, chat_id):
+        if send(text, chat_id, button_url=link):
             log.info("telegram posted to %s (%s) for %s", mid, chat_id, kinds_label)
             any_sent = True
     return any_sent

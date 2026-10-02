@@ -780,6 +780,20 @@ a failure in one never suppresses another.
   `None` for one rather than advertising a
   link that cannot work.
 
+* **Alerts carry an "Open on map" button that deep-links to the fire.** The link is
+  an inline keyboard button under the post (`send(..., button_url=)`, label in
+  `TELEGRAM_TEXT["open_map"]`), not a line of the text. `telegram.deep_link()` builds
+  `<map>/?lat=..&lon=..&z=14`, and `deepLink()` in `mapgen.py` reads it once at load and
+  zooms there. It also understands `&e=<event id>` (opens that event's panel; `deep_link(...,
+  with_event=True)`), but alerts leave it off. GitHub Pages ignores query strings, so no
+  server support is needed. Coordinates outside Bosnia and Herzegovina's box are ignored.
+  Telegram rejects some button addresses (`BUTTON_URL_INVALID`, e.g. localhost); `send()`
+  then re-posts without the button rather than losing the alert. With no public map
+  address there is simply no button. SMS does **not** use any of this - its one-segment
+  budget has two characters of headroom. The map's initial `fitBounds` is `animate:false`
+  on purpose: an animated one leaves a zoom animation in flight that snaps the view back
+  over the deep link when it finishes.
+
 ## Usage analytics (Firebase)
 
 The map reports reader actions to Firebase Analytics (GA4), loaded from the gstatic

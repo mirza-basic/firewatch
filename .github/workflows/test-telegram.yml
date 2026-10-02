@@ -74,6 +74,7 @@ jobs:
           print(f"channel      : {telegram.channel_for(mid) or '(no channel configured for this municipality yet)'}")
           print(f"bot token    : {'found' if telegram.bot_token() else 'not found'}")
           print(f"map link     : {telegram.map_url()}")
+          print(f"map button   : {telegram.test_button_url()}")
           print(f"length       : {len(text)} chars (limit 4096)")
           print("---- message ----")
           print(text)

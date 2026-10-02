@@ -513,6 +513,8 @@ def cmd_test_sms() -> int:
     print(f"  {len(text)} chars, {sms_mod.segments(text)} segment(s)")
     print("  ---- message to send ----")
     print("\n".join("  | " + l for l in text.splitlines()))
+    link = telegram_mod.test_button_url()
+    print(f"  [button] {telegram_mod.TELEGRAM_TEXT[telegram_mod._lang()[0]]['open_map']} -> {link or '(none: no public map address)'}")
 
     evs = poller.load_snapshot().get("events") or []
     if evs:
@@ -609,7 +611,7 @@ def cmd_test_telegram(municipality_id: str | None = None) -> int:
     if not ok:
         print("\n  not sent\n")
         return 1
-    sent = telegram_mod.send(text, chat_id)
+    sent = telegram_mod.send(text, chat_id, button_url=link)
     print(f"\n  delivered to {municipality_id}: {sent}\n")
     return 0 if sent else 1
 
