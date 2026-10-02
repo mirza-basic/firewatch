@@ -22,12 +22,15 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    env:
-      FIREWATCH_DATA_DIR: ${{ runner.temp }}/firewatch-data
-      FIREWATCH_PUBLIC_DIR: ${{ runner.temp }}/firewatch-public
-      FIREWATCH_CONFIG_DIR: ${{ runner.temp }}/firewatch-config
     steps:
       - uses: actions/checkout@v4
+      # The `runner` context is not available in job-level `env`, so the
+      # throwaway directories are exported from a step instead.
+      - name: Point data directories at a throwaway location
+        run: |
+          echo "FIREWATCH_DATA_DIR=$RUNNER_TEMP/firewatch-data" >> "$GITHUB_ENV"
+          echo "FIREWATCH_PUBLIC_DIR=$RUNNER_TEMP/firewatch-public" >> "$GITHUB_ENV"
+          echo "FIREWATCH_CONFIG_DIR=$RUNNER_TEMP/firewatch-config" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
