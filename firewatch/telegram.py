@@ -47,6 +47,7 @@ import os
 import time
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -243,7 +244,26 @@ def merged_alert_text(alerts: list[dict]) -> str:
     # kind alongside it means something is still actively worth the fire emoji.
     emoji = KIND_EMOJI.get(kind_keys[0], DEFAULT_EMOJI) if len(kind_keys) == 1 else DEFAULT_EMOJI
     return _compose(ev, code, T, kind, sev, peak, latest, _place(ev, code),
-                     map_url() or "", emoji)
+                     deep_link(map_url(), ev), emoji)
+
+
+def deep_link(url: str | None, ev: dict) -> str:
+    """The map address with this fire's position in the query string, so tapping the
+    link from Telegram opens the map already zoomed on it instead of at country scale.
+
+    GitHub Pages ignores query strings, so this costs nothing server-side - the page's
+    own script reads them (see `deepLink()` in mapgen). `e` additionally opens the
+    event's panel when the event is still in the reader's range. The slash before `?`
+    is explicit: `/firewatch?x` makes Pages redirect to `/firewatch/` and is one more
+    hop for nothing. SMS deliberately does not use this - its 160-character budget has
+    two characters of headroom.
+    """
+    if not url:
+        return ""
+    q = f"lat={ev['lat']:.4f}&lon={ev['lon']:.4f}&z=14"
+    if ev.get("id"):
+        q += f"&e={quote(str(ev['id']), safe='')}"
+    return f"{url.rstrip('/')}/?{q}"
 
 
 def alert_text(alert: dict) -> str:
@@ -268,7 +288,7 @@ def test_text() -> str:
         ]
     url = map_url()
     if url:
-        lines.append(url)
+        lines.append(deep_link(url, evs[0]) if evs else url)
     return "\n".join(lines)
 
 

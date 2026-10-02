@@ -1210,7 +1210,11 @@ function makeLayersCtl(){
 // municipality shape underneath it.
 const bLayer = L.geoJSON(BOUNDARY,{interactive:false,style:{color:"#7cc4ff",weight:2.4,
   opacity:.95,fillColor:"#7cc4ff",fillOpacity:.05,dashArray:"6,5"}}).addTo(map);
-map.fitBounds(bLayer.getBounds(),{padding:[24,24]});
+// animate:false is load-bearing for deep links: the constructor's setView has already
+// loaded the map, so an animated fit leaves a zoom animation in flight, and when it
+// finishes it overwrites whatever deepLink() set in the meantime (centre snaps back
+// to the country view). It is also a pointless animation on first paint.
+map.fitBounds(bLayer.getBounds(),{padding:[24,24],animate:false});
 
 // Jump straight to what is burning - at municipality zoom a single fire is a
 // few pixels, which is exactly when you most want to see it.
@@ -2325,6 +2329,25 @@ applyStaticLabels();
 s2Sync();
 recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
 setSliderTime(tMax); drawDets(sliderTime());
+// Deep link from a Telegram alert: ?lat=..&lon=..&z=..&e=<event id>. Runs once, at load -
+// never from applyData, so the 60 s refresh cannot yank the view back (landmine 11).
+// Coordinates are checked against Bosnia and Herzegovina's box so a mangled or hostile
+// link falls through to the normal country view instead of flying the map to the ocean.
+(function deepLink(){
+  let q;
+  try { q = new URLSearchParams(location.search); } catch(e) { return; }
+  const lat = parseFloat(q.get("lat")), lon = parseFloat(q.get("lon"));
+  if(!(lat >= 42.4 && lat <= 45.4 && lon >= 15.6 && lon <= 19.7)) return;
+  const z = Math.min(16, Math.max(6, parseInt(q.get("z"), 10) || 14));
+  map.setView([lat, lon], z, {animate:false});
+  const ev = EVENTS.find(x => x.id === q.get("e"));
+  if(ev){
+    select(ev.id, false);
+    infoOpenId = ev.id;
+    openInfoPanel(popupHtml(ev));
+  }
+  fwTrack("deeplink_open", {event_found: !!ev});
+})();
 // The initial DATA is always inlined into this page for first paint (see the
 // module docstring), so the cover never waits on a network request - it hides
 // the instant this first synchronous render above has actually run, which is

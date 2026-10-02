@@ -780,6 +780,15 @@ a failure in one never suppresses another.
   `None` for one rather than advertising a
   link that cannot work.
 
+* **Alert links deep-link to the fire.** `telegram.deep_link()` appends
+  `/?lat=..&lon=..&z=14&e=<event id>` to the map URL, and `deepLink()` in `mapgen.py`
+  reads it once at load: zoom to the point and open the event's panel if it is still in
+  the reader's range. GitHub Pages ignores query strings, so no server support is needed.
+  Coordinates outside Bosnia and Herzegovina's box are ignored (normal country view).
+  SMS does **not** use it - its one-segment budget has two characters of headroom.
+  The initial `fitBounds` is `animate:false` on purpose: an animated one leaves a zoom
+  animation in flight that snaps the view back over the deep link when it finishes.
+
 ## Usage analytics (Firebase)
 
 The map reports reader actions to Firebase Analytics (GA4), loaded from the gstatic
