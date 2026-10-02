@@ -1,0 +1,46 @@
+# Runs the plain-script test suites on every pull request and on pushes to main.
+#
+# The scripts are not pytest: each one exits non-zero if any assertion fails, so
+# a step failing is the signal. They need no credentials and make no network
+# calls; the data and config directories point at a throwaway location because
+# tests_events.py writes to the database for its notification-cooldown case.
+
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    # Every poll cycle commits state/ back to main; that must not trigger a test run.
+    paths-ignore:
+      - "state/**"
+      - "docs/**"
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      FIREWATCH_DATA_DIR: ${{ runner.temp }}/firewatch-data
+      FIREWATCH_PUBLIC_DIR: ${{ runner.temp }}/firewatch-public
+      FIREWATCH_CONFIG_DIR: ${{ runner.temp }}/firewatch-config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Byte-compile every module
+        run: python -m compileall -q firewatch
+      - name: Event clustering and alerting
+        run: python tests_events.py
+      - name: Fire Weather Index against the CFFDRS reference
+        run: python tests_fwi.py
+      - name: Municipality classifier
+        run: python tests_geo_bih.py
+      - name: Telegram routing
+        run: python tests_telegram_routing.py
