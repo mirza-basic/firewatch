@@ -787,8 +787,13 @@ a failure in one never suppresses another.
   zooms there. It also understands `&e=<event id>` (opens that event's panel; `deep_link(...,
   with_event=True)`), but alerts leave it off. GitHub Pages ignores query strings, so no
   server support is needed. Coordinates outside Bosnia and Herzegovina's box are ignored.
-  Telegram rejects some button addresses (`BUTTON_URL_INVALID`, e.g. localhost); `send()`
-  then re-posts without the button rather than losing the alert. With no public map
+  The button is red (`BUTTON_STYLE = "danger"`, Bot API 9.4's `style`) with a flame in
+  the label: the API only has preset colors (blue/green/red, to the best of our
+  knowledge - not verified against the docs), no orange. Telegram rejects some button
+  addresses (`BUTTON_URL_INVALID`, e.g. localhost): `send()` then re-posts without the
+  button, and a rejected `style` loses only the color, rather than losing the alert.
+  `test_text()` falls back to the newest event in the database when there is no
+  `snapshot.json` (a GitHub runner has only the committed DB). With no public map
   address there is simply no button. SMS does **not** use any of this - its one-segment
   budget has two characters of headroom. The map's initial `fitBounds` is `animate:false`
   on purpose: an animated one leaves a zoom animation in flight that snaps the view back

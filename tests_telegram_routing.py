@@ -101,7 +101,8 @@ telegram._post = lambda url, body: bodies.append(dict(body)) or R(200)
 telegram.send_alert(ev(["a"]))
 b = bodies[0]
 btn = b["reply_markup"]["inline_keyboard"][0][0]
-check("button label is the Bosnian one", btn["text"], "Otvori na mapi")
+check("button label is the Bosnian one, with the flame", btn["text"], "\U0001F525 Otvori na mapi")
+check("button asks for the red preset", btn["style"], "danger")
 check("button carries the position, zoom 14, and no event id",
      btn["url"], "https://example.github.io/firewatch/?lat=44.0000&lon=18.0000&z=14")
 check("the link is no longer a line of the message text", "http" in b["text"], False)
@@ -123,6 +124,16 @@ check("a rejected button falls back to a plain post that succeeds",
      telegram.send_alert(ev(["a"])), True)
 check("first try had the button, the retry did not",
      ["reply_markup" in x for x in bodies], [True, False])
+
+# An API that does not know `style` loses only the color, not the button.
+bodies.clear()
+telegram.map_url = lambda: "https://example.github.io/firewatch"
+answers = [R(400, '{"description":"Bad Request: field style is unknown"}'), R(200)]
+telegram._post = lambda url, body: bodies.append(
+    json.loads(json.dumps(body))) or answers.pop(0)
+check("a rejected style is retried without it", telegram.send_alert(ev(["a"])), True)
+check("retry keeps the button but drops the color",
+      ["style" in x["reply_markup"]["inline_keyboard"][0][0] for x in bodies], [True, False])
 
 tmp.unlink(missing_ok=True)
 
