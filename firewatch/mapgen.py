@@ -97,7 +97,7 @@ TEMPLATE = r"""<!doctype html>
     border-radius:9px;padding:12px 13px;margin-bottom:9px;cursor:pointer;transition:.14s}
   .ev:hover{border-color:#3a4655;transform:translateX(2px)}
   .ev.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-  .ev h2{margin:0 0 3px;font-size:13.5px;font-weight:600;display:flex;
+  .ev h2,.evbody h2{margin:0 0 3px;font-size:13.5px;font-weight:600;display:flex;
     justify-content:space-between;gap:8px;align-items:baseline}
   .sev{font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:2px 7px;
     border-radius:4px;background:#2a323d;color:var(--dim);white-space:nowrap}
@@ -1467,17 +1467,7 @@ function credit(e){
 
 // Info-panel HTML for one fire event.
 function popupHtml(e){
-  const w = e.weather;
-  return `<b>${t("sev_"+e.severity).toUpperCase()}</b> &middot; ${t("st_"+e.status)}<br>
-    ${placeOf(e)}<br>
-    FRP <b>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW"}</b> ${t("peak")},
-    ${e.latest_frp==null?"n/a":e.latest_frp.toFixed(1)+" MW"} ${t("latest")}<br>
-    ${e.n_det} ${t("detections")} &middot; ${e.sources.join(", ")}<br>
-    ${credit(e)}
-    ${t("lastSeen").toLowerCase()} ${ago(e.age_min)} &middot; ${e.extent_km} km ${t("across")}
-    ${w?`<br>${t("wind")} ${Math.round(w.speed)} km/h ${t("from")} ${dir(w.from)} (${t("gusts")} ${Math.round(w.gusts)}), ${t("rh")} ${w.humidity}%`:""}
-    <br><br><a href="https://www.google.com/maps?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>
-     &middot; <a href="https://www.openstreetmap.org/?mlat=${e.lat}&mlon=${e.lon}#map=14/${e.lat}/${e.lon}" target="_blank">OSM</a>`;
+  return `<div class="evbody">${eventBody(e)}<div style="margin-top:8px;font-size:12px">${credit(e)}</div></div>`;
 }
 
 // Draw detections up to time `upto`, plus the selected event's trail and the
@@ -1536,20 +1526,12 @@ function sparkline(e){
   </svg>`;
 }
 
-// Render the sidebar list of event cards for the current range.
-function renderList(){
-  const el = document.getElementById("list");
-  if(!EVENTS.length){
-    el.innerHTML = `<div class="empty"><div class="big">🌲</div>
-      <b>${t("noFires",{range:t("r_"+RANGE)})}</b><br><span style="font-size:12px">
-      ${t("nothing",{km:DATA.buffer_km})}</span></div>`;
-    return;
-  }
-  el.innerHTML = EVENTS.map(e=>{
+// Everything the sidebar card shows for one event, shared with the map popup so
+// the two cannot drift apart.
+function eventBody(e){
     const col = e.status==="active"?(SEVC[e.severity]||"#888"):"#6b7785";
     const w = e.weather;
-    return `<div class="ev" id="ev-${e.id}" data-id="${e.id}" style="border-left-color:${col}">
-      <h2><span>${e.status==="active"?"🔥":"💤"} ${muniOf(e)?`${muniOf(e)} <span style="color:#8b98a5;font-weight:400">· ${placeOf(e)}</span>`:placeOf(e)}</span>
+    return `<h2><span>${e.status==="active"?"🔥":"💤"} ${muniOf(e)?`${muniOf(e)} <span style="color:#8b98a5;font-weight:400">· ${placeOf(e)}</span>`:placeOf(e)}</span>
           <span class="sev" style="color:${col}">${t("sev_"+e.severity)}</span></h2>
       <div class="meta">
         <span>FRP</span><span>${e.max_frp==null?"n/a":e.max_frp.toFixed(1)+" MW "+t("peak")+" / "+
@@ -1568,7 +1550,21 @@ function renderList(){
         <a href="https://www.google.com/maps?q=${e.lat},${e.lon}" target="_blank">Google Maps</a>
         <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${e.lat},${e.lon}&zoom=15&basemap=satellite" target="_blank">${t("satellite")}</a>
         <button onclick="navigator.clipboard.writeText('${e.lat}, ${e.lon}');this.textContent='${t("copied")}'">${t("copyCoords")}</button>
-      </div></div>`;
+      </div>`;
+}
+
+// Render the sidebar list of event cards for the current range.
+function renderList(){
+  const el = document.getElementById("list");
+  if(!EVENTS.length){
+    el.innerHTML = `<div class="empty"><div class="big">🌲</div>
+      <b>${t("noFires",{range:t("r_"+RANGE)})}</b><br><span style="font-size:12px">
+      ${t("nothing",{km:DATA.buffer_km})}</span></div>`;
+    return;
+  }
+  el.innerHTML = EVENTS.map(e=>{
+    const col = e.status==="active"?(SEVC[e.severity]||"#888"):"#6b7785";
+    return `<div class="ev" id="ev-${e.id}" data-id="${e.id}" style="border-left-color:${col}">${eventBody(e)}</div>`;
   }).join("");
   el.querySelectorAll(".ev").forEach(d=>d.onclick=ev=>{
     if(ev.target.tagName==="A"||ev.target.tagName==="BUTTON") return;
