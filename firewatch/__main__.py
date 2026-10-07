@@ -112,6 +112,14 @@ def cmd_poll(rng: str | None = None) -> int:
     return 0
 
 
+def cmd_send_pending(url: str | None = None) -> int:
+    """Deliver alerts a deferred poll queued; waits for the map at `url` first."""
+    poller.setup_logging()
+    sent = poller.send_pending(url)
+    print(f"delivered {len(sent)} queued alert(s)")
+    return 0
+
+
 def cmd_watch() -> int:
     """Poll in a headless loop until interrupted; notifications only."""
     poller.setup_logging()
@@ -788,6 +796,8 @@ def main(argv: list[str]) -> int:
         return 0
     if cmd == "poll":
         return cmd_poll(argv[1] if len(argv) > 1 else None)
+    if cmd == "send-pending":
+        return cmd_send_pending(argv[1] if len(argv) > 1 else None)
     if cmd == "watch":
         return cmd_watch()
     if cmd == "status":

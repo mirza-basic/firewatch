@@ -55,6 +55,8 @@ concurrency:
 jobs:
   poll:
     runs-on: ubuntu-latest
+    outputs:
+      pending: ${{ steps.commit.outputs.pending }}
     # Job level, not step level: the commit step below needs FIREWATCH_DATA_DIR too,
     # and a step's `env` block is visible only to that step. Secrets stay scoped to
     # the one step that needs them - the commit step runs `git push` and has no
@@ -68,6 +70,9 @@ jobs:
       # died with "[Errno 101] Network is unreachable" after ~90s of retries, while
       # Meteosat and Sentinel-3 (A records only) worked fine.
       FIREWATCH_FORCE_IPV4: "1"
+      # Alerts are queued here and delivered by the `alert` job after the map is
+      # live, so an SMS/Telegram link never opens a page that lacks the fire.
+      FIREWATCH_DEFER_ALERTS: "1"
       # The address an SMS should point at. Without this, map_url() asks the local
       # ngrok agent - which does not exist here - and the alert loses its map link,
       # the one line you most want when a fire notification arrives.
@@ -114,6 +119,7 @@ jobs:
           python3 -m firewatch poll
 
       - name: Commit the database back, but only when something actually changed
+        id: commit
         run: |
           git config user.name  "firewatch[bot]"
           git config user.email "firewatch@users.noreply.github.com"
@@ -161,8 +167,12 @@ jobs:
           # alerts_sent is state/snapshot.json's own count from this exact
           # cycle (poller.cycle()'s `sent` list), not re-derived, so it can
           # never disagree with what the Python side actually decided.
-          ALERTS_SENT=$(python3 -c "import json,pathlib; d=pathlib.Path('state/snapshot.json'); s=json.loads(d.read_text()) if d.exists() else {}; print(len(s.get('alerts_sent') or []))")
-          echo "alerts sent this cycle: $ALERTS_SENT"
+          # Alerts are deferred now, so what this cycle decided is the queue
+          # (alerts_pending) rather than alerts_sent; the queue lives in the
+          # database and must be committed for the alert job to see it.
+          ALERTS_SENT=$(python3 -c "import json,pathlib; d=pathlib.Path('state/snapshot.json'); s=json.loads(d.read_text()) if d.exists() else {}; print(len(s.get('alerts_pending') or []))")
+          echo "alerts pending this cycle: $ALERTS_SENT"
+          echo "pending=$ALERTS_SENT" >> "$GITHUB_OUTPUT"
 
           # Stage the database when any of the three moved. meta.last_cycle is
           # rewritten every cycle, so the file's bytes change on every run even
@@ -241,3 +251,56 @@ jobs:
     steps:
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # Delivers the queued SMS/Telegram alerts once the new map is actually being
+  # served. Before this job existed, alerts went out inside `poll`, minutes ahead
+  # of the Pages deploy, so a reader tapping the link saw the previous map.
+  alert:
+    needs: [poll, publish]
+    if: ${{ !cancelled() && needs.poll.outputs.pending != '0' && needs.poll.outputs.pending != '' }}
+    runs-on: ubuntu-latest
+    env:
+      FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+      FIREWATCH_PUBLIC_DIR: ${{ github.workspace }}/public
+      FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+      FIREWATCH_FORCE_IPV4: "1"
+      FIREWATCH_PUBLIC_URL: https://mirza-basic.github.io/firewatch
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - run: python3 -m pip install --quiet requests certifi
+
+      - name: Send queued alerts
+        env:
+          HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
+          HTTPSMS_FROM: ${{ secrets.HTTPSMS_FROM }}
+          FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
+          FIREWATCH_SMS_MUNICIPALITIES: ${{ secrets.FIREWATCH_SMS_MUNICIPALITIES }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          mkdir -p state/config
+          echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
+          python3 -m firewatch send-pending "$FIREWATCH_PUBLIC_URL/fire-map-data.js"
+
+      # The notified rows are what stop the next run re-alerting; losing them is
+      # the same failure the poll job's push loop guards against.
+      - name: Commit notified rows
+        run: |
+          git config user.name  "firewatch[bot]"
+          git config user.email "firewatch@users.noreply.github.com"
+          git add state/firewatch.db
+          if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
+          git commit -q -m "state: alerts delivered @ $(date -u +%Y-%m-%dT%H:%MZ)"
+          for attempt in 1 2 3; do
+            if git push 2>/dev/null; then exit 0; fi
+            echo "push rejected (attempt $attempt), rebasing"
+            git pull --rebase --autostash -q origin "${{ github.ref_name }}" || break
+          done
+          echo "::error::could not push notified rows - the next run may re-alert"
+          exit 1

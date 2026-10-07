@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import logging
 import logging.handlers
+import os
+import re
 import threading
 import time
 from datetime import timedelta
@@ -51,6 +53,119 @@ def setup_logging(verbose: bool = False) -> None:
         h.setFormatter(fmt)
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
                         handlers=handlers, force=True)
+
+
+PENDING_KEY = "pending_alerts"
+PENDING_MAX_AGE_H = 6
+
+
+def defer_alerts() -> bool:
+    """True when alert delivery is left to a later `send-pending` step."""
+    return os.environ.get("FIREWATCH_DEFER_ALERTS", "").lower() in ("1", "true", "yes")
+
+
+def load_pending(con) -> list[dict]:
+    """Queued alerts not yet delivered, minus any too old to still be news."""
+    try:
+        items = json.loads(store.get_meta(con, PENDING_KEY) or "[]")
+    except ValueError:
+        return []
+    cutoff = utcnow() - timedelta(hours=PENDING_MAX_AGE_H)
+    return [a for a in items if store.parse_iso(a["queued_at"]) >= cutoff]
+
+
+def queue_alerts(con, alerts: list[dict]) -> None:
+    """Append alerts to the pending queue; one entry per (event, kind)."""
+    merged = {(a["event"]["id"], a["kind"]): a for a in load_pending(con)}
+    for a in alerts:
+        merged[(a["event"]["id"], a["kind"])] = {**a, "queued_at": iso(utcnow())}
+    store.set_meta(con, PENDING_KEY, json.dumps(list(merged.values()), ensure_ascii=False))
+
+
+def deliver(con, groups: dict[str, list[dict]]) -> list[dict]:
+    """Send each event's merged alert on every channel; returns what was delivered."""
+    sms_kinds = set(CFG.get("sms_kinds") or [])
+    telegram_kinds = set(CFG.get("telegram_kinds") or [])
+    sent = []
+    for ev_id, group in groups.items():
+        notified = notify.notify_alert_group(group)
+        # SMS and Telegram are separate channels and must go out even if
+        # the desktop notification failed - the Mac may be asleep or
+        # locked with nobody looking at it. Hence OR, not a gate.
+        try:
+            texted = sms.send_alert_group(group)
+        except Exception:
+            log.exception("sms alert failed")
+            texted = False
+        try:
+            posted = telegram.send_alert_group(group)
+        except Exception:
+            log.exception("telegram alert failed")
+            posted = False
+        kinds_label = "+".join(a["kind"] for a in group)
+        log.info("alerted %s: %s [notify=%s sms=%s telegram=%s]",
+                 kinds_label, group[0]["event"]["place"],
+                 notified, texted, posted)
+        # A kind counts as delivered only through a channel that would have
+        # included it: sms_kinds/telegram_kinds filter per kind within a
+        # merged message, and marking every kind notified because something
+        # sent would suppress a kind neither channel carries if it later
+        # shows up alone.
+        for a in group:
+            delivered = notified or (texted and a["kind"] in sms_kinds) \
+                or (posted and a["kind"] in telegram_kinds)
+            if delivered:
+                store.mark_notified(con, ev_id, a["kind"])
+                sent.append(a)
+    return sent
+
+
+def send_pending(wait_url: str | None = None, wait_s: int = 180) -> list[dict]:
+    """Deliver queued alerts, after the published map shows this cycle's data.
+
+    `wait_url` is the map's data file; delivery waits (bounded) until its
+    `generated_at` is at least the newest queued alert's, so the link in the
+    message opens a page that already has the fire. A timeout sends anyway:
+    a late map is better than a withheld alert.
+    """
+    con = store.connect()
+    try:
+        pending = load_pending(con)
+        if not pending:
+            return []
+        if wait_url:
+            _wait_for_map(wait_url, wait_s, max(a["queued_at"] for a in pending))
+        eligible = [a for a in pending if not store.was_notified(
+            con, a["event"]["id"], a["kind"], CFG["notify_cooldown_min"])]
+        groups: dict[str, list[dict]] = {}
+        for a in eligible:
+            groups.setdefault(a["event"]["id"], []).append(a)
+        sent = deliver(con, groups)
+        done = {(a["event"]["id"], a["kind"]) for a in sent}
+        # Failed deliveries stay queued for the next run (until they age out).
+        left = [a for a in pending if (a["event"]["id"], a["kind"]) not in done
+                and a in eligible]
+        store.set_meta(con, PENDING_KEY, json.dumps(left, ensure_ascii=False))
+        return sent
+    finally:
+        con.close()
+
+
+def _wait_for_map(url: str, wait_s: int, since: str) -> None:
+    import requests
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        try:
+            r = requests.get(url, params={"t": int(time.time())}, timeout=10,
+                             headers={"Cache-Control": "no-cache"})
+            m = re.search(r'"generated_at":\s*"([^"]+)"', r.text) if r.ok else None
+            if m and m.group(1) >= since:
+                log.info("published map is current (%s)", m.group(1))
+                return
+        except requests.RequestException:
+            pass
+        time.sleep(10)
+    log.warning("published map still behind after %ds; sending anyway", wait_s)
 
 
 class Poller:
@@ -188,39 +303,15 @@ class Poller:
             for a in eligible:
                 groups.setdefault(a["event"]["id"], []).append(a)
 
-            sms_kinds = set(CFG.get("sms_kinds") or [])
-            telegram_kinds = set(CFG.get("telegram_kinds") or [])
-            sent = []
-            for ev_id, group in groups.items():
-                notified = notify.notify_alert_group(group)
-                # SMS and Telegram are separate channels and must go out even if
-                # the desktop notification failed - the Mac may be asleep or
-                # locked with nobody looking at it. Hence OR, not a gate.
-                try:
-                    texted = sms.send_alert_group(group)
-                except Exception:
-                    log.exception("sms alert failed")
-                    texted = False
-                try:
-                    posted = telegram.send_alert_group(group)
-                except Exception:
-                    log.exception("telegram alert failed")
-                    posted = False
-                kinds_label = "+".join(a["kind"] for a in group)
-                log.info("alerted %s: %s [notify=%s sms=%s telegram=%s]",
-                         kinds_label, group[0]["event"]["place"],
-                         notified, texted, posted)
-                # A kind counts as delivered only through a channel that would have
-                # included it: sms_kinds/telegram_kinds filter per kind within a
-                # merged message, and marking every kind notified because something
-                # sent would suppress a kind neither channel carries if it later
-                # shows up alone.
-                for a in group:
-                    delivered = notified or (texted and a["kind"] in sms_kinds) \
-                        or (posted and a["kind"] in telegram_kinds)
-                    if delivered:
-                        store.mark_notified(con, ev_id, a["kind"])
-                        sent.append(a)
+            if defer_alerts():
+                # CI: the map is published by a later job, and an alert that goes
+                # out first sends the reader to a page without the fire on it.
+                # Queue in the database (committed with the rest of the state) and
+                # let `send-pending` deliver once the deploy is live.
+                queue_alerts(con, eligible)
+                sent = []
+            else:
+                sent = deliver(con, groups)
 
             # Resolved before the snapshot is written: the menu bar and map read the
             # URL from it, so a dead tunnel must not be advertised for another cycle.
@@ -249,6 +340,7 @@ class Poller:
                 "window_hours": CFG["window_hours"],
                 "buffer_km": CFG["nearby_buffer_km"],
                 "n_detections": len(window),
+                "alerts_pending": len(load_pending(con)),
                 "alerts_sent": [{"kind": a["kind"], "id": a["event"]["id"],
                                  "detail": a.get("detail", "")} for a in sent],
                 "notify_backend": notify.backend(),
