@@ -19,7 +19,9 @@ from .config import CFG
 
 log = logging.getLogger("firewatch.notify")
 
-_TN = shutil.which("terminal-notifier")
+# macOS-only binary: the terminal-notifier *gem* installs a Mach-O app that a Linux
+# runner finds on PATH and then fails to exec ("Syntax error: ( unexpected").
+_TN = shutil.which("terminal-notifier") if sys.platform == "darwin" else None
 # On a headless server none of the three exist; backend() then says "none" and a
 # poll cycle just logs the alert and carries on.
 _NS = None if sys.platform == "darwin" else shutil.which("notify-send")
