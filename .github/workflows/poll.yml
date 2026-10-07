@@ -170,7 +170,7 @@ jobs:
           # Alerts are deferred now, so what this cycle decided is the queue
           # (alerts_pending) rather than alerts_sent; the queue lives in the
           # database and must be committed for the alert job to see it.
-          ALERTS_SENT=$(python3 -c "import json,pathlib; d=pathlib.Path('state/snapshot.json'); s=json.loads(d.read_text()) if d.exists() else {}; print(len(s.get('alerts_pending') or []))")
+          ALERTS_SENT=$(python3 -c "import json,pathlib; d=pathlib.Path('state/snapshot.json'); s=json.loads(d.read_text()) if d.exists() else {}; print(int(s.get('alerts_pending') or 0))")
           echo "alerts pending this cycle: $ALERTS_SENT"
           echo "pending=$ALERTS_SENT" >> "$GITHUB_OUTPUT"
 
