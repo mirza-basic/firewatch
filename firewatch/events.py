@@ -27,7 +27,7 @@ RANGES = {
     # database (same as "Last month" until `backfill` has run).
     "1y": {"label": "Last year", "short": "Year", "hours": 8760.0},
 }
-DEFAULT_RANGE = "3d"
+DEFAULT_RANGE = "24h"
 
 # Retired range names mapped to their replacements, so a saved default_range
 # stays valid.

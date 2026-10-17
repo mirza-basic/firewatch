@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%"><stop offset="0%" stop-color="#EA580C"/><stop offset="50%" stop-color="#EF4444"/><stop offset="100%" stop-color="#FBBF24"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#0F172A"/>
+  <path d="M 56.1,401.8 A 206 62 -14 0 1 455.9,302.2" fill="none" stroke="#38BDF8" stroke-width="38" stroke-linecap="round" opacity="0.5"/>
+  <g transform="translate(256, 226) scale(1.5)"><path d="M 0,-100 C 18,-62 72,-38 72,22 C 72,68 40,96 0,96 C -40,96 -72,68 -72,22 C -72,-12 -54,-34 -40,-52 C -38,-24 -28,-8 -12,-2 C -18,-42 -10,-76 0,-100 Z" fill="url(#fireGrad)"/><path d="M 2,-18 C 12,8 38,24 38,50 C 38,76 21,92 0,92 C -21,92 -38,76 -38,52 C -38,34 -28,22 -20,12 C -16,30 -8,40 4,42 C 0,22 -4,4 2,-18 Z" fill="#FDE047"/></g>
+  <path d="M 455.9,302.2 A 206 62 -14 0 1 56.1,401.8" fill="none" stroke="#38BDF8" stroke-width="38" stroke-linecap="round"/>
+  <circle cx="411.1" cy="276.7" r="48" fill="#E2E8F0" stroke="#0F172A" stroke-width="16"/>
+</svg>

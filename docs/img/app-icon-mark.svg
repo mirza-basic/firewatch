@@ -1,29 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Just the background and the burning tree - the detection-reticle
-       overlay and the wordmark (see app-icon.svg) both dropped out for this
-       variant, used wherever the icon renders small (favicon, apple-touch-
-       icon, macOS menu bar). -->
+  <!-- Mala verzija za favicon i male ikone: deblja orbita, veći plamen, pojednostavljen satelit. -->
   <defs>
     <radialGradient id="appBg" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#1E293B" />
-      <stop offset="100%" stop-color="#0F172A" />
+      <stop offset="0%" stop-color="#1E293B"/><stop offset="100%" stop-color="#0F172A"/>
     </radialGradient>
     <linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#EA580C" />
-      <stop offset="50%" stop-color="#EF4444" />
-      <stop offset="100%" stop-color="#FBBF24" />
+      <stop offset="0%" stop-color="#EA580C"/><stop offset="50%" stop-color="#EF4444"/><stop offset="100%" stop-color="#FBBF24"/>
     </linearGradient>
-    <filter id="coreGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="8" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
   </defs>
-
-  <rect width="512" height="512" rx="112" fill="url(#appBg)" />
-
-  <g transform="translate(256, 256) scale(1.7)" filter="url(#coreGlow)">
-    <path d="M 0,-75 L 22,-45 L 12,-45 L 32,-10 L 18,-10 L 45,35 L -45,35 L -18,-10 L -32,-10 L -12,-45 L -22,-45 Z" fill="url(#fireGrad)" />
-    <path d="M 0,-45 L 11,-25 L 6,-25 L 16,5 L 8,5 L 22,35 L -22,35 L -8,5 L -16,5 L -6,-25 L -11,-25 Z" fill="#FDE047" opacity="0.9" />
-    <line x1="0" y1="35" x2="0" y2="-15" stroke="#0F172A" stroke-width="4" stroke-linecap="round" opacity="0.9" />
+  <rect width="512" height="512" rx="112" fill="url(#appBg)"/>
+  <path d="M 68,330.4 A 200 82 -20 0 1 444,193.6" fill="none" stroke="#38BDF8" stroke-width="30" stroke-linecap="round" opacity="0.6"/>
+  <g transform="translate(256, 268) scale(1.22)">
+    <path d="M 0,-100 C 18,-62 72,-38 72,22 C 72,68 40,96 0,96 C -40,96 -72,68 -72,22 C -72,-12 -54,-34 -40,-52 C -38,-24 -28,-8 -12,-2 C -18,-42 -10,-76 0,-100 Z" fill="url(#fireGrad)"/>
+    <path d="M 2,-18 C 12,8 38,24 38,50 C 38,76 21,92 0,92 C -21,92 -38,76 -38,52 C -38,34 -28,22 -20,12 C -16,30 -8,40 4,42 C 0,22 -4,4 2,-18 Z" fill="#FDE047"/>
+  </g>
+  <path d="M 444,193.6 A 200 82 -20 0 1 68,330.4" fill="none" stroke="#38BDF8" stroke-width="30" stroke-linecap="round"/>
+  <g transform="translate(398, 168) rotate(-20) scale(0.84)">
+    <rect x="-98" y="-24" width="60" height="48" rx="6" fill="#38BDF8"/>
+    <rect x="38" y="-24" width="60" height="48" rx="6" fill="#38BDF8"/>
+    <rect x="-32" y="-32" width="64" height="64" rx="10" fill="#E2E8F0" stroke="#0F172A" stroke-width="6"/>
   </g>
 </svg>

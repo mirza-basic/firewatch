@@ -165,7 +165,7 @@ DEFAULTS = {
     # few thousand rows, and the union-find pass breaks out on the 8 h gap.
     "window_hours": 8760.0,
     # Which range the menu bar and map open on: 24h | 3d | 7d | 30d | 1y
-    "default_range": "3d",
+    "default_range": "24h",
     # Keep detections this long. Must exceed the largest view range (a year) or
     # the oldest data would be pruned just as it comes into view.
     "retention_days": 400,

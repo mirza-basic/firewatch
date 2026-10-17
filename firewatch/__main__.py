@@ -6,7 +6,7 @@
     python3 -m firewatch status [range]  show last known state
     python3 -m firewatch backfill [days] deep-fetch history (default 30)
 
-  [range] is 24h | 3d | 7d | 30d | 1y  (default: 3d, or default_range from config)
+  [range] is 24h | 3d | 7d | 30d | 1y  (default: 24h, or default_range from config)
     python3 -m firewatch map         rebuild and open the fire map
     python3 -m firewatch buffer [km] rebuild the drawn "nearby" band (build-time)
     python3 -m firewatch reclip [--apply]  drop stored history the clip now rejects
