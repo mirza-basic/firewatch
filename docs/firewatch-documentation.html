@@ -1201,6 +1201,27 @@ markers back, and so does any cycle that carries new data. Hiding them is a
 momentary look underneath, not a preference &mdash; on a fire monitor, a fire
 that has just changed outranks whatever you were studying beneath it. A cycle
 that finds nothing new leaves your view alone.</p>
+<p>Fires are not drawn for ever. A fire's circle, and its detection dots, are on
+screen from its first detection until <strong>42 hours after its last one</strong>,
+judged at the moment the timeline is showing rather than at the present, so
+scrubbing or playing back shows a fire only while it was news. Past that it stays
+in the sidebar list but leaves the map. A clock button under the eye switches this
+off and draws every fire in the range whatever the timeline says (detection dots
+still appear as the timeline reaches them). That choice is remembered per device,
+unlike the eye.</p>
+<p>Zoomed out, the fires are grouped into numbered bubbles instead of a smear of
+overlapping circles: from zoom 7 down to zoom 5 events within 60 screen pixels of
+each other merge into one bubble, coloured by the worst severity inside and drawn
+dashed when none is active; at zoom 8 and closer the real circles return. Below
+zoom 5 the grouping is frozen as it was at zoom 5, so zooming out further does not
+merge bubbles any more. Clicking a bubble zooms in to fit its fires. Bubbles obey
+the same 42-hour rule as the circles.</p>
+<p>Beside the timeline label, a calendar button opens a date and time picker with
+<em>Cancel</em> and <em>Set</em>. It is limited to the selected range and works in
+Sarajevo time, like the label. Changing the range keeps the timeline at the same
+moment when the new range contains it (a reader parked at the live edge stays at the
+live edge), pressing play continues from the current position, and clicking a fire
+in the sidebar list jumps the timeline to that fire's last detection.</p>
 <p>The basemap list carries a fourth option, <em>No basemap</em>, which draws
 nothing and leaves the near-black background. With no cartography competing, the
 fire layers are all that is left &mdash; and it reads best of all under the

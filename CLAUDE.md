@@ -167,6 +167,19 @@ leaves the reader's view alone. Persisting it in `localStorage` next to
 `fw_lang` is the obvious move and the wrong one: it would let someone hide the
 markers, close the tab, and reopen a map that never shows a fire again.
 
+**Fires leave the map 42 h after their last detection, judged at the timeline
+moment.** `evShownAt(e, at)` in `mapgen.py` is the one rule (`EV_TAIL_MS`), used for
+footprint circles, zoomed-out bubbles and detection dots alike, and `drawDets()`
+rebuilds the circles only when the visible set changes (rebuilding every tick would
+restart the pulse). The clock button (`showAll`, remembered in `localStorage` as
+`fw_showall`, unlike the eye) bypasses it. Below `CLUSTER_Z` events are drawn as
+bubbles by screen-distance grouping; below `CLUSTER_MIN_Z` the grouping is computed
+at that zoom's pixel space so it stays frozen. Bubbles live in `evLayer`, so the eye
+hides them too. The date/time picker (`#tppop`) works in Sarajevo time through
+`sarajevoLocal`/`fromSarajevoLocal` because a `datetime-local` value has no zone, and
+refreshes its min/max on every open - an always-on overlay input once kept the old
+range's limits.
+
 The map opens in **Bosnian**, unconditionally — there is no `navigator.language`
 sniff. A reader's own choice wins: the EN/BS toggle writes `fw_lang` to
 `localStorage` and that is checked first, so switching to English is remembered per
