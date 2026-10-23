@@ -1702,7 +1702,7 @@ function select(id,fly){
     // Jump to the fire's last detection: that is when its circle and dots are
     // all on screen, wherever the timeline had been left.
     stopPlay();
-    setSliderTime(Date.parse(e.last_ts));
+    setSliderTimeAfter(Date.parse(e.last_ts) + 5000);
   }
   drawDets(sliderTime());
 }
@@ -1873,6 +1873,16 @@ function setSliderTime(ms){
   setScroll(x);
   paintTicks();
   syncAria();
+}
+// Like setSliderTime, but never lands before `ms`. The ruler is whole pixels, so
+// the plain version can stop up to a pixel's worth of time short - minutes, on a
+// long range - which for a fire's last detection means the fire is not yet there.
+function setSliderTimeAfter(ms){
+  setSliderTime(ms);
+  const cap = trackPx();
+  for(let i = 0; i < 50 && sliderTime() < ms && scrollEl.scrollLeft < cap; i++)
+    setScroll(scrollEl.scrollLeft + 1);
+  paintTicks(); syncAria();
 }
 // Re-lay-out the timeline track for the current range/unit, keeping the moment shown.
 function rebuildSlider(){
