@@ -153,6 +153,22 @@ TEMPLATE = r"""<!doctype html>
     opacity:.95}
   #tlabel{font-size:11.5px;color:var(--dim);min-width:132px;white-space:nowrap;
     font-variant-numeric:tabular-nums}
+  #tpick{position:relative;display:inline-flex}
+  #tpbtn{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
+    width:30px;height:26px;cursor:pointer;font-size:13px;padding:0}
+  #tpbtn:hover{background:#31404f}
+  /* Popover with its own Cancel/Set: the browser's native picker has neither, and
+     committing on every spin of a wheel would jump the map while still choosing. */
+  #tppop{position:absolute;right:0;bottom:calc(100% + 10px);z-index:1200;display:none;
+    flex-direction:column;gap:8px;padding:10px;background:var(--panel);color:var(--fg);
+    border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  #tppop.open{display:flex}
+  #tpin{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+    border-radius:6px;padding:5px 6px;font:inherit;font-size:13px;color-scheme:dark}
+  #tppop .tpacts{display:flex;gap:8px;justify-content:flex-end}
+  #tppop button{border:1px solid var(--line);border-radius:6px;height:26px;padding:0 12px;
+    cursor:pointer;font:inherit;font-size:12.5px;background:#26303b;color:var(--fg)}
+  #tppop button.tpset{background:#ff6b35;border-color:#ff6b35;color:#fff;font-weight:600}
   #play{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
     width:30px;height:26px;cursor:pointer;font-size:12px}
   #speed{background:#26303b;border:1px solid var(--line);color:var(--fg);border-radius:6px;
@@ -194,7 +210,8 @@ TEMPLATE = r"""<!doctype html>
     transition:filter .13s}
   #chbtn:empty{display:none}
   #chbtn:hover,#chbtn:focus-visible{filter:brightness(1.08)}
-  .leaflet-bar a.eye{display:flex;align-items:center;justify-content:center}
+  .leaflet-bar a.eye,.leaflet-bar a.allt{display:flex;align-items:center;justify-content:center}
+  .leaflet-bar a.allt[aria-pressed=true]{background:#ff6b35;color:#fff}
   .imgnote{background:rgba(21,26,33,.94);padding:6px 10px;border-radius:9px;
     border:1px solid var(--line);color:var(--dim);font-size:11.5px;line-height:1.5;
     max-width:230px}
@@ -450,6 +467,14 @@ TEMPLATE = r"""<!doctype html>
       <div id="playhead" aria-hidden="true"></div>
     </div>
     <span id="tlabel"></span>
+    <!-- The input inside is the browser's own date/time control (so phones get
+         their wheel UI); Cancel and Set are ours. -->
+    <span id="tpick"><button id="tpbtn" type="button" title="Go to date and time">&#128197;</button>
+      <div id="tppop" role="dialog">
+        <input id="tpin" type="datetime-local" aria-label="Go to date and time">
+        <div class="tpacts"><button id="tpcancel" type="button">Cancel</button>
+          <button id="tpset" class="tpset" type="button">Set</button></div>
+      </div></span>
   </div>
 </div>
 <script>
@@ -530,10 +555,11 @@ const I18N = {
     r_1y:"Last year",
     rs_24h:"24h", rs_3d:"3 days", rs_7d:"7 days", rs_30d:"Month", rs_1y:"Year",
     justNow:"just now", agoMin:"{n} min ago", agoH:"{n} h ago", agoD:"{n} d ago",
-    animate:"Animate", pause:"Pause", speed:"Playback speed",
+    pickTime:"Go to date and time", pickSet:"Set", pickCancel:"Cancel", animate:"Animate", pause:"Pause", speed:"Playback speed",
     step:"Timeline step", u_min:"min", u_hour:"hour", u_day:"day", u_week:"week",
     zoomFires:"Zoom to fires", lMap:"Map", lSat:"Satellite", lTopo:"Terrain",
     hideFires:"Hide fire markers", showFires:"Show fire markers",
+    allDetOn:"Showing all fires at all times (click to limit to their active period)", allDetOff:"Show all fires and detections at all times",
     lNone:"No basemap",
     imFire:"Meteosat fire temperature", imGeo:"Meteosat GeoColour",
     imTrue:"Meteosat true colour", imHrfi:"Meteosat visible 0.6 km",
@@ -593,10 +619,11 @@ const I18N = {
     r_1y:"Zadnja godina",
     rs_24h:"24h", rs_3d:"3 dana", rs_7d:"7 dana", rs_30d:"Mjesec", rs_1y:"Godina",
     justNow:"upravo sad", agoMin:"prije {n} min", agoH:"prije {n} h", agoD:"prije {n} d",
-    animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
+    pickTime:"Idi na datum i vrijeme", pickSet:"Postavi", pickCancel:"Otkaži", animate:"Animiraj", pause:"Pauza", speed:"Brzina reprodukcije",
     step:"Korak vremenske ose", u_min:"min", u_hour:"sat", u_day:"dan", u_week:"sedm.",
     zoomFires:"Približi na požare", lMap:"Karta", lSat:"Satelit", lTopo:"Teren",
     hideFires:"Sakrij oznake požara", showFires:"Prikaži oznake požara",
+    allDetOn:"Prikazani svi požari u svako doba (klikni za prikaz samo tokom aktivnosti)", allDetOff:"Prikaži sve požare i detekcije u svako doba",
     lNone:"Bez karte",
     imFire:"Meteosat temperatura vatre", imGeo:"Meteosat GeoColour",
     imTrue:"Meteosat prave boje", imHrfi:"Meteosat vidljivi 0,6 km",
@@ -1302,6 +1329,12 @@ let selected = null;
 // lands - see applyData.
 let markersOn = true;
 
+// The default is the time-limited view; the clock button turns it off so every
+// fire and detection in the range is drawn whatever the timeline says. A reader's
+// choice, so it is remembered per device like the language.
+let showAll = false;
+try { showAll = localStorage.getItem("fw_showall") === "1"; } catch(e) { /* blocked */ }
+
 // Attach or detach the fire marker groups according to markersOn.
 function applyMarkers(){
   [evLayer, detLayer, trail].forEach(g => {
@@ -1312,6 +1345,10 @@ function applyMarkers(){
     eyeEl.innerHTML = markersOn ? EYE_ON : EYE_OFF;
     eyeEl.title = t(markersOn ? "hideFires" : "showFires");
     eyeEl.setAttribute("aria-pressed", markersOn ? "false" : "true");
+  }
+  if(allEl){
+    allEl.title = t(showAll ? "allDetOn" : "allDetOff");
+    allEl.setAttribute("aria-pressed", showAll ? "true" : "false");
   }
 }
 
@@ -1329,7 +1366,10 @@ const EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
   '<path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>';
 
 // The eye button that toggles markersOn; eyeEl is set when the control is added.
-let eyeEl = null;
+let eyeEl = null, allEl = null;
+const ALL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+  '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const eyeBtn = L.control({position:"topleft"});
 eyeBtn.onAdd = () => {
   const d = L.DomUtil.create("div","leaflet-bar");
@@ -1341,6 +1381,18 @@ eyeBtn.onAdd = () => {
     L.DomEvent.stopPropagation(e);
     markersOn = !markersOn;
     applyMarkers();
+  });
+  allEl = L.DomUtil.create("a","allt",d);
+  allEl.href = "#";
+  allEl.setAttribute("role","button");
+  allEl.innerHTML = ALL_ICON;
+  L.DomEvent.on(allEl,"click",e => {
+    L.DomEvent.preventDefault(e);
+    L.DomEvent.stopPropagation(e);
+    showAll = !showAll;
+    try { localStorage.setItem("fw_showall", showAll ? "1" : "0"); } catch(x) { /* storage may be blocked */ }
+    applyMarkers();
+    drawEvents(); drawDets(sliderTime());
   });
   applyMarkers();
   return d;
@@ -1424,9 +1476,59 @@ function evRadiusM(e){
 // refresh the panel with the event's new data, or close it if the event is gone.
 let infoOpenId = null;
 
+// Zoomed out, a country's worth of footprint circles and detection dots pile up
+// into an unreadable smear, so below CLUSTER_Z events are grouped into count
+// bubbles instead. Grouping is by screen distance (CLUSTER_PX) on a greedy
+// pass, so it is recomputed per zoom with no state to go stale. Detections are
+// not drawn while clustered: the bubble stands for them, and zooming in
+// brings them back. Bubbles live in evLayer, so the eye button hides them too.
+const CLUSTER_Z = 8, CLUSTER_MIN_Z = 5, CLUSTER_PX = 60;
+const SEV_RANK = {unknown:0, low:1, moderate:2, high:3, severe:4};
+function clustering(){ return map.getZoom() < CLUSTER_Z; }
+
+function drawClusters(){
+  // Grouping is frozen below CLUSTER_MIN_Z: it is computed in that zoom's
+  // pixel space, so zooming out further keeps the same bubbles.
+  const cz = Math.max(map.getZoom(), CLUSTER_MIN_Z);
+  const groups = [];
+  EVENTS.filter(e=>evShownAt(e,evAt)).forEach(e=>{
+    const p = map.project([e.lat,e.lon], cz);
+    const g = groups.find(g => g.p.distanceTo(p) < CLUSTER_PX);
+    if(g){ g.ev.push(e); g.p = g.p.multiplyBy(g.ev.length-1).add(p).divideBy(g.ev.length); }
+    else groups.push({p, ev:[e]});
+  });
+  groups.forEach(g=>{
+    const worst = g.ev.reduce((a,e)=>(SEV_RANK[e.severity]||0)>(SEV_RANK[a]||0)?e.severity:a,"unknown");
+    const col = SEVC[worst]||SEVC.unknown;
+    const live = g.ev.some(e=>e.status==="active");
+    const n = g.ev.length, sz = n<10?34:n<100?42:50;
+    const ll = map.unproject(g.p, cz);
+    const icon = L.divIcon({className:"", iconSize:[sz,sz],
+      html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${col};` +
+        `opacity:${live?1:.6};border:3px ${live?"solid":"dashed"} #fff;box-shadow:0 0 0 2px #0b0f14;` +
+        `color:#fff;font:700 14px/${sz-6}px system-ui,sans-serif;text-align:center;cursor:pointer">${n}</div>`});
+    L.marker(ll,{icon, keyboard:false}).on("click",()=>{
+      const b = L.latLngBounds(g.ev.map(e=>[e.lat,e.lon]));
+      if(n===1 || !b.isValid() || b.getSouthWest().equals(b.getNorthEast()))
+        map.setView([g.ev[0].lat,g.ev[0].lon], CLUSTER_Z);
+      else map.fitBounds(b.pad(.3),{maxZoom:CLUSTER_Z});
+    }).addTo(evLayer);
+  });
+}
+
 // Redraw the per-event footprint circles (and the pulse ring on active ones).
+// A footprint circle is on screen from the fire's first detection until
+// EV_TAIL_MS after its last one, judged at the timeline moment rather than at
+// "now" so scrubbing and playback show a fire only while it was news. Once it is
+// past that it stays in the sidebar list and the clustered view, just not drawn.
+const EV_TAIL_MS = 42*3600000;
+let evAt = Date.now(), evKey = "";
+function evShownAt(e, at){
+  return showAll || at >= Date.parse(e.first_ts) && at <= Date.parse(e.last_ts) + EV_TAIL_MS;
+}
 function drawEvents(){
   evLayer.clearLayers();
+  if(clustering()){ drawClusters(); return; }
   const openOf = e => () => {
     select(e.id,false);
     if(infoClickTimer) clearTimeout(infoClickTimer);
@@ -1441,7 +1543,7 @@ function drawEvents(){
   // detections it summarises (see evRadiusM for the floor). It is also the click
   // target for the info panel. Largest first, so a small cluster inside a big one
   // is drawn on top of it and stays clickable.
-  EVENTS.map(e=>({e, m:evRadiusM(e)})).sort((x,y)=>y.m-x.m).forEach(({e,m})=>{
+  EVENTS.filter(e=>evShownAt(e,evAt)).map(e=>({e, m:evRadiusM(e)})).sort((x,y)=>y.m-x.m).forEach(({e,m})=>{
     const col = SEVC[e.severity]||SEVC.unknown;
     const quiet = e.status!=="active";
     L.circle([e.lat,e.lon],{
@@ -1488,9 +1590,15 @@ function drawDets(upto){
   // scroller, keyboard, playback, range change, the 60 s refresh), so this is
   // the one place the imagery clock has to be advanced.
   syncImagery(upto);
+  // Circles depend on the moment too, but rebuilding them (and restarting the
+  // pulse animation) every tick would be wasteful: only when the visible set changes.
+  evAt = upto;
+  const visIds = new Set(EVENTS.filter(e=>evShownAt(e,upto)).map(e=>e.id));
+  const key = [...visIds].join();
+  if(key !== evKey){ evKey = key; drawEvents(); }
   detLayer.clearLayers(); trail.clearLayers();
   const shown = dets.filter(d=>d.t<=upto);
-  shown.forEach(d=>{
+  (clustering() ? [] : shown.filter(d=>visIds.has(d.ev))).forEach(d=>{
     const age = (upto-d.t)/3600000;
     // Age fades a detection, but with a floor so an old one never disappears
     // (a near-invisible fill with an outline reads as an empty ring).
@@ -1509,7 +1617,7 @@ function drawDets(upto){
       .bindPopup(`${SRC[d.source]?.n||d.source}<br>${fmtLocal(d.t)}<br>FRP ${d.frp==null?"n/a":d.frp+" MW"}`)
       .addTo(detLayer);
   });
-  if(selected){
+  if(selected && !clustering()){
     const pts = shown.filter(d=>d.ev===selected).map(d=>[d.lat,d.lon]);
     if(pts.length>1) L.polyline(pts,{color:"#ff6b35",weight:1.4,opacity:.5,dashArray:"3,4"}).addTo(trail);
   }
@@ -1589,7 +1697,13 @@ function select(id,fly){
   selected = selected===id?null:id;
   document.querySelectorAll(".ev").forEach(d=>d.classList.toggle("sel",d.dataset.id===selected));
   const e = EVENTS.find(x=>x.id===selected);
-  if(e&&fly) map.flyTo([e.lat,e.lon],13,{duration:.6});
+  if(e&&fly){
+    map.flyTo([e.lat,e.lon],13,{duration:.6});
+    // Jump to the fire's last detection: that is when its circle and dots are
+    // all on screen, wherever the timeline had been left.
+    stopPlay();
+    setSliderTime(Date.parse(e.last_ts));
+  }
   drawDets(sliderTime());
 }
 
@@ -1605,8 +1719,13 @@ function renderRange(){
   el.querySelectorAll("button").forEach(b=>b.onclick=()=>{
     RANGE = b.dataset.r;
     fwTrack("range_change", {range: RANGE});
+    // Keep the moment being viewed when the new range still contains it (it is
+    // clamped to the range's ends otherwise). The live edge is the exception: a
+    // reader parked there wants the newest data of the new range, not a fixed time.
+    const atLive = scrollEl.scrollLeft >= trackPx() - 1, was = sliderTime();
+    stopPlay();
     recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
-    setSliderTime(tMax); drawDets(sliderTime());
+    setSliderTime(atLive ? tMax : was); drawDets(sliderTime());
 // clientWidth is only trustworthy after the first layout pass, and the track's
 // end padding is half of it.
 requestAnimationFrame(() => { rebuildSlider(); drawDets(sliderTime()); });
@@ -1899,7 +2018,66 @@ function startPlay(fromHere){
   }, TICK_MS);
 }
 
-playBtn.onclick = () => timer ? stopPlay() : startPlay(false);
+// Play from wherever the reader put the timeline. The view opens at the live
+// edge (the end of the range), where there is nothing left to play, so only
+// there does it wrap round to the start.
+// Date/time picker. The label and the ruler speak Sarajevo time, so the picker
+// must too: a datetime-local value has no zone, and handing it to Date() would
+// read it in the browser's own. min/max are the selected range, so it cannot
+// ask for a moment the timeline has no room for.
+const tpBtn = document.getElementById("tpbtn"), tpIn = document.getElementById("tpin");
+const sarajevoLocal = ms => {
+  const p = tlParts(ms);
+  return `${p.year}-${p.month}-${p.day}T${String(+p.hour%24).padStart(2,"0")}:${p.minute}`;
+};
+// Inverse of sarajevoLocal: guess the instant as if the text were UTC, then
+// correct by the offset Sarajevo had at that instant (twice, for DST edges).
+function fromSarajevoLocal(v){
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v||"");
+  if(!m) return NaN;
+  const want = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
+  let ms = want;
+  for(let i=0;i<2;i++){
+    const p = tlParts(ms);
+    const got = Date.UTC(+p.year, +p.month-1, +p.day, +p.hour%24, +p.minute);
+    ms += want - got;
+  }
+  return ms;
+}
+const tpPop = document.getElementById("tppop"),
+      tpSet = document.getElementById("tpset"), tpCancel = document.getElementById("tpcancel");
+const tpClose = () => tpPop.classList.remove("open");
+// min/max are refreshed on every open, so they always match the range chosen since.
+tpBtn.onclick = () => {
+  if(tpPop.classList.contains("open")) return tpClose();
+  tpIn.min = sarajevoLocal(tMin); tpIn.max = sarajevoLocal(tMax);
+  tpIn.value = sarajevoLocal(sliderTime());
+  tpPop.classList.add("open");
+  tpIn.focus();
+};
+tpCancel.onclick = tpClose;
+tpSet.onclick = () => {
+  const ms = fromSarajevoLocal(tpIn.value);
+  if(isNaN(ms)) return;                 // cleared field: stay open rather than jump
+  tpClose();
+  stopPlay();
+  setSliderTime(ms);
+  drawDets(sliderTime());
+};
+addEventListener("keydown", e => {
+  if(!tpPop.classList.contains("open")) return;
+  if(e.key === "Escape") tpClose();
+  else if(e.key === "Enter" && e.target === tpIn) tpSet.click();
+});
+document.addEventListener("pointerdown", e => {
+  if(!e.target.closest("#tpick")) tpClose();
+});
+
+playBtn.onclick = () => {
+  if(timer) return stopPlay();
+  const atEnd = scrollEl.scrollLeft >= trackPx() - 1;
+  startPlay(!atEnd);
+};
 unitBtn.textContent = t("u_" + UNITS[unitIx].key);
 unitBtn.onclick = () => {
   const at = sliderTime();            // keep the moment being viewed
@@ -2262,6 +2440,9 @@ function applyStaticLabels(){
   document.getElementById("drawer-close").setAttribute("aria-label", t("closeList"));
   playBtn.title = timer ? t("pause") : t("animate");
   speedBtn.title = t("speed");
+  tpBtn.title = tpIn.title = t("pickTime");
+  tpSet.textContent = t("pickSet"); tpCancel.textContent = t("pickCancel");
+  tpIn.setAttribute("aria-label", t("pickTime"));
   unitBtn.title = t("step");
   unitBtn.textContent = t("u_" + UNITS[unitIx].key);
   document.querySelectorAll("#langsw button").forEach(b =>
