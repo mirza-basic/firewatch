@@ -202,6 +202,27 @@ def _retry_after(r: requests.Response) -> float | None:
         return None
 
 
+def test_topic(target: str) -> str:
+    """`all` -> the country topic, otherwise that municipality's."""
+    return COUNTRY_TOPIC if target == "all" else topic_for(target)
+
+
+def test_message(topic: str) -> dict:
+    """A notification that cannot be taken for a real alert: titled TEST, aimed at the
+    newest known fire (or the country centre) so a tap exercises the map deep link."""
+    evs = telegram._latest_events()
+    lat, lon = (evs[0]["lat"], evs[0]["lon"]) if evs else (44.1195, 18.1877)
+    return {"message": {
+        "topic": topic,
+        "notification": {"title": "TEST - Firewatch push",
+                         "body": "Test notification, not a real fire."},
+        "data": {"type": "fire", "kind": "test", "event_id": "",
+                 "lat": f"{lat:.4f}", "lon": f"{lon:.4f}", "z": str(ZOOM)},
+        "android": {"priority": "HIGH",
+                    "notification": {"channel_id": ANDROID_CHANNEL}},
+    }}
+
+
 def send_alert_group(alerts: list[dict]) -> bool:
     """Publish one merged notification per matched municipality, and one to the
     country topic. Kinds are filtered by push_kinds before merging. Returns True if

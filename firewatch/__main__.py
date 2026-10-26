@@ -615,19 +615,8 @@ def cmd_test_push(municipality_id: str | None = None) -> int:
     if not ok:
         print("\n  not sent\n")
         return 1
-    topic = push_mod.COUNTRY_TOPIC if municipality_id == "all" \
-        else push_mod.topic_for(municipality_id)
-    evs = telegram_mod._latest_events()
-    lat, lon = (evs[0]["lat"], evs[0]["lon"]) if evs else (44.1195, 18.1877)
-    payload = {"message": {
-        "topic": topic,
-        "notification": {"title": "TEST - Firewatch push",
-                         "body": "Test notification, not a real fire."},
-        "data": {"type": "fire", "kind": "test", "event_id": "",
-                 "lat": f"{lat:.4f}", "lon": f"{lon:.4f}", "z": str(push_mod.ZOOM)},
-        "android": {"priority": "HIGH",
-                    "notification": {"channel_id": push_mod.ANDROID_CHANNEL}},
-    }}
+    payload = push_mod.test_message(push_mod.test_topic(municipality_id))
+    topic = payload["message"]["topic"]
     sent = push_mod.send(payload)
     print(f"\n  published to {topic}: {sent}\n")
     return 0 if sent else 1

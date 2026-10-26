@@ -1,0 +1,89 @@
+# Manually publish (or just preview) a test push to the Locator app, to check delivery
+# end to end: Actions -> FCM -> a phone subscribed to the topic.
+#
+# Defaults to PREVIEW, like test-telegram.yml: a test push lands on real phones that are
+# subscribed to the topic, so the safe option is the default one. The preview also
+# checks the credentials, which is most of what can go wrong.
+#
+# Needs the target: a municipality id (e.g. "zavidovici") for fire.<id>, or "all" for
+# fire.all - see push.py's module docstring. The notification is titled TEST and points
+# at the newest known fire, so tapping it also exercises the map deep link.
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   FIREWATCH_FCM_SERVICE_ACCOUNT   the service account JSON
+#   FIREWATCH_FCM_PROJECT_ID        optional, the Firebase project id
+
+name: test-push-to-locator
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Municipality id (e.g. zavidovici), or 'all' for the whole country"
+        type: string
+        required: true
+      send:
+        description: "Actually publish it (leave unchecked to preview only)"
+        type: boolean
+        default: false
+
+# Read-only: this workflow publishes no code and commits nothing.
+permissions:
+  contents: read
+
+jobs:
+  test-push:
+    runs-on: ubuntu-latest
+    env:
+      # So the test is aimed at a real event from the committed database.
+      FIREWATCH_DATA_DIR: ${{ github.workspace }}/state
+      FIREWATCH_CONFIG_DIR: ${{ github.workspace }}/state/config
+      # fcm.googleapis.com publishes an AAAA record and these runners have no IPv6
+      # route - see config.force_ipv4().
+      FIREWATCH_FORCE_IPV4: "1"
+      # An env var, not interpolated into a run: script - a workflow_dispatch input is
+      # attacker-controllable text, like any other untrusted string.
+      TEST_TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - run: python3 -m pip install --quiet requests certifi google-auth
+
+      - name: Preview
+        env:
+          FIREWATCH_FCM_SERVICE_ACCOUNT: ${{ secrets.FIREWATCH_FCM_SERVICE_ACCOUNT }}
+          FIREWATCH_FCM_PROJECT_ID: ${{ secrets.FIREWATCH_FCM_PROJECT_ID }}
+        run: |
+          mkdir -p state/config
+          echo '{"push_enabled": true}' > state/config/config.json
+          python3 - <<'PY'
+          import json, os
+          from firewatch import push
+          target = os.environ["TEST_TARGET"]
+          ok, why = push.ready()
+          print(f"usable   : {ok} ({why})")
+          print(f"project  : {push.project_id()}")
+          print(f"topic    : {push.test_topic(target)}")
+          print(f"token    : {'obtained' if ok and push._access_token() else 'NOT obtained'}")
+          print("---- message ----")
+          print(json.dumps(push.test_message(push.test_topic(target)), indent=2, ensure_ascii=False))
+          print("-----------------")
+          PY
+
+      - name: Send
+        if: ${{ inputs.send }}
+        env:
+          FIREWATCH_FCM_SERVICE_ACCOUNT: ${{ secrets.FIREWATCH_FCM_SERVICE_ACCOUNT }}
+          FIREWATCH_FCM_PROJECT_ID: ${{ secrets.FIREWATCH_FCM_PROJECT_ID }}
+        run: |
+          mkdir -p state/config
+          echo '{"push_enabled": true}' > state/config/config.json
+          python3 -m firewatch test-push "$TEST_TARGET"
+
+      - name: Note
+        if: ${{ !inputs.send }}
+        run: echo "Preview only — nothing was published. Re-run with 'send' ticked to deliver it."

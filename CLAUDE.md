@@ -870,6 +870,7 @@ holds the whole production deployment, and it is the one described in
 poll.yml          the cycle: fetch → cluster → alert → render → publish
 test-sms.yml      manual SMS delivery check; previews by default, sending is a checkbox
 test-telegram.yml manual Telegram delivery check; same shape as test-sms.yml
+test-push-to-locator.yml manual push check (preview by default); same shape again
 send-message.yml  manual broadcast: a custom message to chosen municipalities'
                   channels (or "all" 145), same preview-then-checkbox shape -
                   not part of the automatic alerting path, for announcements
