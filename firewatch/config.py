@@ -267,6 +267,12 @@ DEFAULTS = {
     "telegram_kinds": ["new", "reignited", "intensified", "grew",
                         "extinguished", "corroborated"],
     "telegram_language": "bs",
+    # Push to the Locator app (FCM topics) - see push.py. Off by default for the same
+    # reason telegram is: it needs a credential nothing else needs. The service
+    # account comes from FIREWATCH_FCM_SERVICE_ACCOUNT, never from here.
+    "push_enabled": False,
+    # Same kinds as Telegram unless set otherwise: empty falls back to telegram_kinds.
+    "push_kinds": [],
 }
 
 # A single reference point for the whole country (approximately its vertex-mean),
