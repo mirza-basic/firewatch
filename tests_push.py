@@ -85,6 +85,14 @@ check("municipality in data", m["data"]["municipality"], "zenica")
 check("notification has a title and a body", bool(m["notification"]["title"]) and bool(m["notification"]["body"]), True)
 check("android channel and tag", m["android"]["notification"],
       {"channel_id": "crisis_alerts", "tag": "evt-1"})
+check("no image when push_image_url is unset", "image" in m["notification"], False)
+push.CFG["push_image_url"] = "https://example.com/i.png"
+published.clear()
+push.send_alert_group([alert(["zenica"])])
+check("image set from push_image_url", published[0]["notification"]["image"], "https://example.com/i.png")
+check("test message carries it too", push.test_message("fire.all")["message"]["notification"]["image"],
+      "https://example.com/i.png")
+push.CFG["push_image_url"] = ""
 check("country message names the first municipality", published[1]["data"]["municipality"], "zenica")
 
 # --- one failure never blocks the rest --------------------------------------------

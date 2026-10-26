@@ -119,6 +119,15 @@ def _title_body(alerts: list[dict]) -> tuple[str, str]:
     return lines[0], "\n".join(lines[1:])
 
 
+def _notification(title: str, body: str) -> dict:
+    """The notification block, with the app icon as its image when one is configured."""
+    n = {"title": title, "body": body}
+    image = CFG.get("push_image_url")
+    if image:
+        n["image"] = image
+    return n
+
+
 def build_message(topic: str, alerts: list[dict], municipality: str | None) -> dict:
     """The FCM v1 request body for one topic."""
     ev = alerts[0]["event"]
@@ -136,7 +145,7 @@ def build_message(topic: str, alerts: list[dict], municipality: str | None) -> d
         data["municipality"] = municipality
     message = {
         "topic": topic,
-        "notification": {"title": title, "body": body},
+        "notification": _notification(title, body),
         "data": data,
         "android": {
             "priority": "HIGH",
@@ -214,8 +223,8 @@ def test_message(topic: str) -> dict:
     lat, lon = (evs[0]["lat"], evs[0]["lon"]) if evs else (44.1195, 18.1877)
     return {"message": {
         "topic": topic,
-        "notification": {"title": "TEST - Firewatch push",
-                         "body": "Test notification, not a real fire."},
+        "notification": _notification("TEST - Firewatch push",
+                                      "Test notification, not a real fire."),
         "data": {"type": "fire", "kind": "test", "event_id": "",
                  "lat": f"{lat:.4f}", "lon": f"{lon:.4f}", "z": str(ZOOM)},
         "android": {"priority": "HIGH",

@@ -830,6 +830,11 @@ title (first line) and body (the rest).
   outside Bosnia and Herzegovina - change a key here and the tap silently stops
   working. The Android notification uses channel `crisis_alerts` (created by the app)
   and `tag` = event id, so an update replaces the earlier notification.
+* **Large icon:** FCM has no field for a bundled large icon, so the notification's
+  `image` is `push_image_url` (default: `docs/img/locator-icon.png` served by
+  raw.githubusercontent.com). Android shows it as the large icon and, expanded, as a
+  picture. It must stay a public https PNG/JPEG under 1 MB; if the device cannot fetch
+  it the notification still arrives, just without. Empty `push_image_url` disables it.
 * **Delivery accounting:** `poller.deliver()` counts a kind as delivered through push
   only if it is in `push_kinds`, same rule as SMS and Telegram, so a push-only
   delivery still marks `notified` and is not retried.

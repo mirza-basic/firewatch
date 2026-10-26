@@ -273,6 +273,10 @@ DEFAULTS = {
     "push_enabled": False,
     # Same kinds as Telegram unless set otherwise: empty falls back to telegram_kinds.
     "push_kinds": [],
+    # Shown by Android as the notification's large icon (and as a picture when it is
+    # expanded) - FCM has no field for a bundled one. Must be an https PNG/JPEG under
+    # 1 MB on a public host; the app icon lives in this repo. Empty disables it.
+    "push_image_url": "https://raw.githubusercontent.com/mirza-basic/firewatch/main/docs/img/locator-icon.png",
 }
 
 # A single reference point for the whole country (approximately its vertex-mean),
