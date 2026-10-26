@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import timedelta
 
-from . import enrich, events, expose, firedanger, imagery, mapgen, notify, sms, sources, store, telegram
+from . import enrich, events, expose, firedanger, imagery, mapgen, notify, push, sms, sources, store, telegram
 from .config import (CFG, LOG_PATH, SNAPSHOT_PATH, RedactingFormatter,
                      ensure_dirs, public_url as config_public_url)
 from .store import iso, utcnow
@@ -86,6 +86,7 @@ def deliver(con, groups: dict[str, list[dict]]) -> list[dict]:
     """Send each event's merged alert on every channel; returns what was delivered."""
     sms_kinds = set(CFG.get("sms_kinds") or [])
     telegram_kinds = set(CFG.get("telegram_kinds") or [])
+    push_kinds = set(CFG.get("push_kinds") or CFG.get("telegram_kinds") or [])
     sent = []
     for ev_id, group in groups.items():
         notified = notify.notify_alert_group(group)
@@ -102,10 +103,15 @@ def deliver(con, groups: dict[str, list[dict]]) -> list[dict]:
         except Exception:
             log.exception("telegram alert failed")
             posted = False
+        try:
+            pushed = push.send_alert_group(group)
+        except Exception:
+            log.exception("push alert failed")
+            pushed = False
         kinds_label = "+".join(a["kind"] for a in group)
-        log.info("alerted %s: %s [notify=%s sms=%s telegram=%s]",
+        log.info("alerted %s: %s [notify=%s sms=%s telegram=%s push=%s]",
                  kinds_label, group[0]["event"]["place"],
-                 notified, texted, posted)
+                 notified, texted, posted, pushed)
         # A kind counts as delivered only through a channel that would have
         # included it: sms_kinds/telegram_kinds filter per kind within a
         # merged message, and marking every kind notified because something
@@ -113,7 +119,8 @@ def deliver(con, groups: dict[str, list[dict]]) -> list[dict]:
         # shows up alone.
         for a in group:
             delivered = notified or (texted and a["kind"] in sms_kinds) \
-                or (posted and a["kind"] in telegram_kinds)
+                or (posted and a["kind"] in telegram_kinds) \
+                or (pushed and a["kind"] in push_kinds)
             if delivered:
                 store.mark_notified(con, ev_id, a["kind"])
                 sent.append(a)

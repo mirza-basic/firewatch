@@ -47,3 +47,5 @@ jobs:
         run: python tests_geo_bih.py
       - name: Telegram routing
         run: python tests_telegram_routing.py
+      - name: Push alerts
+        run: python tests_push.py

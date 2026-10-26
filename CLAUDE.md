@@ -806,6 +806,39 @@ a failure in one never suppresses another.
   on purpose: an animated one leaves a zoom animation in flight that snaps the view back
   over the deep link when it finishes.
 
+## Push alerts (Locator app)
+
+`push.py` is a fourth delivery channel next to the desktop notification, SMS and
+Telegram, publishing through Firebase Cloud Messaging (HTTP v1) to the Locator
+Android/iOS app. It is deliberately Telegram-shaped: same kinds (`push_kinds`, empty
+= `telegram_kinds`), the same per-event merging, and Telegram's wording split into a
+title (first line) and body (the rest).
+
+* **Topics, not devices.** The app subscribes itself; this side only publishes to
+  `fire.<municipality id>` per matched municipality and to `fire.all` **once per
+  alert** (a Sarajevo / Istočno Sarajevo fire must not tell a country subscriber
+  twice). No user table, nothing identifying a reader. Municipality ids are the same
+  slugs as everywhere else, so they are already valid topic names.
+* **Credentials:** `FIREWATCH_FCM_SERVICE_ACCOUNT` (service-account JSON, role
+  *Firebase Cloud Messaging API Admin*) and optionally `FIREWATCH_FCM_PROJECT_ID`
+  (else read from the JSON). Secrets on the `alert` job only; `push_enabled` is set in
+  that job's `config.json`, so a bare install or the `poll` job never pushes.
+  `google-auth` signs the token and is imported lazily - the tests never need it.
+* **Payload contract with the app** (`data`, every value a string): `type=fire`,
+  `kind`, `event_id`, `municipality`, `lat`, `lon`, `z`. The app opens the map at the
+  fire from these and **ignores** a push without `type=fire` or with coordinates
+  outside Bosnia and Herzegovina - change a key here and the tap silently stops
+  working. The Android notification uses channel `crisis_alerts` (created by the app)
+  and `tag` = event id, so an update replaces the earlier notification.
+* **Delivery accounting:** `poller.deliver()` counts a kind as delivered through push
+  only if it is in `push_kinds`, same rule as SMS and Telegram, so a push-only
+  delivery still marks `notified` and is not retried.
+* **iOS** is inert until the iOS Firebase app and APNs key exist; the `apns` block is
+  already in the message.
+* `python3 -m firewatch test-push <municipality-id|all>` publishes one labelled TEST
+  notification (to a real topic, so subscribed phones receive it). `tests_push.py`
+  fakes FCM and covers routing, merging, kind filtering and failure isolation.
+
 ## Usage analytics (Firebase)
 
 The map reports reader actions to Firebase Analytics (GA4), loaded from the gstatic
@@ -837,6 +870,7 @@ holds the whole production deployment, and it is the one described in
 poll.yml          the cycle: fetch → cluster → alert → render → publish
 test-sms.yml      manual SMS delivery check; previews by default, sending is a checkbox
 test-telegram.yml manual Telegram delivery check; same shape as test-sms.yml
+test-push-to-locator.yml manual push check (preview by default); same shape again
 send-message.yml  manual broadcast: a custom message to chosen municipalities'
                   channels (or "all" 145), same preview-then-checkbox shape -
                   not part of the automatic alerting path, for announcements

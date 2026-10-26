@@ -21,6 +21,11 @@
 #                               same reason as the number itself: which
 #                               municipality this is set to says roughly where
 #                               that person lives.
+#   FIREWATCH_FCM_SERVICE_ACCOUNT  optional, the Google service account JSON (role
+#                               "Firebase Cloud Messaging API Admin") for push
+#                               alerts to the Locator app. Its project id is read
+#                               from the JSON; FIREWATCH_FCM_PROJECT_ID overrides.
+#   FIREWATCH_FCM_PROJECT_ID    optional, the Firebase project id (sar-locator).
 #   TELEGRAM_BOT_TOKEN          optional, for Telegram alerts. The only Telegram
 #                               secret needed here: which municipality gets which
 #                               channel is committed data
@@ -274,7 +279,7 @@ jobs:
         with:
           python-version: "3.14"
 
-      - run: python3 -m pip install --quiet requests certifi
+      - run: python3 -m pip install --quiet requests certifi google-auth
 
       - name: Send queued alerts
         env:
@@ -283,9 +288,11 @@ jobs:
           FIREWATCH_SMS_TO: ${{ secrets.FIREWATCH_SMS_TO }}
           FIREWATCH_SMS_MUNICIPALITIES: ${{ secrets.FIREWATCH_SMS_MUNICIPALITIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREWATCH_FCM_SERVICE_ACCOUNT: ${{ secrets.FIREWATCH_FCM_SERVICE_ACCOUNT }}
+          FIREWATCH_FCM_PROJECT_ID: ${{ secrets.FIREWATCH_FCM_PROJECT_ID }}
         run: |
           mkdir -p state/config
-          echo '{"auto_expose": false, "telegram_enabled": true}' > state/config/config.json
+          echo '{"auto_expose": false, "telegram_enabled": true, "push_enabled": true}' > state/config/config.json
           python3 -m firewatch send-pending "$FIREWATCH_PUBLIC_URL/fire-map-data.js"
 
       # The notified rows are what stop the next run re-alerting; losing them is

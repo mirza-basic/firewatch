@@ -28,6 +28,7 @@
     python3 -m firewatch sms-remove <number>  remove one
     python3 -m firewatch telegram-status  Telegram channel + settings
     python3 -m firewatch test-telegram    post a sample alert to the channel
+    python3 -m firewatch test-push        publish a labelled test push to one topic
     python3 -m firewatch set-telegram-key store the Telegram bot token
 """
 from __future__ import annotations
@@ -41,6 +42,7 @@ from pathlib import Path
 from . import events as ev_mod
 from . import expose as expose_mod
 from . import sms as sms_mod
+from . import push as push_mod
 from . import telegram as telegram_mod
 from . import mapgen, notify, poller, sources, store
 from .config import CFG, MAP_PATH, SNAPSHOT_PATH, cdse_credentials
@@ -597,6 +599,29 @@ def cmd_set_telegram_key() -> int:
     return 0
 
 
+def cmd_test_push(municipality_id: str | None = None) -> int:
+    """Publish one clearly labelled test notification to a single topic.
+
+    `test-push zavidovici` goes to fire.zavidovici, `test-push all` to fire.all. The
+    title says TEST so it cannot be taken for a real alert; the location is the newest
+    known fire (or the country centre), so tapping it exercises the map deep link.
+    """
+    poller.setup_logging()
+    ok, why = push_mod.ready()
+    print(f"\n  usable: {ok} ({why})")
+    if not municipality_id:
+        print("\n  usage: python3 -m firewatch test-push <municipality-id | all>\n")
+        return 1
+    if not ok:
+        print("\n  not sent\n")
+        return 1
+    payload = push_mod.test_message(push_mod.test_topic(municipality_id))
+    topic = payload["message"]["topic"]
+    sent = push_mod.send(payload)
+    print(f"\n  published to {topic}: {sent}\n")
+    return 0 if sent else 1
+
+
 def cmd_test_telegram(municipality_id: str | None = None) -> int:
     """Post the test message to one municipality's channel, and print what a
     real alert would look like.
@@ -796,6 +821,8 @@ def main(argv: list[str]) -> int:
         return 0
     if cmd == "poll":
         return cmd_poll(argv[1] if len(argv) > 1 else None)
+    if cmd == "test-push":
+        return cmd_test_push(argv[1] if len(argv) > 1 else None)
     if cmd == "send-pending":
         return cmd_send_pending(argv[1] if len(argv) > 1 else None)
     if cmd == "watch":
