@@ -142,6 +142,15 @@ kind — there is no per-message cost to a channel post — but `extinguished` n
 SMS: it is a statement about the feed, not the forest, and does not need a text message
 saying a satellite stopped seeing something.
 
+**Push to the Locator app** is a third channel with the same kinds, merging and wording as
+Telegram. The app subscribes itself to Firebase Cloud Messaging topics — `fire.<municipality
+id>` for each municipality a user picks, or `fire.all` for the whole country — and
+`push.py` publishes one notification per matched municipality (and to `fire.all` once).
+Tapping it opens this map zoomed on the fire. Nothing identifies a reader on this side.
+Enable it with the `FIREWATCH_FCM_SERVICE_ACCOUNT` secret (a Google service account with the
+*Firebase Cloud Messaging API Admin* role) and `FIREWATCH_FCM_PROJECT_ID`; check delivery
+with the manual `test-push-to-locator` workflow or `python3 -m firewatch test-push <id|all>`.
+
 `active` is one line of code and a claim about the data: the newest detection in the
 cluster is younger than `quiet_hours` (5), recomputed every cycle so no status can get
 stuck. It asserts that *a satellite still reports heat*, not that the fire is out — which
@@ -233,6 +242,7 @@ of 145 are configured.
     python3 -m firewatch fire-danger [id]       today's FWI for one municipality, or all 145
     python3 -m firewatch telegram-status        how many of 145 have a channel
     python3 -m firewatch test-telegram <id>     post a sample alert to one municipality
+    python3 -m firewatch test-push <id|all>     publish a labelled test push to the Locator app
     python3 -m firewatch quota                  FIRMS usage (a free call)
     python3 -m firewatch test-sms
     python3 tests_events.py                     clustering + alert-logic tests
@@ -251,10 +261,10 @@ traffic but only as deep as what is stored, so run `backfill` once. Python 3.14 
 
 ## Layout
 
-    .github/workflows/  poll.yml (the cycle) · test-sms.yml · test-telegram.yml
-                        (manual delivery checks)
+    .github/workflows/  poll.yml (the cycle) · test-sms.yml · test-telegram.yml ·
+                        test-push-to-locator.yml (manual delivery checks)
     firewatch/          sources · geo · geo_bih · store · events · enrich · notify ·
-                        sms · telegram · firedanger · mapgen · poller · config
+                        sms · telegram · push · firedanger · mapgen · poller · config
     data/bih/           country boundary (OSM rel. 2528142) and buffer, all 145
                         municipality boundaries + settlements, municipalities.json
                         (the Telegram channel/invite mapping)
