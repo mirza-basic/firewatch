@@ -2501,7 +2501,7 @@ applyStaticLabels();
 s2Sync();
 recompute(); renderRange(); renderHeader(); drawEvents(); renderList();
 setSliderTime(tMax); drawDets(sliderTime());
-// Deep link from a Telegram alert: ?lat=..&lon=..&z=..&e=<event id>. Runs once, at load -
+// Deep link from a Telegram or push alert: ?lat=..&lon=..&z=..&e=<event id>. Runs once, at load -
 // never from applyData, so the 60 s refresh cannot yank the view back (landmine 11).
 // Coordinates are checked against Bosnia and Herzegovina's box so a mangled or hostile
 // link falls through to the normal country view instead of flying the map to the ocean.
@@ -2515,6 +2515,13 @@ setSliderTime(tMax); drawDets(sliderTime());
   const ev = EVENTS.find(x => x.id === q.get("e"));
   if(ev){
     select(ev.id, false);
+    // Same jump as clicking the fire in the list (select(..., true)), minus its flyTo:
+    // the view was just set above, and a flight in flight would snap it back. Without
+    // this the timeline stays at the live edge and a fire older than EV_TAIL_MS is
+    // simply not drawn where the link points.
+    stopPlay();
+    setSliderTimeAfter(Date.parse(ev.last_ts) + 5000);
+    drawDets(sliderTime());
     infoOpenId = ev.id;
     openInfoPanel(popupHtml(ev));
   }

@@ -23,7 +23,7 @@ def check(name, got, want):
 def ev(municipalities, kind="new"):
     """Build a minimal alert record for the given municipality ids."""
     return {"kind": kind, "event": {
-        "municipalities": municipalities, "max_frp": 12.0, "latest_frp": 12.0,
+        "id": "ev1", "municipalities": municipalities, "max_frp": 12.0, "latest_frp": 12.0,
         "severity": "moderate", "n_det": 3, "sources": ["mtg"], "extent_km": 1.0,
         "inside": True, "lat": 44.0, "lon": 18.0, "place": "test",
         "place_parts": {"name": None, "km": None, "dir": None},
@@ -108,8 +108,8 @@ b = bodies[0]
 btn = b["reply_markup"]["inline_keyboard"][0][0]
 check("button label is the Bosnian one, with the flame", btn["text"], "\U0001F525 Otvori na mapi")
 check("button asks for the red preset", btn["style"], "danger")
-check("button carries the position, zoom 14, and no event id",
-     btn["url"], "https://example.github.io/firewatch/?lat=44.0000&lon=18.0000&z=14")
+check("button carries the position, zoom 14, and the event id",
+     btn["url"], "https://example.github.io/firewatch/?lat=44.0000&lon=18.0000&z=14&e=ev1")
 check("the link is not a line of the message text", "http" in b["text"], False)
 check("deep_link(with_event=True) still supports the event panel",
      telegram.deep_link("https://x.io/f", {"lat": 1.0, "lon": 2.0, "id": "ab12"}, True),

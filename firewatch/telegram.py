@@ -250,7 +250,9 @@ def deep_link(url: str | None, ev: dict, with_event: bool = False) -> str:
 
     GitHub Pages ignores query strings, so this costs nothing server-side - the page's
     own script reads them (see `deepLink()` in mapgen). `with_event` adds `e=<id>`,
-    which makes the map also open that event's panel; alerts leave it off.
+    which makes the map open that event's panel and put the timeline on its last
+    detection - alerts always send it, because without an event the map has no moment
+    to go to.
     The slash before `?` is explicit: `/firewatch?x` makes Pages redirect to
     `/firewatch/` and is one more hop for nothing. SMS deliberately does not use any of
     this - its 160-character budget has two characters of headroom.
@@ -266,7 +268,7 @@ def deep_link(url: str | None, ev: dict, with_event: bool = False) -> str:
 def button_url(alerts: list[dict]) -> str | None:
     """Where the post's "Open on map" button points: the deep link for the alert's
     event, or None when there is no public map address to link to."""
-    return deep_link(map_url(), alerts[0]["event"]) or None
+    return deep_link(map_url(), alerts[0]["event"], with_event=True) or None
 
 
 def alert_text(alert: dict) -> str:
@@ -296,7 +298,7 @@ def test_button_url() -> str | None:
     """The button the test post carries - same shape as a real alert's, aimed at the
     newest event in the snapshot (or the bare map when there is none)."""
     evs = _latest_events()
-    return (deep_link(map_url(), evs[0]) if evs else map_url()) or None
+    return (deep_link(map_url(), evs[0], with_event=True) if evs else map_url()) or None
 
 
 def _latest_events() -> list[dict]:

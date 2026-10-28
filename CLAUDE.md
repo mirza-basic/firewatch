@@ -791,8 +791,11 @@ a failure in one never suppresses another.
   an inline keyboard button under the post (`send(..., button_url=)`, label in
   `TELEGRAM_TEXT["open_map"]`), not a line of the text. `telegram.deep_link()` builds
   `<map>/?lat=..&lon=..&z=14`, and `deepLink()` in `mapgen.py` reads it once at load and
-  zooms there. It also understands `&e=<event id>` (opens that event's panel; `deep_link(...,
-  with_event=True)`), but alerts leave it off. GitHub Pages ignores query strings, so no
+  zooms there. Alerts also send `&e=<event id>` (`deep_link(..., with_event=True)`), and
+  `deepLink()` then opens that event's panel and moves the timeline to just after its last
+  detection - the same jump as clicking the fire in the list, minus the `flyTo`. Push
+  (Locator) links carry `e=` too, so both channels land on the fire's last detection rather
+  than the live edge, which matters once the fire is older than the 42 h tail. GitHub Pages ignores query strings, so no
   server support is needed. Coordinates outside Bosnia and Herzegovina's box are ignored.
   The button is red (`BUTTON_STYLE = "danger"`, Bot API 9.4's `style`) with a flame in
   the label: the API only has preset colors (blue/green/red, to the best of our
